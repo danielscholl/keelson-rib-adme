@@ -82,3 +82,12 @@ describe("binding", () => {
     expect(result).toMatchObject({ ok: false });
   });
 });
+
+describe("docs", () => {
+  test("the docs source parses", async () => {
+    const { ribDocsSourceSchema } = await import("@keelson/shared");
+    for (const source of rib.contributeDocs?.(fakeContext().ctx) ?? []) {
+      ribDocsSourceSchema.parse(source);
+    }
+  });
+});

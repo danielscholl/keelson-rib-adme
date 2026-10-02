@@ -18,8 +18,12 @@ import {
   ribSurfaceBadgeSchema,
   type SnapshotManager,
 } from "@keelson/shared";
+import { DOCS } from "./docs.ts";
 import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
 import { connectionModule } from "./modules/connection.ts";
+import { dataPulseModule } from "./modules/data.ts";
+import { legalModule } from "./modules/legal.ts";
+import { recordsModule } from "./modules/records.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
 import { Runtime, TICK_MS } from "./runtime.ts";
@@ -27,7 +31,12 @@ import { Store } from "./store.ts";
 import { SURFACES } from "./surfaces.ts";
 
 // Later modules override earlier ones for the same key.
-const MODULES: readonly RegionModule[] = [connectionModule];
+const MODULES: readonly RegionModule[] = [
+  connectionModule,
+  dataPulseModule,
+  legalModule,
+  recordsModule,
+];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
 
@@ -118,6 +127,8 @@ const rib: Rib = {
   ),
 
   surfaces: SURFACES,
+
+  contributeDocs: () => DOCS,
 
   // Composers bind here because this is the first hook that receives the context.
   registerTools: (ctx: RibContext) => {
