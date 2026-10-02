@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expectView } from "@keelson/shared";
 import { composeConnection, composeFirstRun } from "../src/boards/connection";
+import { parseInstances } from "../src/discover";
 import { CONNECTION_KEY } from "../src/keys";
 import { composeRestingHeader } from "../src/resting";
 import { IDLE_WINDOW_MS, Runtime } from "../src/runtime";
@@ -62,8 +63,8 @@ describe("first run", () => {
   test("starts with the connect journey and an empty profile form", () => {
     const { rt } = runtime();
     expect(rt.status.phase).toBe("firstrun");
-    const view = board(composeFirstRun(rt.status));
-    expect(JSON.stringify(view)).toContain("Step 2: instance profile");
+    const view = board(composeFirstRun(rt.status, rt.discovery));
+    expect(JSON.stringify(view)).toContain("Step 2: pick the instance");
     board(composeConnection(rt.status));
   });
 
@@ -72,6 +73,167 @@ describe("first run", () => {
     const res = await rt.saveProfile({ ...SAMPLE_PROFILE, tenantId: "contoso" });
     expect(res).toMatchObject({ ok: false });
     expect(rt.status.phase).toBe("firstrun");
+  });
+});
+
+const SAMPLE_ID =
+  "/subscriptions/7a100000-0000-4000-8000-00000000c0de/resourceGroups/contoso-rg/providers/Microsoft.OpenEnergyPlatform/energyServices/contoso-adme";
+
+// What Resource Graph answers for the sample instance.
+function graphRows(partitions = ["opendes"]) {
+  return {
+    data: {
+      data: [
+        {
+          id: SAMPLE_ID,
+          name: "contoso-adme",
+          location: "eastus",
+          tenantId: SAMPLE_PROFILE.tenantId,
+          properties: {
+            dnsName: SAMPLE_PROFILE.host,
+            authAppId: SAMPLE_PROFILE.admeAppId,
+            provisioningState: "Succeeded",
+            dataPartitionNames: partitions.map((name) => ({ name })),
+          },
+        },
+        { id: "x", name: "half-made", tenantId: SAMPLE_PROFILE.tenantId, properties: {} },
+      ],
+    },
+  };
+}
+
+const withGroups = () =>
+  sampleRoutes({
+    "GET /api/entitlements/v2/groups": () => ({
+      status: 200,
+      body: { groups: [{ email: "users@opendes.dataservices.energy" }] },
+    }),
+    "GET /v1.0/groups": () => ({
+      status: 200,
+      body: { value: [{ id: SAMPLE_PROFILE.rosterGroupId, displayName: "contoso-adme" }] },
+    }),
+  });
+
+describe("discovery", () => {
+  test("lists the instances the sign-in can see, one Connect per partition", async () => {
+    const exec = azExec(undefined, () => graphRows(["opendes", "pilot"]));
+    const { rt } = runtime({ exec });
+    await rt.discover();
+    expect(rt.discovery).toMatchObject({ state: "found", instances: [{ name: "contoso-adme" }] });
+    const text = JSON.stringify(board(composeFirstRun(rt.status, rt.discovery)));
+    expect(text).toContain("Connect to opendes");
+    expect(text).toContain("Connect to pilot");
+    expect(exec.calls[0]?.args.slice(0, 3)).toEqual(["rest", "--method", "post"]);
+  });
+
+  test("a row without a host or app id is left out", () => {
+    expect(parseInstances(graphRows().data).map((i) => i.name)).toEqual(["contoso-adme"]);
+  });
+
+  test("a failed lookup says why and opens the manual form", async () => {
+    const exec = azExec(undefined, () => ({ error: "ERROR: Please run 'az login'" }));
+    const { rt } = runtime({ exec });
+    await rt.discover();
+    const view = board(composeFirstRun(rt.status, rt.discovery));
+    const text = JSON.stringify(view);
+    expect(text).toContain("Could not list ADME instances: Please run 'az login'");
+    expect(text).toContain('"expanded":true');
+  });
+
+  test("an empty list points at the manual form", async () => {
+    const { rt } = runtime();
+    await rt.discover();
+    const text = JSON.stringify(composeFirstRun(rt.status, rt.discovery));
+    expect(text).toContain("can see no ADME instance");
+    expect(text).toContain('"expanded":true');
+  });
+
+  test("connecting from the list reads the domain and suggests the roster group", async () => {
+    const exec = azExec(undefined, () => graphRows());
+    const { rt, sent } = runtime({ exec, routes: withGroups() });
+    await rt.discover();
+    expect(await rt.connectInstance(SAMPLE_ID, "opendes")).toEqual({ ok: true });
+    const lookup = sent.find((r) => r.url.includes("/v1.0/groups?"));
+    expect(decodeURIComponent(lookup?.url ?? "")).toContain(
+      "$filter=displayName eq 'contoso-adme'",
+    );
+    expect(rt.status.phase).toBe("connected");
+    const { rosterGroupId, ...withoutRoster } = SAMPLE_PROFILE;
+    expect(rt.profile).toEqual(withoutRoster);
+    const footer = JSON.stringify(board(composeConnection(rt.status)));
+    expect(footer).toContain("Use this group");
+    expect(rt.useSuggestedRosterGroup("stale")).toMatchObject({ ok: false });
+    expect(rt.useSuggestedRosterGroup(SAMPLE_PROFILE.rosterGroupId)).toEqual({ ok: true });
+    expect(rt.profile).toEqual(SAMPLE_PROFILE);
+    expect(JSON.stringify(composeConnection(rt.status))).not.toContain("Use this group");
+    expect(await rt.connectInstance(SAMPLE_ID, "opendes")).toEqual({ ok: true });
+    expect(rt.profile?.rosterGroupId).toBe(SAMPLE_PROFILE.rosterGroupId);
+  });
+
+  test("a lookup that throws reads as failed and can be retried", async () => {
+    let broken = true;
+    const exec = azExec(undefined, () => {
+      if (broken) throw new Error("spawn failed");
+      return graphRows();
+    });
+    const { rt } = runtime({ exec });
+    await rt.discover();
+    expect(rt.discovery).toEqual({ state: "failed", error: "spawn failed" });
+    broken = false;
+    await rt.discover();
+    expect(rt.discovery.state).toBe("found");
+  });
+
+  test("a changed partition re-reads the entitlements domain", async () => {
+    let domain = "opendes.dataservices.energy";
+    const routes = sampleRoutes({
+      "GET /api/entitlements/v2/groups": () => ({
+        status: 200,
+        body: { groups: [{ email: `users@${domain}` }] },
+      }),
+    });
+    const { rt } = runtime({ routes });
+    await rt.saveProfile(SAMPLE_PROFILE);
+    domain = "pilot.dataservices.energy";
+    await rt.saveProfile({ ...rt.profile, partition: "pilot" });
+    expect(rt.profile?.entitlementsDomain).toBe("pilot.dataservices.energy");
+  });
+
+  test("a suggested id that is not a GUID is never saved", async () => {
+    const routes = sampleRoutes({
+      "GET /v1.0/groups": () => ({
+        status: 200,
+        body: { value: [{ id: "not-a-guid", displayName: "contoso-adme" }] },
+      }),
+    });
+    const { rt } = runtime({ routes });
+    const { rosterGroupId, ...withoutRoster } = SAMPLE_PROFILE;
+    await rt.saveProfile(withoutRoster);
+    expect(rt.useSuggestedRosterGroup("not-a-guid")).toMatchObject({ ok: false });
+    expect(rt.profile?.rosterGroupId).toBeUndefined();
+  });
+
+  test("an instance that is not in the list is refused", async () => {
+    const exec = azExec(undefined, () => graphRows());
+    const { rt } = runtime({ exec });
+    await rt.discover();
+    expect(await rt.connectInstance(SAMPLE_ID, "other")).toMatchObject({ ok: false });
+    expect(await rt.connectInstance("nope", "opendes")).toMatchObject({ ok: false });
+    expect(rt.status.phase).toBe("firstrun");
+  });
+
+  test("two groups with the instance's name suggest nothing", async () => {
+    const routes = sampleRoutes({
+      "GET /v1.0/groups": () => ({
+        status: 200,
+        body: { value: [{ id: "a", displayName: "contoso-adme" }, { id: "b" }] },
+      }),
+    });
+    const { rt } = runtime({ routes });
+    const { rosterGroupId, ...withoutRoster } = SAMPLE_PROFILE;
+    await rt.saveProfile(withoutRoster);
+    expect(rt.status.phase).toBe("connected");
+    expect(rt.status.test?.rosterSuggestion).toBeUndefined();
   });
 });
 

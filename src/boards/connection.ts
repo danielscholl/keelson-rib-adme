@@ -13,6 +13,7 @@ import {
   type ConnectionStatus,
   signinCommand,
 } from "../connection.ts";
+import type { Discovery, Instance } from "../discover.ts";
 import { instanceName, type Profile } from "../profile.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -20,6 +21,9 @@ type Pill = NonNullable<NonNullable<CanvasBoardView["header"]>["status"]>;
 
 export const SAVE_PROFILE_ACTION = "save-profile";
 export const RETEST_ACTION = "retest-connection";
+export const DISCOVER_ACTION = "discover-instances";
+export const CONNECT_ACTION = "connect-instance";
+export const USE_ROSTER_ACTION = "use-roster-group";
 
 export const SIGNIN_REASON = "sign-in needed: run az login, then Re-test";
 
@@ -62,23 +66,34 @@ export function retestAction(brand: boolean): CanvasActionItem {
   return { type: RETEST_ACTION, label: "Re-test connection", ...(brand ? { tone: "brand" } : {}) };
 }
 
-const PROFILE_FIELDS: { name: keyof Profile; label: string; placeholder: string }[] = [
+const PROFILE_FIELDS: {
+  name: keyof Profile;
+  label: string;
+  placeholder: string;
+  unset?: string;
+}[] = [
   { name: "host", label: "Host", placeholder: "contoso-adme.energy.azure.com" },
   { name: "partition", label: "Partition", placeholder: "opendes" },
   {
     name: "entitlementsDomain",
     label: "Entitlements domain",
-    placeholder: "opendes.dataservices.energy",
+    placeholder: "read from the instance when left empty",
+    unset: "?",
   },
   { name: "tenantId", label: "Tenant id", placeholder: "Entra tenant GUID" },
   { name: "admeAppId", label: "ADME app id", placeholder: "app registration GUID" },
-  { name: "rosterGroupId", label: "Roster group id", placeholder: "Entra group GUID" },
+  {
+    name: "rosterGroupId",
+    label: "Roster group id",
+    placeholder: "Entra group GUID, optional",
+    unset: "not set",
+  },
 ];
 
 export function profileForm(profile: Profile | undefined, expanded: boolean): CanvasActionItem {
   return {
     type: SAVE_PROFILE_ACTION,
-    label: profile ? "Edit profile" : "Test connection",
+    label: profile ? "Edit profile" : "Enter it by hand",
     submitLabel: "Test connection",
     submitTone: "brand",
     pendingLabel: "Testing…",
@@ -87,9 +102,9 @@ export function profileForm(profile: Profile | undefined, expanded: boolean): Ca
       name: f.name,
       label: f.label,
       placeholder: f.placeholder,
-      required: true,
+      required: f.unset === undefined,
       half: f.name !== "host",
-      ...(profile ? { defaultValue: profile[f.name] } : {}),
+      ...(profile?.[f.name] ? { defaultValue: profile[f.name] } : {}),
     })),
   };
 }
@@ -103,14 +118,82 @@ function profileCard(profile: Profile): Section {
       {
         title: instanceName(profile),
         mono: true,
-        fields: PROFILE_FIELDS.map((f) => ({
-          label: f.label,
-          value: profile[f.name],
-          copyable: true,
-        })),
+        fields: PROFILE_FIELDS.map((f) => {
+          const value = profile[f.name];
+          return value
+            ? { label: f.label, value, copyable: true }
+            : { label: f.label, value: f.unset ?? "?" };
+        }),
       },
     ],
   };
+}
+
+function rosterSuggestion(status: ConnectionStatus): Section | undefined {
+  const suggestion = status.test?.rosterSuggestion;
+  if (!suggestion || status.profile?.rosterGroupId) return undefined;
+  return {
+    kind: "cards",
+    title: "Roster group",
+    items: [
+      {
+        title: suggestion.name,
+        mono: true,
+        fields: [{ label: "Group id", value: suggestion.id, copyable: true }],
+        actions: [
+          { type: USE_ROSTER_ACTION, label: "Use this group", payload: { id: suggestion.id } },
+        ],
+        footnote:
+          "An Entra group with the instance's name. ADME never reads it; the rib keeps it for tracking.",
+      },
+    ],
+  };
+}
+
+function instanceCard(
+  instance: Instance,
+): NonNullable<Extract<Section, { kind: "cards" }>["items"]>[number] {
+  const many = instance.partitions.length > 1;
+  return {
+    title: instance.name,
+    mono: true,
+    ...(instance.state && instance.state !== "Succeeded"
+      ? { pill: { label: instance.state.toLowerCase(), tone: "warn" as const } }
+      : {}),
+    fields: [
+      { label: "Host", value: instance.host },
+      ...(instance.location ? [{ label: "Region", value: instance.location }] : []),
+      {
+        label: many ? "Partitions" : "Partition",
+        value: instance.partitions.join(", ") || "?",
+      },
+    ],
+    actions: instance.partitions.map((partition) => ({
+      type: CONNECT_ACTION,
+      label: many ? `Connect to ${partition}` : "Connect",
+      tone: "brand" as const,
+      payload: { instance: instance.id, partition },
+    })),
+  };
+}
+
+function instancePicker(discovery: Discovery): Section {
+  const title = "Step 2: pick the instance";
+  if (discovery.state === "found" && discovery.instances.length > 0) {
+    return { kind: "cards", title, items: discovery.instances.map(instanceCard) };
+  }
+  const item =
+    discovery.state === "failed"
+      ? { glyph: "error" as const, text: `Could not list ADME instances: ${discovery.error}` }
+      : discovery.state === "found"
+        ? {
+            glyph: "neutral" as const,
+            text: "This sign-in can see no ADME instance in Azure. Enter it by hand.",
+          }
+        : discovery.state === "looking"
+          ? { glyph: "neutral" as const, text: "Looking for ADME instances in Azure…" }
+          : { glyph: "neutral" as const, text: "Look again lists the ADME instances in Azure." };
+  return { kind: "rows", title, items: [item] };
 }
 
 export function capabilityTable(status: ConnectionStatus): Section | undefined {
@@ -173,6 +256,8 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
     items: [retestAction(status.phase !== "connected"), profileForm(status.profile, false)],
   });
   sections.push(profileCard(status.profile));
+  const roster = rosterSuggestion(status);
+  if (roster) sections.push(roster);
   const table = capabilityTable(status);
   if (table) sections.push(table);
   if (status.phase !== "connected") {
@@ -186,7 +271,10 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
 }
 
 // The connect journey shown on the ADME Access header before the rib works.
-export function composeFirstRun(status: ConnectionStatus): CanvasBoardView {
+export function composeFirstRun(
+  status: ConnectionStatus,
+  discovery: Discovery = { state: "idle" },
+): CanvasBoardView {
   const sections: Section[] = [
     {
       kind: "journey",
@@ -197,12 +285,12 @@ export function composeFirstRun(status: ConnectionStatus): CanvasBoardView {
           text: "Run az login in a terminal. The rib uses that sign-in and stores no secret.",
         },
         {
-          title: "Describe the instance",
-          text: "Six values, none secret. They are saved as the instance profile and stamped on every change.",
+          title: "Pick the instance",
+          text: "Found through your Azure sign-in. Its values, none secret, are saved as the instance profile and stamped on every change.",
         },
         {
           title: "Test connection",
-          text: "About 7 read-only calls. The result records what this sign-in can and cannot do.",
+          text: "About 8 read-only calls. The result records what this sign-in can and cannot do.",
         },
       ],
     },
@@ -222,10 +310,17 @@ export function composeFirstRun(status: ConnectionStatus): CanvasBoardView {
   if (status.error) {
     sections.push({ kind: "rows", items: [{ glyph: "error", text: status.error }] });
   }
-  sections.push({
+  const listed = discovery.state === "found" && discovery.instances.length > 0;
+  sections.push(instancePicker(discovery), {
     kind: "actions",
-    title: "Step 2: instance profile",
-    items: [profileForm(status.profile, true)],
+    wrap: true,
+    items: [
+      { type: DISCOVER_ACTION, label: "Look again" },
+      profileForm(
+        status.profile,
+        !listed && discovery.state !== "looking" && discovery.state !== "idle",
+      ),
+    ],
   });
   const table = capabilityTable(status);
   if (table) sections.push({ ...table, title: "Step 3: what this sign-in can do" });

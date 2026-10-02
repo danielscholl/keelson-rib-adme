@@ -100,6 +100,7 @@ function bind(ctx: RibContext): void {
   }
   recompose(ALL_KEYS);
   rt.sweep().catch(() => undefined);
+  if (rt.status.phase !== "connected") rt.discover().catch(() => undefined);
   ticker = setInterval(() => {
     if (rt.shouldTick()) rt.sweep().catch(() => undefined);
   }, TICK_MS);

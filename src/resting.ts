@@ -9,15 +9,16 @@
 import type { CanvasBoardView } from "@keelson/shared";
 import { composeFirstRun, phasePill, signinCard } from "./boards/connection.ts";
 import type { ConnectionStatus } from "./connection.ts";
+import type { Discovery } from "./discover.ts";
 
 // A header region for a surface whose measured board is not built yet, or
 // cannot be measured in the current phase.
 export function composeRestingHeader(
   status: ConnectionStatus,
-  opts: { firstRunHere?: boolean; connectedText: string },
+  opts: { firstRunHere?: boolean; discovery?: Discovery; connectedText: string },
 ): CanvasBoardView {
   if (status.phase === "firstrun" || status.phase === "profile-error") {
-    if (opts.firstRunHere) return composeFirstRun(status);
+    if (opts.firstRunHere) return composeFirstRun(status, opts.discovery);
     return {
       view: "board",
       header: { status: { label: "not connected", tone: "neutral" } },

@@ -20,6 +20,7 @@ import {
   type TestResult,
   testResultSchema,
 } from "./connection.ts";
+import { type Discovery, discoverInstances } from "./discover.ts";
 import { type Profile, profileSchema } from "./profile.ts";
 import type { Store } from "./store.ts";
 import { clock, SweepCache } from "./sweep.ts";
@@ -48,6 +49,7 @@ export interface RuntimeOptions {
 export class Runtime {
   readonly cache: SweepCache;
   status: ConnectionStatus = { phase: "firstrun" };
+  discovery: Discovery = { state: "idle" };
   private readonly areas: Area[] = [];
   private client: AdmeClient | undefined;
   private lastActionAt = 0;
@@ -124,12 +126,68 @@ export class Runtime {
     return { ok: true };
   }
 
+  async discover(): Promise<void> {
+    if (this.discovery.state === "looking") return;
+    this.discovery = { state: "looking" };
+    this.opts.recompose(this.opts.allKeys);
+    try {
+      this.discovery = await discoverInstances(this.opts.exec);
+    } catch (err) {
+      this.discovery = { state: "failed", error: err instanceof Error ? err.message : String(err) };
+    }
+    this.opts.recompose(this.opts.allKeys);
+  }
+
+  // The profile comes from the discovered record, never from the action payload.
+  async connectInstance(
+    id: string,
+    partition: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const found = this.discovery.state === "found" ? this.discovery.instances : [];
+    const instance = found.find((i) => i.id === id);
+    if (!instance?.partitions.includes(partition)) {
+      return { ok: false, error: "That instance is no longer in the list. Look again." };
+    }
+    const rosterGroupId =
+      this.profile?.host === instance.host ? this.profile.rosterGroupId : undefined;
+    return this.saveProfile({
+      host: instance.host,
+      partition,
+      tenantId: instance.tenantId,
+      admeAppId: instance.admeAppId,
+      ...(rosterGroupId ? { rosterGroupId } : {}),
+    });
+  }
+
+  useSuggestedRosterGroup(id: unknown): { ok: true } | { ok: false; error: string } {
+    const profile = this.profile;
+    const suggestion = this.status.test?.rosterSuggestion;
+    if (!profile || !suggestion || suggestion.id !== id) {
+      return { ok: false, error: "That suggestion is out of date. Re-test the connection." };
+    }
+    const parsed = profileSchema.safeParse({ ...profile, rosterGroupId: suggestion.id });
+    if (!parsed.success) return { ok: false, error: "The suggested group id is not a GUID." };
+    const next = parsed.data;
+    this.opts.store.write("profile.json", next);
+    this.client = this.clientFor(next);
+    this.status = { ...this.status, profile: next };
+    this.opts.recompose(this.opts.allKeys);
+    return { ok: true };
+  }
+
   async testConnection(): Promise<void> {
     const client = this.client;
-    const profile = this.profile;
-    if (!client || !profile) return;
+    if (!client || !this.profile) return;
     const outcome = await client.batch((b) => probeConnection(b, this.now));
+    // Read after the await: the profile may have gained a roster group meanwhile.
+    let profile = this.profile;
+    if (!profile) return;
     if (outcome.kind === "tested") {
+      if (outcome.entitlementsDomain && outcome.entitlementsDomain !== profile.entitlementsDomain) {
+        profile = { ...profile, entitlementsDomain: outcome.entitlementsDomain };
+        this.opts.store.write("profile.json", profile);
+        this.client = this.clientFor(profile);
+      }
       this.opts.store.write("test.json", outcome.result);
       this.status = outcome.reachable
         ? { phase: "connected", profile, test: outcome.result }
@@ -185,11 +243,15 @@ export class Runtime {
     this.opts.recompose([...keys]);
   }
 
-  private useProfile(profile: Profile, test: TestResult | undefined): void {
-    this.client = createClient(this.opts.exec, profile, {
+  private clientFor(profile: Profile): AdmeClient {
+    return createClient(this.opts.exec, profile, {
       ...(this.opts.transport ? { transport: this.opts.transport } : {}),
       ...(this.opts.sleep ? { sleep: this.opts.sleep } : {}),
     });
+  }
+
+  private useProfile(profile: Profile, test: TestResult | undefined): void {
+    this.client = this.clientFor(profile);
     this.status = test
       ? { phase: "connected", profile, test }
       : { phase: "profile-error", profile, error: "Test connection has not run yet." };

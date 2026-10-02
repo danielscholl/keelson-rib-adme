@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import type { Batch, CallFailure, CallResult } from "./client.ts";
-import type { Profile } from "./profile.ts";
+import { instanceName, type Profile } from "./profile.ts";
 
 export const CAPABILITY_IDS = [
   "own-groups",
@@ -33,6 +33,7 @@ export type Capability = z.infer<typeof capabilitySchema>;
 export const testResultSchema = z.object({
   testedAt: z.string(),
   signedInAs: z.string().optional(),
+  rosterSuggestion: z.object({ id: z.string(), name: z.string() }).optional(),
   capabilities: z.array(capabilitySchema),
 });
 export type TestResult = z.infer<typeof testResultSchema>;
@@ -68,7 +69,13 @@ export function capability(test: TestResult | undefined, id: CapabilityId): stri
 export type ProbeOutcome =
   | { kind: "signin"; message: string }
   | { kind: "profile"; message: string }
-  | { kind: "tested"; result: TestResult; reachable: boolean; message?: string };
+  | {
+      kind: "tested";
+      result: TestResult;
+      reachable: boolean;
+      message?: string;
+      entitlementsDomain?: string;
+    };
 
 function fromCall(id: CapabilityId, res: CallResult<unknown>): Capability {
   if (res.ok) return { id, result: "yes" };
@@ -93,14 +100,31 @@ interface Me {
   userType?: string;
 }
 
+interface OwnGroups {
+  groups?: { email?: string }[];
+}
+
+interface GroupMatches {
+  value?: { id?: string; displayName?: string }[];
+}
+
+// Every entitlements group email ends in the partition's domain.
+export function domainOf(groups: OwnGroups | undefined): string | undefined {
+  for (const g of groups?.groups ?? []) {
+    const domain = g.email?.split("@")[1];
+    if (domain) return domain;
+  }
+  return undefined;
+}
+
 const MEMBER_INVITE_POLICIES = new Set(["everyone", "adminsGuestInvitersAndAllMembers"]);
 
-// About seven read-only calls that record what this sign-in can and cannot do.
+// About eight read-only calls that record what this sign-in can and cannot do.
 export async function probeConnection(batch: Batch, now: () => Date): Promise<ProbeOutcome> {
   const p = batch.profile;
   const [me, ownGroups] = await Promise.all([
     batch.graph<Me>("/v1.0/me?$select=userPrincipalName,mail,userType"),
-    batch.adme("entitlements", "/groups"),
+    batch.adme<OwnGroups>("entitlements", "/groups"),
   ]);
   for (const res of [me, ownGroups]) {
     if (!res.ok) {
@@ -109,7 +133,8 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
     }
   }
 
-  const [allGroups, policy, deleted, seismic, partition, kinds] = await Promise.all([
+  const named = `displayName eq '${instanceName(p)}'`;
+  const [allGroups, policy, deleted, seismic, partition, kinds, roster] = await Promise.all([
     batch.adme("entitlements", "/groups/all?type=NONE&limit=1"),
     batch.graph<{ allowInvitesFrom?: string }>("/v1.0/policies/authorizationPolicy"),
     batch.graph("/v1.0/directory/deletedItems/microsoft.graph.user?$top=1&$select=id"),
@@ -119,7 +144,14 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
       method: "POST",
       body: { kind: "*:*:*:*", query: "*", limit: 1, aggregateBy: "kind" },
     }),
+    p.rosterGroupId
+      ? undefined
+      : batch.graph<GroupMatches>(
+          `/v1.0/groups?$filter=${encodeURIComponent(named)}&$select=id,displayName&$top=2`,
+        ),
   ]);
+  // Only an unambiguous match is offered; the operator still confirms it.
+  const match = roster?.ok && roster.data.value?.length === 1 ? roster.data.value[0] : undefined;
 
   let invite: Capability;
   if (!policy.ok) {
@@ -149,6 +181,9 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
   const result: TestResult = {
     testedAt: now().toISOString(),
     ...(me.ok ? { signedInAs: me.data.mail ?? me.data.userPrincipalName } : {}),
+    ...(match?.id
+      ? { rosterSuggestion: { id: match.id, name: match.displayName ?? match.id } }
+      : {}),
     capabilities: [
       fromCall("own-groups", ownGroups),
       allGroupsCap,
@@ -170,5 +205,11 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
           : `ADME did not answer: ${ownGroups.failure.message}`,
     };
   }
-  return { kind: "tested", result, reachable: true };
+  const entitlementsDomain = domainOf(ownGroups.data);
+  return {
+    kind: "tested",
+    result,
+    reachable: true,
+    ...(entitlementsDomain ? { entitlementsDomain } : {}),
+  };
 }
