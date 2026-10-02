@@ -29,6 +29,7 @@ import {
   SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
+  SEISMIC_SURFACE_ID,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
@@ -74,6 +75,11 @@ function used(rt: Runtime): boolean {
   return m.at !== undefined || m.errorAt !== undefined;
 }
 
+// A handled effect suppresses the success toast a plain selection would raise.
+function focus(regionKey: string): RibActionResult {
+  return { ok: true, data: { effect: "open-surface", surfaceId: SEISMIC_SURFACE_ID, regionKey } };
+}
+
 const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;
 
 export const seismicModule: RegionModule = {
@@ -103,7 +109,7 @@ export const seismicModule: RegionModule = {
       }
       seismicState(rt).selected = name;
       rt.recompose([SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]);
-      return { ok: true };
+      return focus(SEIS_SELECTED_KEY);
     },
     [SEIS_REACH_ACTION]: async (rt, payload) => {
       const id = (payload as { id?: unknown } | undefined)?.id;
@@ -113,7 +119,7 @@ export const seismicModule: RegionModule = {
       }
       seismicState(rt).reach = id;
       rt.recompose([SEIS_REACH_KEY]);
-      return { ok: true };
+      return focus(SEIS_REACH_KEY);
     },
     // Re-test sweeps tier 1; seismic follows only once the tab has been used.
     [RETEST_ACTION]: async (rt, payload) => {

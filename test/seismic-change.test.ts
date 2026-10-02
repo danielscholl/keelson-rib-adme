@@ -421,7 +421,7 @@ describe("the selected subproject", () => {
 describe("What a partner can reach", () => {
   test("a viewer of alpha and delta reaches four paths, and the note says so", async () => {
     const { rt } = runtime();
-    expect(await act(rt, SEIS_REACH_ACTION, { id: MARCUS })).toEqual({ ok: true });
+    expect(await act(rt, SEIS_REACH_ACTION, { id: MARCUS })).toMatchObject({ ok: true });
     const view = reachBoard(composeSeismicReach(rt)) as CanvasBoardView;
     expect(view.header?.chip).toBe("Marcus Oyelaran · 4 paths");
     const rows = view.sections.find(

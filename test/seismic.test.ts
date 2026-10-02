@@ -436,7 +436,8 @@ describe("subprojects and the selected subproject", () => {
       now: NOW,
       recompose: (keys) => recomposed.push([...keys]),
     });
-    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" })).toEqual({ ok: true });
+    const res = await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" });
+    expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
     expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]]);
     const view = selected(rt);
     expect(view.header?.status?.label).toBe("1 admin · 3 viewers");
@@ -464,7 +465,7 @@ describe("subprojects and the selected subproject", () => {
       { [ACCESS_AREA]: sampleAccess(), [SERVICES_AREA]: SAMPLE_SERVICES },
       { now: NOW, transport },
     );
-    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "golf" })).toEqual({ ok: true });
+    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "golf" })).toMatchObject({ ok: true });
     expect(selected(rt).header?.chip).toBe("sd://opendes/golf");
   });
 });
