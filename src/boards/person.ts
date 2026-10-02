@@ -29,7 +29,12 @@ import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { day, measuredAccess, passText } from "./access.ts";
-import { PREVIEW_CLEANUP_ACTION, PREVIEW_FIX_ACTION, PREVIEW_REMOVE_ACTION } from "./change.ts";
+import {
+  EXPLAIN_ACTION,
+  PREVIEW_CLEANUP_ACTION,
+  PREVIEW_FIX_ACTION,
+  PREVIEW_REMOVE_ACTION,
+} from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -355,12 +360,9 @@ function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
           },
         ]
       : []),
-    {
-      type: "explain-access",
-      label: "Why 401/403",
-      disabled: true,
-      reason: "arrives with the explainer",
-    },
+    ...(who.kind === "person"
+      ? [{ type: EXPLAIN_ACTION, label: "Why 401/403", payload: { id: who.id }, binding }]
+      : []),
     who.kind === "person"
       ? preview(PREVIEW_REMOVE_ACTION, "Remove person…")
       : {

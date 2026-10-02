@@ -13,6 +13,7 @@ import type { Profile } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
+import { SELECT_PERSON_ACTION } from "./access.ts";
 import { EXPLAIN_ACTION, PREVIEW_CLEANUP_ACTION, PREVIEW_FIX_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
@@ -81,7 +82,10 @@ function fixSection(rt: Runtime, e: Explanation, profile: Profile): Section | un
           fields: e.fix.lines.map((line, i) => ({ label: String(i + 1), value: line })),
           footnote: "Nothing changes until you apply the plan.",
           reason: { label: "why", text: e.fix.reason },
-          actions: [plan],
+          actions: [
+            plan,
+            { type: SELECT_PERSON_ACTION, label: "Open person", payload: { id: e.id } },
+          ],
         },
       ],
     };
