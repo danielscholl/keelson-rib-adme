@@ -49,9 +49,22 @@ export interface DirectoryEntry {
   appId?: string;
 }
 
+export interface RosterMember {
+  id: string;
+  name?: string;
+  mail?: string;
+}
+
 export interface AccessRead {
   groups: Record<GroupKey, GroupMember[]>;
   directory: Record<string, DirectoryEntry>;
+  // Each role group with every group it is nested in, so anyone's effective
+  // groups follow from their direct memberships without a read per person.
+  closures?: Record<GroupKey, string[]>;
+  // Members of the Entra roster group; absent when no roster group is set.
+  roster?: RosterMember[];
+  // Listed ids that Entra holds as deleted users.
+  deleted?: string[];
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -146,6 +159,64 @@ async function readDirectory(
   return { ok: true, status: 200, data: directory };
 }
 
+async function readClosures(
+  batch: Batch,
+  domain: string,
+): Promise<Record<GroupKey, string[]> | undefined> {
+  const lists = await Promise.all(
+    GROUP_KEYS.map((key) =>
+      batch.adme<{ groups?: { email?: string }[] }>(
+        "entitlements",
+        `/members/${encodeURIComponent(`${GROUP_NAMES[key]}@${domain}`)}/groups?type=NONE`,
+      ),
+    ),
+  );
+  const closures = {} as Record<GroupKey, string[]>;
+  for (const [i, res] of lists.entries()) {
+    if (!res.ok) return undefined;
+    const key = GROUP_KEYS[i] as GroupKey;
+    const own = `${GROUP_NAMES[key]}@${domain}`.toLowerCase();
+    const emails = (res.data.groups ?? []).flatMap((g) => (g.email ? [g.email.toLowerCase()] : []));
+    closures[key] = [...new Set([own, ...emails])];
+  }
+  return closures;
+}
+
+async function readRoster(batch: Batch, groupId: string): Promise<RosterMember[] | undefined> {
+  const members: RosterMember[] = [];
+  let path: string | undefined =
+    `/v1.0/groups/${encodeURIComponent(groupId)}/members?$select=id,displayName,mail&$top=999`;
+  while (path) {
+    const res: CallResult<{ value?: GraphObject[]; "@odata.nextLink"?: string }> =
+      await batch.graph(path);
+    if (!res.ok) return undefined;
+    for (const o of res.data.value ?? []) {
+      if (!o.id) continue;
+      members.push({
+        id: o.id.toLowerCase(),
+        ...(o.displayName ? { name: o.displayName } : {}),
+        ...(o.mail ? { mail: o.mail } : {}),
+      });
+    }
+    const next: string | undefined = res.data["@odata.nextLink"];
+    path = next ? next.replace("https://graph.microsoft.com", "") : undefined;
+  }
+  return members;
+}
+
+async function readDeleted(batch: Batch, ids: readonly string[]): Promise<string[] | undefined> {
+  const deleted: string[] = [];
+  for (const chunk of chunks(ids, APP_FILTER_LIMIT)) {
+    const filter = `id in (${chunk.map((id) => `'${id}'`).join(",")})`;
+    const res = await batch.graph<{ value?: { id?: string }[] }>(
+      `/v1.0/directory/deletedItems/microsoft.graph.user?$filter=${encodeURIComponent(filter)}&$select=id`,
+    );
+    if (!res.ok) return undefined;
+    for (const o of res.data.value ?? []) if (o.id) deleted.push(o.id.toLowerCase());
+  }
+  return deleted;
+}
+
 export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> {
   const domain = batch.profile.entitlementsDomain;
   if (!domain) {
@@ -177,9 +248,26 @@ export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> 
   const ids = [...new Set(GROUP_KEYS.flatMap((k) => groups[k].map((m) => m.id)))].filter((id) =>
     GUID.test(id),
   );
-  const directory = await readDirectory(batch, ids);
+  const rosterGroupId = batch.profile.rosterGroupId;
+  const [directory, closures, roster] = await Promise.all([
+    readDirectory(batch, ids),
+    readClosures(batch, domain),
+    rosterGroupId ? readRoster(batch, rosterGroupId) : Promise.resolve(undefined),
+  ]);
   if (!directory.ok) return directory;
-  return { ok: true, status: 200, data: { groups, directory: directory.data } };
+  const unresolved = ids.filter((id) => !directory.data[id]);
+  const deleted = unresolved.length > 0 ? await readDeleted(batch, unresolved) : [];
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      groups,
+      directory: directory.data,
+      ...(closures ? { closures } : {}),
+      ...(roster ? { roster } : {}),
+      ...(deleted ? { deleted } : {}),
+    },
+  };
 }
 
 export const ACCESS_AREAS: readonly Area[] = [

@@ -7,12 +7,12 @@ import {
   composeAccessPulse,
   composeAttention,
   composeCohorts,
-  composePeople,
   composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
   IMPORT_COHORTS_ACTION,
 } from "../src/boards/access";
+import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import { Batch } from "../src/client";
 import {
   ACCESS_BADGE_KEY,
@@ -25,7 +25,13 @@ import {
 import { accessModule } from "../src/modules/access";
 import { Store } from "../src/store";
 import { csvCell, Tracker, trackerFile } from "../src/tracker";
-import { SAMPLE_APPS, SIGNED_IN_AS, sampleAccess, sampleCohortCsv } from "./fixtures/access";
+import {
+  SAMPLE_APPS,
+  SAMPLE_CLOSURES,
+  SIGNED_IN_AS,
+  sampleAccess,
+  sampleCohortCsv,
+} from "./fixtures/access";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { azExec, routeTransport, seededRuntime } from "./harness";
 
@@ -357,13 +363,33 @@ describe("access read", () => {
           ),
         },
       }),
+      "GET /api/entitlements/v2/members/": (req) => {
+        const group = decodeURIComponent(req.url.split("/members/")[1] ?? "").split("@")[0] ?? "";
+        const key = group === "users" ? "users" : group.replace("users.datalake.", "");
+        const closure = SAMPLE_CLOSURES[key as keyof typeof SAMPLE_CLOSURES];
+        return { status: 200, body: { groups: closure.map((email) => ({ email })) } };
+      },
+      [`GET /v1.0/groups/${SAMPLE_PROFILE.rosterGroupId}/members`]: () => ({
+        status: 200,
+        body: {
+          value: cast.roster?.map((m) => ({ id: m.id, displayName: m.name, mail: m.mail })),
+        },
+      }),
     });
     const batch = new Batch(azExec(), SAMPLE_PROFILE, transport, async () => undefined);
     const res = await readAccess(batch);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(countAccess(buildAccess(res.data))).toMatchObject({ people: 32, apps: 4, broken: 2 });
-    expect(sent.filter((r) => r.method === "GET" && r.url.includes("/members"))).toHaveLength(5);
+    const model = buildAccess(res.data);
+    expect(countAccess(model)).toMatchObject({ people: 32, apps: 4, broken: 2, rosterDrift: 0 });
+    expect(model.people.find((p) => p.name === "Rachel Kim")?.groups).toEqual({
+      held: 32,
+      expected: 33,
+    });
+    const memberLists = sent.filter(
+      (r) => r.url.includes("/api/entitlements/v2/groups/") && r.url.endsWith("/members"),
+    );
+    expect(memberLists).toHaveLength(5);
     const lookup = sent.find((r) => r.url.includes("/servicePrincipals"));
     expect(decodeURIComponent(lookup?.url ?? "")).toContain(`'${SAMPLE_APPS[1]?.id}'`);
     expect(sent.every((r) => r.method === "GET" || r.url.includes("getByIds"))).toBe(true);
@@ -437,5 +463,118 @@ describe("access read", () => {
       failure: { message: expect.stringContaining("Re-test") },
     });
     expect(sent).toEqual([]);
+  });
+});
+
+describe("people views", () => {
+  const people = expectView(PEOPLE_KEY, "board");
+  const act = (runtime: ReturnType<typeof rt>, type: string, payload: unknown) =>
+    accessModule.actions?.[type]?.(runtime, payload);
+
+  test("the roster shows each person's groups against what the role needs", () => {
+    const text = JSON.stringify(people(composePeople(rt())));
+    expect(text).toContain("rachel.kim@pacrim-energy.example · 32 of 33");
+    expect(text).toContain("ingrid.halvorsen@contoso.example · 46 of 46");
+  });
+
+  test("the roles matrix chunks rows, flags gaps and duplicates, and says what it shows", async () => {
+    const runtime = rt();
+    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "matrix" })).toMatchObject({ ok: true });
+    const view = people(composePeople(runtime));
+    if (view.view !== "board") throw new Error("board expected");
+    const tables = view.sections.filter((s) => s.kind === "table");
+    expect(tables.map((t) => t.title)).toEqual(["Needs attention · 5", "Healthy · 1 to 15 of 27"]);
+    const attention = tables[0]?.kind === "table" ? tables[0].rows : [];
+    const rachel = attention.find((r) => r.person === "Rachel Kim");
+    expect(rachel).toMatchObject({
+      users: { value: "✕ missing", tone: "error" },
+      groups: { value: "32/33", tone: "warn" },
+      editors: { badges: [{ text: "M" }] },
+    });
+    const dmitri = attention.find((r) => r.person === "Dmitri Volkov");
+    expect(JSON.stringify(dmitri?.editors)).toContain("duplicate");
+    expect(tables.at(-1)?.caption).toBe(
+      "Showing 20 of 32 · filter: all. M is member, O is owner. Filter by cohort to list everyone.",
+    );
+  });
+
+  test("a cohort filter lists everyone in it, 15 rows per table", async () => {
+    const runtime = rt();
+    runtime.tracker.importCsv(sampleCohortCsv(), new Date("2026-10-02T14:05:00Z"));
+    await act(runtime, PEOPLE_VIEW_ACTION, { view: "matrix" });
+    expect(await act(runtime, PEOPLE_FILTER_ACTION, { filter: "cohort:Pilot" })).toMatchObject({
+      ok: true,
+    });
+    const view = people(composePeople(runtime));
+    const titles = view.view === "board" ? view.sections.map((s) => s.title).filter(Boolean) : [];
+    expect(titles).toEqual([
+      "Needs attention · 5",
+      "Pilot · 1 to 15 of 24",
+      "Pilot · 16 to 24 of 24",
+    ]);
+    expect(JSON.stringify(view)).toContain('"chip":"29 of 32 · Pilot"');
+  });
+
+  test("gaps, pending and applications filter the roster", async () => {
+    const runtime = rt();
+    await act(runtime, PEOPLE_FILTER_ACTION, { filter: "gaps" });
+    let text = JSON.stringify(people(composePeople(runtime)));
+    expect(text).toContain("Needs attention · 2");
+    await act(runtime, PEOPLE_FILTER_ACTION, { filter: "apps" });
+    text = JSON.stringify(people(composePeople(runtime)));
+    expect(text).toContain("Applications · 4");
+    expect(text).toContain('"chip":"4 of 4 · applications"');
+  });
+
+  test("an unknown view or filter is refused", async () => {
+    const runtime = rt();
+    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "grants" })).toMatchObject({ ok: false });
+    expect(await act(runtime, PEOPLE_FILTER_ACTION, { filter: "cohort:Nope" })).toMatchObject({
+      ok: false,
+    });
+  });
+});
+
+describe("drift checks", () => {
+  test("a clean sample reports roster drift and deleted users as checks that found nothing", () => {
+    const text = JSON.stringify(composeAttention(rt()));
+    expect(text).toContain("Roster drift (Entra roster vs entitlements)");
+    expect(text).toContain("Deleted in Entra, still in entitlements");
+  });
+
+  test("roster drift names both sides", () => {
+    const read = sampleAccess();
+    const lena = Object.entries(read.directory).find(([, e]) => e.name === "Lena Fischer")?.[0];
+    read.roster = [
+      ...(read.roster ?? []).filter((m) => m.id !== lena),
+      {
+        id: "eeeeeeee-0000-4000-8000-000000000001",
+        name: "Former Pilot",
+        mail: "former@x.example",
+      },
+    ];
+    const runtime = seededRuntime({ [ACCESS_AREA]: read });
+    const text = JSON.stringify(composeAttention(runtime));
+    expect(text).toContain("Roster drift · 2");
+    expect(text).toContain("has entitlements, not in the roster group");
+    expect(text).toContain("former@x.example · in the roster group, no entitlements");
+    expect(countAccess(buildAccess(read)).rosterDrift).toBe(2);
+  });
+
+  test("a listed id Entra holds as deleted is named as deleted, not unknown", () => {
+    const read = sampleAccess();
+    const gone = "dddddddd-0000-4000-8000-000000000001";
+    read.groups.editors.push({ id: gone, owner: false });
+    read.deleted = [gone];
+    const text = JSON.stringify(composeAttention(seededRuntime({ [ACCESS_AREA]: read })));
+    expect(text).toContain("Deleted in Entra, still in entitlements · 1");
+    expect(text).not.toContain("Unknown principals ·");
+  });
+
+  test("without a roster read the drift check is not claimed", () => {
+    const read = sampleAccess();
+    delete read.roster;
+    const text = JSON.stringify(composeAttention(seededRuntime({ [ACCESS_AREA]: read })));
+    expect(text).not.toContain("Roster drift");
   });
 });
