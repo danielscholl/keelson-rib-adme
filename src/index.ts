@@ -18,6 +18,7 @@ import {
   ribSurfaceBadgeSchema,
   type SnapshotManager,
 } from "@keelson/shared";
+import { DOCS } from "./docs.ts";
 import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
 import { connectionModule } from "./modules/connection.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
@@ -118,6 +119,8 @@ const rib: Rib = {
   ),
 
   surfaces: SURFACES,
+
+  contributeDocs: () => DOCS,
 
   // Composers bind here because this is the first hook that receives the context.
   registerTools: (ctx: RibContext) => {
