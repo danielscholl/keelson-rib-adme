@@ -6,7 +6,6 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-
 import type { RibDocsSource } from "@keelson/shared";
 
 export const DOCS: readonly RibDocsSource[] = [
@@ -33,8 +32,8 @@ export const DOCS: readonly RibDocsSource[] = [
       "",
       "Before each batch of calls the rib asks `az account get-access-token` for",
       "tokens for the ADME app id and for Microsoft Graph. When the sign-in",
-      "lapses every tab reads \"sign-in needed\", shows the last sweep marked",
-      "\"cached from HH:MMZ\", and pauses changes until `az login` and Re-test.",
+      'lapses every tab reads "sign-in needed", shows the last sweep marked',
+      '"cached from HH:MMZ", and pauses changes until `az login` and Re-test.',
       "",
       "## Reads",
       "",
