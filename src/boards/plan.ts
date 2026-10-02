@@ -70,6 +70,21 @@ const JOURNEY: Record<PlanKind, { title: string; text?: string }[]> = {
     { title: "Resend the invitation", text: "Graph sends a new invitation email" },
     { title: "Check the returned id", text: "Any id but the person's own halts the plan" },
   ],
+  "seismic-grant": [
+    {
+      title: "Subproject ACL group",
+      text: "By object id; a shared group reaches every subproject on it",
+    },
+    { title: "Verify", text: "Effective groups, one more than before" },
+  ],
+  "seismic-revoke": [
+    { title: "Subproject ACL group", text: "Reach through data.default is not touched" },
+    { title: "Verify", text: "Effective groups, one fewer than before" },
+  ],
+  "seismic-copy": [
+    { title: "Each ACL group the source holds", text: "Groups already held count as already true" },
+    { title: "Verify", text: "Effective groups against the count plus the adds" },
+  ],
 };
 
 function minutesLeft(plan: Plan, now: Date): number {
@@ -105,6 +120,9 @@ function peopleSub(plan: Plan): string {
     return [inputs.role, inputs.cohort].filter(Boolean).join(" · ");
   }
   if (inputs.kind === "add-app") return `${inputs.role} · application`;
+  if (inputs.kind === "seismic-grant" || inputs.kind === "seismic-revoke") {
+    return `${inputs.role} · ${inputs.subproject}`;
+  }
   return plan.subjects[0]?.name ?? "";
 }
 
@@ -181,7 +199,27 @@ function dryRunCard(plan: Plan): Section {
   };
 }
 
-const REMOVALS: readonly PlanKind[] = ["remove-person", "cleanup-duplicate"];
+const REMOVALS: readonly PlanKind[] = ["remove-person", "cleanup-duplicate", "seismic-revoke"];
+
+function removalText(plan: Plan, subject: string, writes: number): { title: string; body: string } {
+  const inputs = inputsOf(plan);
+  if (inputs.kind === "seismic-revoke") {
+    return {
+      title: `Revoke ${subject}`,
+      body: `Removes ${subject} from the ${inputs.role} group of ${inputs.subproject}. ${plan.subjects[0]?.reason ?? ""}`.trim(),
+    };
+  }
+  if (plan.kind === "remove-person") {
+    return {
+      title: `Remove ${subject}`,
+      body: `Removes ${subject} from ${writes} membership${writes === 1 ? "" : "s"}. The Entra guest account is kept, so they can be added again.`,
+    };
+  }
+  return {
+    title: `Clean up ${subject}`,
+    body: `Removes the second member entry for ${subject}. The entry by object id stays.`,
+  };
+}
 
 function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
   const label = `Apply ${changes} change${changes === 1 ? "" : "s"}`;
@@ -197,11 +235,7 @@ function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
       confirm: {
         irreversible: true,
         subject,
-        title: plan.kind === "remove-person" ? `Remove ${subject}` : `Clean up ${subject}`,
-        body:
-          plan.kind === "remove-person"
-            ? `Removes ${subject} from ${writes} membership${writes === 1 ? "" : "s"}. The Entra guest account is kept, so they can be added again.`
-            : `Removes the second member entry for ${subject}. The entry by object id stays.`,
+        ...removalText(plan, subject, writes),
         confirmLabel: label,
       },
     };

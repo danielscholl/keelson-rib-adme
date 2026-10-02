@@ -12,7 +12,13 @@ import {
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
 import { DATA_AREAS, SERVICES_AREA } from "../src/data/areas";
-import { PEOPLE_KEY, SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../src/keys";
+import {
+  PEOPLE_KEY,
+  SEIS_CHANGE_KEY,
+  SEIS_PULSE_KEY,
+  SEIS_SELECTED_KEY,
+  SEIS_SUBPROJECTS_KEY,
+} from "../src/keys";
 import { accessModule } from "../src/modules/access";
 import { seismicModule } from "../src/modules/seismic";
 import type { Runtime } from "../src/runtime";
@@ -431,7 +437,7 @@ describe("subprojects and the selected subproject", () => {
       recompose: (keys) => recomposed.push([...keys]),
     });
     expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" })).toEqual({ ok: true });
-    expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY]]);
+    expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]]);
     const view = selected(rt);
     expect(view.header?.status?.label).toBe("1 admin · 3 viewers");
     expect(view.header?.chip).toBe("sd://opendes/delta");

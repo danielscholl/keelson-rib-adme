@@ -227,12 +227,14 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
               {
                 key: SEIS_CHANGE_KEY,
                 title: "Grant or revoke",
+                byline: "one plan, previewed before anything changes",
                 glyph: { char: "+", tone: "brand" },
                 hideWhenEmpty: true,
               },
               {
                 key: SEIS_REACH_KEY,
                 title: "What a partner can reach",
+                byline: "listing subprojects is admin only, so partners need the paths",
                 glyph: { char: "→", tone: "info" },
                 hideWhenEmpty: true,
               },

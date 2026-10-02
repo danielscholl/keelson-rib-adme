@@ -18,7 +18,10 @@ export type PlanKind =
   | "fix-users"
   | "cleanup-duplicate"
   | "remove-person"
-  | "resend-invite";
+  | "resend-invite"
+  | "seismic-grant"
+  | "seismic-revoke"
+  | "seismic-copy";
 
 export type Classification =
   | "will-invite"

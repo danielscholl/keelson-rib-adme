@@ -8,7 +8,6 @@
 
 import type { OpHandle } from "@keelson/shared";
 import { z } from "zod";
-import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { measuredAccess } from "../boards/access.ts";
 import type { Batch, CallResult } from "../client.ts";
 import {
@@ -21,11 +20,12 @@ import {
   PULSE_KEY,
   RECENT_KEY,
 } from "../keys.ts";
+import { measureSeismic } from "../modules/seismic.ts";
 import { shortId } from "../profile.ts";
 import type { Runtime } from "../runtime.ts";
 import { buildPlan, type PlanInputs } from "./build.ts";
 import { correlationId, isExpired, type Plan, type Step } from "./model.ts";
-import { inputsOf, planState } from "./state.ts";
+import { buildContext, inputsOf, planState } from "./state.ts";
 
 export type StepState =
   | "queued"
@@ -227,17 +227,11 @@ async function recheck(rt: Runtime, s: ExecState, op: Operation): Promise<boolea
   head.state = "running";
   save(rt, op);
   await rt.sweep();
-  const profile = rt.profile;
-  if (!profile || rt.status.phase !== "connected") {
+  const ctx = buildContext(rt);
+  if (!ctx || rt.status.phase !== "connected") {
     pause(rt, s, op, head, "sign-in lapsed before the dry run could be re-run");
     return false;
   }
-  const ctx = {
-    profile,
-    model: measuredAccess(rt)?.model,
-    closures: rt.cache.get<AccessRead>(ACCESS_AREA).data?.closures,
-    now: rt.now(),
-  };
   const again = await rt.run((b) => buildPlan(b, inputsOf(op.plan) as PlanInputs, ctx));
   if (!again.ok) {
     if (again.failure.kind === "signin" && again.failure.status === null) {
@@ -493,5 +487,6 @@ function finish(rt: Runtime, s: ExecState, status: OpStatus, reason?: string): v
     rt.sweep()
       .then(() => rt.recompose(ACCESS_KEYS))
       .catch(() => undefined);
+    if (op.plan.kind.startsWith("seismic-")) measureSeismic(rt).catch(() => undefined);
   }
 }
