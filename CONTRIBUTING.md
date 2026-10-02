@@ -67,7 +67,8 @@ commits and keeps a release PR open with the version bump and CHANGELOG.
 Merging that PR tags the release and publishes its notes. Use
 `feat` for a change an operator can see, `fix` for a bug they would hit, and
 `!` after the type for a change that breaks a saved profile or the data
-directory. Everything else stays out of the CHANGELOG.
+directory. `feat`, `fix`, `perf` and `docs` appear in the CHANGELOG; the other
+types are hidden.
 
 ## Pull request hygiene
 

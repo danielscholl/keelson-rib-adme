@@ -50,8 +50,7 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
 
-  # Fails a PR that introduces dependencies with known vulnerabilities or
-  # disallowed licenses, using the GitHub dependency graph diff.
+  # Fails a PR that introduces a dependency with a known moderate or worse vulnerability.
   dependency-review:
     name: Dependency review
     runs-on: ubuntu-latest
