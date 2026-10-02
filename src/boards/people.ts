@@ -8,11 +8,19 @@
 
 import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
 import type { GroupCount, Identity } from "../access/model.ts";
+import { selectedId } from "../access/person.ts";
 import type { GroupKey } from "../access/read.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { UNTRACKED } from "../tracker.ts";
-import { cohortNames, day, inCohort, measuredAccess } from "./access.ts";
+import {
+  cohortNames,
+  day,
+  inCohort,
+  measuredAccess,
+  openAction,
+  SELECT_PERSON_ACTION,
+} from "./access.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
@@ -122,7 +130,7 @@ function chips(rt: Runtime, s: PeopleState, people: Identity[], apps: Identity[]
   ];
 }
 
-function rosterRow(p: Identity): Row {
+function rosterRow(p: Identity, selected: string | undefined): Row {
   const tone = p.state === "broken" ? "error" : p.state === "pending" ? "warn" : "ok";
   const when = p.acceptedAt
     ? `accepted ${day(p.acceptedAt)}`
@@ -136,10 +144,11 @@ function rosterRow(p: Identity): Row {
     chip: { label: p.role ?? "No role" },
     text: p.you ? `${p.name} (you)` : p.name,
     trailing: [p.email, groupsText(p.groups), when].filter(Boolean).join(" · "),
+    ...openAction(p, selected),
   };
 }
 
-function appRow(a: Identity): Row {
+function appRow(a: Identity, selected: string | undefined): Row {
   return {
     glyph: "neutral",
     chip: { label: a.role ?? "No role" },
@@ -147,6 +156,7 @@ function appRow(a: Identity): Row {
     trailing: [a.appId ?? a.id, groupsText(a.groups), a.root ? "root app" : "application"]
       .filter(Boolean)
       .join(" · "),
+    ...openAction(a, selected),
   };
 }
 
@@ -162,8 +172,15 @@ function groupsOf(rt: Runtime, people: Identity[]): [string, Identity[]][] {
 }
 
 function rosterSections(rt: Runtime, f: Filtered, filter: PeopleFilter): Section[] {
+  const selected = selectedId(rt);
   if (f.apps.length > 0) {
-    return [{ kind: "rows", title: `Applications · ${f.apps.length}`, items: f.apps.map(appRow) }];
+    return [
+      {
+        kind: "rows",
+        title: `Applications · ${f.apps.length}`,
+        items: f.apps.map((a) => appRow(a, selected)),
+      },
+    ];
   }
   return groupsOf(rt, f.people).map(([title, list]) => {
     const capped = filter === "all" && title !== "Needs attention";
@@ -174,7 +191,7 @@ function rosterSections(rt: Runtime, f: Filtered, filter: PeopleFilter): Section
       kind: "rows",
       title: `${title} · ${list.length}`,
       items: [
-        ...shown.map(rosterRow),
+        ...shown.map((p) => rosterRow(p, selected)),
         ...(rest > 0 ? [{ glyph: "neutral" as const, text: more }] : []),
       ],
     };
@@ -272,7 +289,37 @@ function matrixSections(rt: Runtime, f: Filtered, filter: PeopleFilter, total: n
     const hint = shown < total ? " Filter by cohort to list everyone." : "";
     last.caption = `Showing ${shown} of ${total} · filter: ${f.label}. M is member, O is owner.${hint}`;
   }
-  return sections;
+  const open = openForm(f.apps.length > 0 ? f.apps : f.people, selectedId(rt));
+  return open ? [...sections, open] : sections;
+}
+
+// Table rows cannot be clicked, so the matrix opens a person from a picker.
+function openForm(list: Identity[], selected: string | undefined): Section | undefined {
+  if (list.length === 0) return undefined;
+  const apps = list.every((i) => i.kind === "app");
+  return {
+    kind: "actions",
+    items: [
+      {
+        type: SELECT_PERSON_ACTION,
+        label: apps ? "Open application" : "Open person",
+        submitLabel: "Open",
+        fields: [
+          {
+            name: "id",
+            label: apps ? "Application" : "Person",
+            required: true,
+            ...(selected && list.some((i) => i.id === selected) ? { defaultValue: selected } : {}),
+            options: list.map((i) => ({
+              value: i.id,
+              label: i.name,
+              ...(i.email || i.appId ? { hint: i.email ?? i.appId } : {}),
+            })),
+          },
+        ],
+      },
+    ],
+  };
 }
 
 export function composePeople(rt: Runtime): CanvasBoardView {
