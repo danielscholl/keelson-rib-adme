@@ -7,6 +7,14 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Identity } from "../access/model.ts";
+import {
+  personRead,
+  readPersonGroups,
+  recordError,
+  recordRead,
+  selectedId,
+  selectPerson,
+} from "../access/person.ts";
 import { ACCESS_AREAS } from "../access/read.ts";
 import {
   composeAccessPulse,
@@ -17,7 +25,9 @@ import {
   exportRoster,
   IMPORT_COHORTS_ACTION,
   measuredAccess,
+  SELECT_PERSON_ACTION,
 } from "../boards/access.ts";
+import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
   composePeople,
   isPeopleView,
@@ -26,14 +36,23 @@ import {
   peopleState,
 } from "../boards/people.ts";
 import {
+  ACCEPT_EXTRAS_ACTION,
+  composePerson,
+  findIdentity,
+  inspectorTitle,
+  personAudit,
+  REFRESH_PERSON_ACTION,
+} from "../boards/person.ts";
+import {
   ACCESS_BADGE_KEY,
   ATTENTION_KEY,
   COHORTS_KEY,
   PEOPLE_KEY,
+  PERSON_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
 } from "../keys.ts";
-import type { RegionModule } from "../region.ts";
+import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
 
 const slug = (name: string) =>
@@ -54,6 +73,52 @@ function inImport(person: Identity, email: string): boolean {
   return person.email?.toLowerCase() === email;
 }
 
+function idOf(payload: unknown): string | undefined {
+  const id = (payload as { id?: unknown } | undefined)?.id;
+  return typeof id === "string" && id.trim() !== "" ? id.trim().toLowerCase() : undefined;
+}
+
+// Tier 3 for one identity. A lapsed sign-in is not recorded: the runtime flips the phase.
+async function readGroups(rt: Runtime, id: string): Promise<string | undefined> {
+  const res = await rt.run((batch) => readPersonGroups(batch, id));
+  if (res.ok) {
+    recordRead(rt, id, res.data);
+    return undefined;
+  }
+  if (res.failure.kind === "signin" && res.failure.status === null) return SIGNIN_REASON;
+  recordError(rt, id, res.failure.message);
+  return res.failure.message;
+}
+
+const selectPersonAction: ActionHandler = async (rt, payload) => {
+  const id = idOf(payload);
+  if (!id) return { ok: false, error: "Pick a person to open." };
+  const measured = measuredAccess(rt);
+  if (!measured) return { ok: false, error: "People are not measured yet." };
+  const who = findIdentity(measured.model, id);
+  if (!who) {
+    return {
+      ok: false,
+      error: "That person is not in the last read of entitlements. Refresh and pick again.",
+    };
+  }
+  selectPerson(rt, who.id);
+  if (rt.status.phase === "connected") await readGroups(rt, who.id);
+  rt.recompose([PERSON_KEY]);
+  rt.recompose([PEOPLE_KEY, ATTENTION_KEY, PRINCIPALS_KEY]);
+  return {
+    ok: true,
+    data: { effect: "open-canvas", key: PERSON_KEY, title: inspectorTitle(who), placement: "side" },
+  };
+};
+
+function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
+  const id = idOf(payload);
+  const measured = measuredAccess(rt);
+  if (!id || !measured || id !== selectedId(rt)) return "That person is no longer open.";
+  return findIdentity(measured.model, id) ?? "That person is not in the last read of entitlements.";
+}
+
 export const accessModule: RegionModule = {
   areas: ACCESS_AREAS,
   composers: {
@@ -62,8 +127,41 @@ export const accessModule: RegionModule = {
     [PEOPLE_KEY]: composePeople,
     [PRINCIPALS_KEY]: composePrincipals,
     [COHORTS_KEY]: composeCohorts,
+    [PERSON_KEY]: composePerson,
   },
   actions: {
+    [SELECT_PERSON_ACTION]: selectPersonAction,
+    [REFRESH_PERSON_ACTION]: async (rt, payload) => {
+      const who = selectedIdentity(rt, payload);
+      if (typeof who === "string") return { ok: false, error: who };
+      if (rt.status.phase === "signin") return { ok: false, error: SIGNIN_REASON };
+      if (rt.status.phase !== "connected") return { ok: false, error: "Not connected." };
+      const error = await readGroups(rt, who.id);
+      rt.recompose([PERSON_KEY]);
+      return error ? { ok: false, error } : { ok: true };
+    },
+    [ACCEPT_EXTRAS_ACTION]: async (rt, payload) => {
+      const who = selectedIdentity(rt, payload);
+      if (typeof who === "string") return { ok: false, error: who };
+      if (!personRead(rt, who.id)) return { ok: false, error: "Read this person's groups first." };
+      const audit = personAudit(rt, who);
+      if (!audit) return { ok: false, error: "The expected groups are not read yet." };
+      const beyond = [...audit.extras, ...audit.baseline];
+      if (audit.extras.length === 0) {
+        return { ok: false, error: "No group beyond the expected set is left to accept." };
+      }
+      const n = audit.extras.length;
+      const res = rt.tracker.setBaseline(
+        who.id,
+        beyond,
+        rt.now(),
+        `Accepted ${n} extra ${n === 1 ? "group" : "groups"} as baseline`,
+      );
+      if (!res.ok) return res;
+      rt.recompose([PERSON_KEY]);
+      const total = `${beyond.length} ${beyond.length === 1 ? "group" : "groups"}`;
+      return { ok: true, data: { message: `${who.name}: ${total} in the baseline` } };
+    },
     [PEOPLE_VIEW_ACTION]: async (rt, payload) => {
       const view = (payload as { view?: unknown } | undefined)?.view;
       if (!isPeopleView(view)) return { ok: false, error: "Pick Roster or Roles matrix." };

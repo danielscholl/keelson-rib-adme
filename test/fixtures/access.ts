@@ -14,6 +14,8 @@ interface Cast {
   accepted?: string;
   notInUsers?: boolean;
   duplicate?: boolean;
+  otherMails?: string[];
+  created?: string;
 }
 
 const NAMED: Cast[] = [
@@ -73,6 +75,8 @@ const NAMED: Cast[] = [
     role: "editors",
     accepted: "2026-09-29",
     notInUsers: true,
+    otherMails: ["rkim@pacrim-energy.example"],
+    created: "2026-09-28",
   },
   {
     name: "Dmitri Volkov",
@@ -152,6 +156,8 @@ export function sampleAccess(): AccessRead {
       guest: !p.member,
       ...(p.member ? {} : { inviteState: p.pendingSince ? "PendingAcceptance" : "Accepted" }),
       ...(changed ? { inviteChangedAt: `${changed}T09:00:00Z` } : {}),
+      ...(p.otherMails ? { otherMails: p.otherMails } : {}),
+      ...(p.created ? { createdAt: `${p.created}T08:00:00Z` } : {}),
     };
     if (!p.notInUsers) groups.users.push(member(id, p.role === "ops"));
     groups[p.role].push(member(id, p.role === "ops"));

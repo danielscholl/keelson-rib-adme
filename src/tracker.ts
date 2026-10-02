@@ -23,12 +23,18 @@ const trackerSchema = z.object({
   cohorts: z.array(cohortSchema),
   // Lowercased email address to cohort name.
   members: z.record(z.string(), z.string()),
-  events: z.array(z.object({ at: z.string(), text: z.string() })),
+  // `who` is the identity id an event is about, for that person's history.
+  events: z.array(z.object({ at: z.string(), text: z.string(), who: z.string().optional() })),
+  // Identity id to the groups accepted beyond the expected set for that person.
+  baselines: z.record(z.string(), z.array(z.string())).optional(),
 });
 type TrackerFile = z.infer<typeof trackerSchema>;
+export type TrackerEvent = TrackerFile["events"][number];
 
 export const UNTRACKED = "Untracked";
 const EVENT_LIMIT = 200;
+
+export type SaveResult = { ok: true } | { ok: false; error: string };
 
 export type ImportResult =
   | { ok: true; emails: string[]; cohorts: number }
@@ -86,14 +92,34 @@ export class Tracker {
     return email ? this.file.members[email.toLowerCase()] : undefined;
   }
 
+  baselineOf(id: string): readonly string[] {
+    return this.file.baselines?.[id] ?? [];
+  }
+
+  eventsFor(id: string): readonly TrackerEvent[] {
+    return this.file.events.filter((e) => e.who === id);
+  }
+
+  // Replaces the person's baseline, so a group they no longer hold drops out of it.
+  setBaseline(id: string, groups: readonly string[], now: Date, text: string): SaveResult {
+    if (this.unreadable) return { ok: false, error: this.unreadableError() };
+    const event = { at: now.toISOString(), text, who: id };
+    this.file = {
+      ...this.file,
+      baselines: { ...this.file.baselines, [id]: [...groups].sort() },
+      events: [event, ...this.file.events].slice(0, EVENT_LIMIT),
+    };
+    this.store.write(this.name, this.file);
+    return { ok: true };
+  }
+
+  private unreadableError(): string {
+    return `${this.name} could not be read. Fix or remove it, then restart.`;
+  }
+
   // Lines of `email,cohort[,pass end]`. Nothing is saved unless every line is valid.
   importCsv(text: string, now: Date): ImportResult {
-    if (this.unreadable) {
-      return {
-        ok: false,
-        error: `${this.name} could not be read. Fix or remove it, then restart.`,
-      };
-    }
+    if (this.unreadable) return { ok: false, error: this.unreadableError() };
     const members: Record<string, string> = {};
     const passEnds = new Map<string, string>();
     const names = new Map<string, string>();
@@ -147,6 +173,7 @@ export class Tracker {
       text: `Imported ${assigned} ${assigned === 1 ? "person" : "people"} into ${[...names.values()].join(", ")}`,
     };
     this.file = {
+      ...this.file,
       cohorts,
       members: { ...this.file.members, ...members },
       events: [event, ...this.file.events].slice(0, EVENT_LIMIT),

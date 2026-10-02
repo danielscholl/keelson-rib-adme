@@ -15,6 +15,7 @@ import {
   type Identity,
   ROLES,
 } from "../access/model.ts";
+import { selectedId } from "../access/person.ts";
 import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
 import { instanceName, shortId } from "../profile.ts";
 import { composeRestingHeader, EMPTY_BOARD } from "../resting.ts";
@@ -30,6 +31,7 @@ type Stat = Extract<Section, { kind: "stats" }>["items"][number];
 
 export const IMPORT_COHORTS_ACTION = "import-cohorts";
 export const EXPORT_ROSTER_ACTION = "export-roster";
+export const SELECT_PERSON_ACTION = "select-person";
 
 export function inCohort(people: Identity[], name: string): Identity[] {
   return people.filter((p) => (p.cohort ?? UNTRACKED) === name);
@@ -226,7 +228,15 @@ function personFields(p: Identity): NonNullable<Card["fields"]> {
   ];
 }
 
-function attentionCards(people: Identity[], now: Date): Section[] {
+// Clicking a person or application opens the inspector in the drawer.
+export function openAction(who: Identity, selected: string | undefined) {
+  return {
+    action: { type: SELECT_PERSON_ACTION, payload: { id: who.id } },
+    ...(who.id === selected ? { selected: true } : {}),
+  };
+}
+
+function attentionCards(people: Identity[], now: Date, selected: string | undefined): Section[] {
   const missing = people.filter((p) => p.cause === "missing-users");
   const pending = people.filter((p) => p.state === "pending");
   const duplicate = people.filter((p) => p.duplicateIn !== undefined);
@@ -241,6 +251,7 @@ function attentionCards(people: Identity[], now: Date): Section[] {
         pill: { label: "401", tone: "error" as const },
         fields: personFields(p),
         footnote: `member of ${GROUP_NAMES[roleGroup(p)]} but not users@`,
+        ...openAction(p, selected),
       })),
     });
   }
@@ -256,6 +267,7 @@ function attentionCards(people: Identity[], now: Date): Section[] {
           ...(p.email ? [{ label: "Email", value: p.email, copyable: true }] : []),
           { label: "Invited", value: p.invitedAt ? daysAgo(p.invitedAt, now) : "?" },
         ],
+        ...openAction(p, selected),
       })),
     });
   }
@@ -269,6 +281,7 @@ function attentionCards(people: Identity[], now: Date): Section[] {
         pill: { label: "duplicate", tone: "warn" as const },
         fields: personFields(p),
         footnote: `email form and object id form are both in ${GROUP_NAMES[p.duplicateIn ?? "users"]}`,
+        ...openAction(p, selected),
       })),
     });
   }
@@ -303,7 +316,7 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   if (!measured) return EMPTY_BOARD;
   const { model, counts } = measured;
-  const sections = attentionCards(model.people, rt.now());
+  const sections = attentionCards(model.people, rt.now(), selectedId(rt));
   if (sections.length === 0 && model.unknown.length === 0) {
     sections.push({ kind: "rows", items: [{ glyph: "ok", text: "Nothing needs you." }] });
   }
@@ -372,6 +385,7 @@ export function composePrincipals(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   if (!measured) return EMPTY_BOARD;
   const { model, counts } = measured;
+  const selected = selectedId(rt);
   if (model.apps.length === 0) {
     return {
       view: "board",
@@ -402,6 +416,7 @@ export function composePrincipals(rt: Runtime): CanvasBoardView {
           ...(a.root
             ? { footnote: "The app the instance runs as. Shared, so its calls name no person." }
             : {}),
+          ...openAction(a, selected),
         })),
       },
     ],

@@ -151,10 +151,16 @@ export function routeTransport(
 // already measured at `now`, for composer tests. Pass `phase` to draw another state.
 export function seededRuntime(
   seed: Record<string, unknown>,
-  opts: { now?: Date; phase?: "connected" | "signin" | "firstrun"; transport?: Transport } = {},
+  opts: {
+    now?: Date;
+    phase?: "connected" | "signin" | "firstrun";
+    transport?: Transport;
+    store?: Store;
+    recompose?: (keys: readonly string[]) => void;
+  } = {},
 ): Runtime {
   const now = opts.now ?? new Date("2026-10-02T14:05:00Z");
-  const store = new Store(undefined);
+  const store = opts.store ?? new Store(undefined);
   if (opts.phase !== "firstrun") {
     store.write("profile.json", SAMPLE_PROFILE);
     store.write("test.json", {
@@ -166,7 +172,7 @@ export function seededRuntime(
   const rt = new Runtime({
     exec: azExec(),
     store,
-    recompose: () => undefined,
+    recompose: opts.recompose ?? (() => undefined),
     allKeys: [],
     now: () => now,
     ...(opts.transport ? { transport: opts.transport } : {}),

@@ -67,19 +67,32 @@ export interface AccessModel {
   rosterOnly?: RosterMember[];
 }
 
+export interface GroupSets {
+  held: Set<string>;
+  expected: Set<string>;
+}
+
 // Every identity needs users@ besides its role group, so it counts in the expected set.
-export function groupCount(
+export function groupSets(
   held: Identity["memberships"],
-  closures: Record<GroupKey, string[]> | undefined,
-): GroupCount | undefined {
-  if (!closures) return undefined;
+  closures: Record<GroupKey, string[]>,
+): GroupSets {
   const keys = GROUP_KEYS.filter((k) => held[k]);
-  const union = (ks: readonly GroupKey[]) => new Set(ks.flatMap((k) => closures[k])).size;
+  const union = (ks: readonly GroupKey[]) => new Set(ks.flatMap((k) => closures[k]));
   const roles = keys.filter((k) => k !== "users");
   return {
     held: union(keys),
     expected: roles.length > 0 ? union(["users", ...roles]) : union(keys),
   };
+}
+
+export function groupCount(
+  held: Identity["memberships"],
+  closures: Record<GroupKey, string[]> | undefined,
+): GroupCount | undefined {
+  if (!closures) return undefined;
+  const sets = groupSets(held, closures);
+  return { held: sets.held.size, expected: sets.expected.size };
 }
 
 export interface ModelContext {
