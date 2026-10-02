@@ -301,6 +301,63 @@ describe("person plans", () => {
   });
 });
 
+describe("resend invitation", () => {
+  const BEN = "00000000-0000-4000-8000-000000000008";
+
+  test("a resend plan is one invitation for the person's own address, and nothing else", async () => {
+    const { rt, sent } = runtime();
+    const res = await act(rt, "preview-resend-invite", { id: BEN });
+    expect(res).toMatchObject({ ok: true, data: { effect: "open-canvas", key: PLAN_KEY } });
+    const plan = planState(rt).plan!;
+    expect(plan.kind).toBe("resend-invite");
+    expect(plan.title).toBe("resend Ben Whitaker's invitation");
+    const steps = plan.subjects.flatMap((x) => x.steps);
+    expect(steps.filter((t) => t.change)).toHaveLength(1);
+    expect(steps.some((t) => t.call?.service === "entitlements")).toBe(false);
+    expect(steps[0]).toMatchObject({
+      kind: "invite",
+      call: {
+        service: "graph",
+        method: "POST",
+        path: "/v1.0/invitations",
+        body: {
+          invitedUserEmailAddress: "ben.whitaker@northfield.example",
+          sendInvitationMessage: true,
+        },
+      },
+    });
+    expect(plan.subjects[0]).toMatchObject({ oid: BEN, blocked: false });
+    expect(plan.subjects[0]?.reason).toContain("Any other id halts the plan");
+    expect(planStats(plan)).toMatchObject({ willChange: 1, alreadyTrue: 0, blocked: 0 });
+    expect(sent).toEqual([]);
+  });
+
+  test("the plan sheet draws the resend journey", async () => {
+    const { rt } = runtime();
+    await act(rt, "preview-resend-invite", { id: BEN });
+    const text = JSON.stringify(expectView(PLAN_KEY, "board")(composePlan(rt)));
+    expect(text).toContain("Resend the invitation");
+    expect(text).toContain('"label":"Apply 1 change"');
+  });
+
+  test("someone who already accepted has nothing to resend", async () => {
+    const { rt } = runtime();
+    await act(rt, "preview-resend-invite", { id: RACHEL });
+    expect(planState(rt).plan).toBeUndefined();
+    expect(planState(rt).error).toContain("no invitation waiting");
+  });
+
+  test("a resend drawn for another instance is refused", async () => {
+    const { rt } = runtime();
+    const res = await planModule.actions?.["preview-resend-invite"]?.(rt, {
+      ...binding,
+      tenantId: "another-tenant",
+      id: BEN,
+    });
+    expect(res).toMatchObject({ ok: false });
+  });
+});
+
 describe("dry run export and the change region", () => {
   test("the dry run CSV has one line per step and one per blocked address", async () => {
     const { rt } = runtime();

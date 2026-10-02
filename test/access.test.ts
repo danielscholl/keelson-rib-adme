@@ -12,6 +12,7 @@ import {
   exportRoster,
   IMPORT_COHORTS_ACTION,
 } from "../src/boards/access";
+import { SIGNIN_REASON } from "../src/boards/connection";
 import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import { Batch } from "../src/client";
 import {
@@ -23,6 +24,8 @@ import {
   PULSE_KEY,
 } from "../src/keys";
 import { accessModule } from "../src/modules/access";
+import { planModule } from "../src/modules/plan";
+import { planState } from "../src/plan/state";
 import { Store } from "../src/store";
 import { csvCell, Tracker, trackerFile } from "../src/tracker";
 import {
@@ -170,6 +173,65 @@ describe("access boards", () => {
     const text = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(runtime)));
     expect(text).toContain("Last read failed at 14:20Z: Graph names: Forbidden");
     expect(text).toContain('"label":"People","value":32');
+  });
+});
+
+describe("needs you actions", () => {
+  type Card = { title?: string; actions?: Record<string, unknown>[] };
+  const cards = (runtime: ReturnType<typeof rt>): Card[] => {
+    const view = expectView(ATTENTION_KEY, "board")(composeAttention(runtime));
+    if (view.view !== "board") return [];
+    return view.sections.flatMap((s) => (s.kind === "cards" ? (s.items as Card[]) : []));
+  };
+  const verbs = (list: Card[], name: string) =>
+    list.find((c) => c.title === name)?.actions?.map((a) => [a.type, a.label, a.tone ?? null]);
+
+  test("each card carries its verbs, bound to this instance and the person", () => {
+    const list = cards(rt());
+    expect(verbs(list, "Rachel Kim")).toEqual([
+      ["preview-fix-users", "Plan the fix", "brand"],
+      ["explain-access", "Why 401/403", null],
+    ]);
+    for (const name of ["Ben Whitaker", "Amara Diallo", "Jonas Lindqvist"]) {
+      expect(verbs(list, name)).toEqual([["preview-resend-invite", "Resend invitation", null]]);
+    }
+    expect(verbs(list, "Dmitri Volkov")).toEqual([
+      ["preview-cleanup-duplicate", "Plan the cleanup", "brand"],
+    ]);
+    const binding = {
+      host: SAMPLE_PROFILE.host,
+      partition: SAMPLE_PROFILE.partition,
+      tenantId: SAMPLE_PROFILE.tenantId,
+    };
+    for (const card of list) {
+      for (const a of card.actions ?? []) {
+        expect(a.binding).toEqual(binding);
+        expect(a.payload).toEqual({ id: expect.any(String) });
+        expect(a.disabled).toBeUndefined();
+      }
+    }
+    const rachel = list.find((c) => c.title === "Rachel Kim");
+    expect(rachel?.actions?.[0]?.payload).toEqual({ id: "00000000-0000-4000-8000-000000000011" });
+    expect(JSON.stringify(rachel)).toContain('"type":"select-person"');
+  });
+
+  test("sign-in needed disables every card verb with the reason", () => {
+    const actions = cards(rt("signin")).flatMap((c) => c.actions ?? []);
+    expect(actions).toHaveLength(6);
+    for (const a of actions) {
+      expect(a).toMatchObject({ disabled: true, reason: SIGNIN_REASON });
+    }
+  });
+
+  test("a card verb opens its dry run through the plan module", async () => {
+    const runtime = rt();
+    const ben = cards(runtime).find((c) => c.title === "Ben Whitaker")?.actions?.[0];
+    if (!ben) throw new Error("no resend verb");
+    const payload = { ...(ben.binding as object), ...(ben.payload as object) };
+    const res = await planModule.actions?.[ben.type as string]?.(runtime, payload);
+    await planState(runtime).pending;
+    expect(res).toMatchObject({ ok: true, data: { effect: "open-canvas" } });
+    expect(planState(runtime).plan?.kind).toBe("resend-invite");
   });
 });
 
@@ -528,7 +590,7 @@ describe("people views", () => {
 
   test("an unknown view or filter is refused", async () => {
     const runtime = rt();
-    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "grants" })).toMatchObject({ ok: false });
+    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "bogus" })).toMatchObject({ ok: false });
     expect(await act(runtime, PEOPLE_FILTER_ACTION, { filter: "cohort:Nope" })).toMatchObject({
       ok: false,
     });

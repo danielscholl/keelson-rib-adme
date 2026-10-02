@@ -65,6 +65,10 @@ const JOURNEY: Record<PlanKind, { title: string; text?: string }[]> = {
     { title: "users@" },
     { title: "Roster group", text: "The Entra guest account is kept" },
   ],
+  "resend-invite": [
+    { title: "Resend the invitation", text: "Graph sends a new invitation email" },
+    { title: "Check the returned id", text: "Any id but the person's own halts the plan" },
+  ],
 };
 
 function minutesLeft(plan: Plan, now: Date): number {

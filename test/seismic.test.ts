@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { ACCESS_AREA, ACCESS_AREAS } from "../src/access/read";
 import { RETEST_ACTION } from "../src/boards/connection";
+import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import {
   composeSeismicPulse,
   composeSeismicSelected,
@@ -11,12 +12,13 @@ import {
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
 import { DATA_AREAS, SERVICES_AREA } from "../src/data/areas";
-import { SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../src/keys";
+import { PEOPLE_KEY, SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../src/keys";
+import { accessModule } from "../src/modules/access";
 import { seismicModule } from "../src/modules/seismic";
 import type { Runtime } from "../src/runtime";
 import { buildSeismic, countSeismic } from "../src/seismic/model";
 import { fromOwnGroups, SEISMIC_AREA, type SeismicRead } from "../src/seismic/read";
-import { SIGNED_IN_AS, sampleAccess } from "./fixtures/access";
+import { SIGNED_IN_AS, sampleAccess, sampleCohortCsv } from "./fixtures/access";
 import { NOW, SAMPLE_SERVICES } from "./fixtures/data";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import {
@@ -490,4 +492,187 @@ describe("members open the person inspector", () => {
     const text = JSON.stringify(selected(seededRuntime(SEED, { now: NOW })));
     expect(text).toContain('"type":"select-person"');
   });
+});
+
+describe("people's seismic grants", () => {
+  const peopleBoard = expectView(PEOPLE_KEY, "board");
+
+  async function grants(rt: Runtime) {
+    const res = await accessModule.actions?.[PEOPLE_VIEW_ACTION]?.(rt, { view: "grants" });
+    expect(res).toMatchObject({ ok: true });
+    return peopleBoard(composePeople(rt)) as CanvasBoardView;
+  }
+
+  function badges(cell: unknown): string {
+    if (cell === null || cell === undefined) return "";
+    if (typeof cell !== "object") return String(cell);
+    return ((cell as { badges?: { text: string }[] }).badges ?? []).map((b) => b.text).join("");
+  }
+
+  function byPerson(view: CanvasBoardView) {
+    const table = section(view, "table");
+    if (!table) throw new Error("no grants table");
+    const name = (cell: unknown) =>
+      typeof cell === "string" ? cell : String((cell as { value?: unknown }).value);
+    return Object.fromEntries(
+      table.rows.map((r) => {
+        const cells = Object.entries(r)
+          .filter(([k, v]) => k.startsWith("sp:") && badges(v))
+          .map(([k, v]) => `${k.slice(3)} ${badges(v)}`);
+        return [
+          name(r.person),
+          {
+            cells,
+            default: badges(r.default),
+            admin: typeof r.person === "object" ? badges(r.person) : "",
+          },
+        ];
+      }),
+    );
+  }
+
+  test("reproduces the cast: who holds which subproject, A for admin and V for viewer", async () => {
+    const view = await grants(seededRuntime(SEED, { now: NOW }));
+    const table = section(view, "table");
+    expect(table?.title).toBe("Subproject grants · 9 of 9 people");
+    expect(table?.columns.map((c) => c.label)).toEqual([
+      "Person",
+      "default (volve, drogon)",
+      "alpha",
+      "bravo",
+      "charlie",
+      "delta",
+      "sleipner",
+      "echo",
+      "foxtrot",
+      "golf",
+      "golf2",
+      "golf3",
+    ]);
+    expect(table?.caption).toBe(
+      "9 of 32 people hold a subproject grant. Editors reach volve and drogon through data.default. A is admin, V is viewer.",
+    );
+    const rows = byPerson(view);
+    expect(rows["Priya Nair"]).toEqual({
+      cells: ["alpha A", "bravo A"],
+      default: "V",
+      admin: "tenant admin",
+    });
+    expect(rows["Marcus Oyelaran"]).toEqual({
+      cells: ["alpha V", "delta V"],
+      default: "V",
+      admin: "",
+    });
+    expect(rows["Hiro Tanaka"]?.cells).toEqual(["sleipner V"]);
+    expect(rows["Sofia Marchetti"]?.cells).toEqual(["echo A", "foxtrot V"]);
+    expect(rows["Dmitri Volkov"]?.cells).toEqual(["golf V"]);
+    expect(rows["Elena Petrova"]?.cells).toEqual(["charlie V"]);
+    expect(rows["Ingrid Halvorsen (you)"]?.admin).toBe("tenant admin");
+    expect(rows["Tomas Reyes"]).toMatchObject({
+      cells: ["alpha A", "sleipner A", "foxtrot A"],
+      admin: "tenant admin",
+    });
+    expect(rows["Lena Fischer"]).toBeUndefined();
+    const names = Object.keys(rows);
+    expect(names.slice(-3).sort()).toEqual(["Ingrid Halvorsen (you)", "Priya Nair", "Tomas Reyes"]);
+    const table2 = table?.rows.find((r) => r.person === "Marcus Oyelaran");
+    expect(table2?.["sp:alpha"]).toEqual({ badges: [{ text: "V", tone: "info" }] });
+  });
+
+  test("explains tenant admins and names what it leaves out, then offers Open person", async () => {
+    const view = await grants(seededRuntime(SEED, { now: NOW }));
+    const notes = all(view, "rows").flatMap((r) => r.items);
+    expect(notes).toContainEqual({
+      glyph: "info",
+      text: "Tenant admins",
+      trailing: "can list and manage every subproject; reading one still needs its ACL group",
+    });
+    expect(notes).toContainEqual({
+      glyph: "neutral",
+      text: "Not shown",
+      trailing: "subproject-legacy (no members)",
+    });
+    const open = all(view, "actions").at(-1)?.items[0];
+    expect(open).toMatchObject({ type: "select-person", label: "Open person" });
+    expect(open?.fields?.[0]?.options).toHaveLength(9);
+  });
+
+  test("filters apply: Vendor shows only Elena Petrova", async () => {
+    const rt = seededRuntime(SEED, { now: NOW });
+    rt.tracker.importCsv(sampleCohortCsv(), NOW);
+    await accessModule.actions?.[PEOPLE_FILTER_ACTION]?.(rt, { filter: "cohort:Vendor" });
+    const view = await grants(rt);
+    expect(section(view, "table")?.title).toBe("Subproject grants · 1 of 1 person");
+    expect(section(view, "table")?.caption).toStartWith("1 of 1 person hold");
+    expect(Object.keys(byPerson(view))).toEqual(["Elena Petrova"]);
+  });
+
+  test("many subprojects: columns are capped and the rest are named", async () => {
+    const read = sampleSeismic();
+    const lena = Object.entries(sampleAccess().directory).find(
+      ([, e]) => e.name === "Lena Fischer",
+    )?.[0] as string;
+    for (let i = 1; i <= 15; i++) {
+      const name = `extra${String(i).padStart(2, "0")}`;
+      const admin = `data.sdms.opendes.${name}.admin@opendes.dataservices.energy`;
+      const viewer = `data.sdms.opendes.${name}.viewer@opendes.dataservices.energy`;
+      read.subprojects.push({ name, admins: [admin], viewers: [viewer] });
+      read.groups[admin] = { members: [] };
+      read.groups[viewer] = { members: [lena] };
+    }
+    const view = await grants(seededRuntime({ ...SEED, [SEISMIC_AREA]: read }, { now: NOW }));
+    expect(section(view, "table")?.columns).toHaveLength(2 + 12);
+    const notShown = all(view, "rows")
+      .flatMap((r) => r.items)
+      .find((r) => r.text === "Not shown");
+    expect(notShown?.trailing).toBe(
+      "13 more subprojects (extra03, extra04 and 11 more), and subproject-legacy (no members)",
+    );
+  });
+
+  test("a store never read says so and offers the seismic read", async () => {
+    const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW });
+    const view = await grants(rt);
+    expect(section(view, "table")).toBeUndefined();
+    expect(JSON.stringify(view)).toContain("Seismic grants are not measured yet");
+    const read = all(view, "actions").at(-1)?.items[0];
+    expect(read).toMatchObject({ type: SEIS_READ_ACTION, label: "Read subprojects" });
+    expect(read?.disabled).toBeUndefined();
+
+    const signedOut = seededRuntime(
+      { [ACCESS_AREA]: sampleAccess() },
+      { now: NOW, phase: "signin" },
+    );
+    const gated = all(await grants(signedOut), "actions").at(-1)?.items[0];
+    expect(gated).toMatchObject({ type: SEIS_READ_ACTION, disabled: true });
+  });
+
+  test("reading the store redraws the people region", async () => {
+    const { transport } = routeTransport(seismicRoutes());
+    const keys: string[] = [];
+    const rt = seededRuntime(
+      { [ACCESS_AREA]: sampleAccess() },
+      { now: NOW, transport, recompose: (k) => keys.push(...k) },
+    );
+    expect(await act(rt, SEIS_READ_ACTION)).toEqual({ ok: true });
+    expect(keys).toContain(PEOPLE_KEY);
+    expect(section(await grants(rt), "table")?.title).toBe("Subproject grants · 9 of 9 people");
+  });
+
+  const states: [string, () => Runtime][] = [
+    ["measured", () => seededRuntime(SEED, { now: NOW })],
+    ["signin", () => seededRuntime(SEED, { now: NOW, phase: "signin" })],
+    ["firstrun", () => seededRuntime(SEED, { now: NOW, phase: "firstrun" })],
+    ["never read", () => seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW })],
+  ];
+  for (const [name, make] of states) {
+    test(`every frame passes its validator: ${name}`, async () => {
+      const rt = make();
+      await accessModule.actions?.[PEOPLE_VIEW_ACTION]?.(rt, { view: "grants" });
+      for (const filter of ["all", "apps", "pending", "gaps"]) {
+        await accessModule.actions?.[PEOPLE_FILTER_ACTION]?.(rt, { filter });
+        expect(() => peopleBoard(composePeople(rt))).not.toThrow();
+      }
+    });
+  }
 });

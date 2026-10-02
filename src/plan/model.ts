@@ -17,7 +17,8 @@ export type PlanKind =
   | "add-app"
   | "fix-users"
   | "cleanup-duplicate"
-  | "remove-person";
+  | "remove-person"
+  | "resend-invite";
 
 export type Classification =
   | "will-invite"

@@ -15,6 +15,7 @@ import {
   PREVIEW_CLEANUP_ACTION,
   PREVIEW_FIX_ACTION,
   PREVIEW_REMOVE_ACTION,
+  PREVIEW_RESEND_ACTION,
 } from "../boards/change.ts";
 import {
   composePlan,
@@ -165,6 +166,16 @@ export const planModule: RegionModule = {
           return id ? { kind: "cleanup-duplicate", id } : "Pick a person.";
         },
         (i) => `clean up ${personName(rt, (i as { id: string }).id)}`,
+      ),
+    [PREVIEW_RESEND_ACTION]: (rt, payload) =>
+      preview(
+        rt,
+        payload,
+        (p) => {
+          const id = str(p, "id");
+          return id ? { kind: "resend-invite", id } : "Pick a person.";
+        },
+        (i) => `resend ${personName(rt, (i as { id: string }).id)}'s invitation`,
       ),
     [RECHECK_PLAN_ACTION]: async (rt, payload) => {
       const p = asPayload(payload);

@@ -9,7 +9,7 @@
 import type { AccessModel, Identity } from "../access/model.ts";
 import type { GroupKey } from "../access/read.ts";
 import type { Batch, CallResult } from "../client.ts";
-import type { Profile } from "../profile.ts";
+import { type Profile, shortId } from "../profile.ts";
 import { type Classified, classifyAddress, parseAddresses } from "./classify.ts";
 import {
   bindingOf,
@@ -27,6 +27,7 @@ import {
   fixUsersSteps,
   type RoleKey,
   removePersonSteps,
+  resendInviteSteps,
   type StepContext,
 } from "./steps.ts";
 
@@ -48,7 +49,8 @@ export type PlanInputs =
   | { kind: "add-app"; appId: string; role: string }
   | { kind: "fix-users"; id: string }
   | { kind: "cleanup-duplicate"; id: string }
-  | { kind: "remove-person"; id: string };
+  | { kind: "remove-person"; id: string }
+  | { kind: "resend-invite"; id: string };
 
 function stepContext(ctx: BuildContext): StepContext | string {
   const domain = ctx.profile.entitlementsDomain;
@@ -221,6 +223,19 @@ function personPlan(
     }));
     return done(ctx, "cleanup-duplicate", `remove ${person.name}'s duplicate entry`, inputs, [
       { ...base, steps },
+    ]);
+  }
+  if (inputs.kind === "resend-invite") {
+    if (person.state !== "pending" || !person.email)
+      return fail(`${person.name} has no invitation waiting to be accepted.`);
+    const steps = resendInviteSteps(person.email);
+    return done(ctx, "resend-invite", `resend ${person.name}'s invitation`, inputs, [
+      {
+        ...base,
+        classification: "existing-guest",
+        reason: `The invitation must return ${shortId(person.id)}, ${person.name}'s own id. Any other id halts the plan.`,
+        steps,
+      },
     ]);
   }
   const steps = removePersonSteps(sc, person);

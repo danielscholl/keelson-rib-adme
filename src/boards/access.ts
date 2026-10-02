@@ -6,7 +6,7 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { CanvasBoardView } from "@keelson/shared";
+import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
 import {
   type AccessCounts,
   type AccessModel,
@@ -17,12 +17,19 @@ import {
 } from "../access/model.ts";
 import { selectedId } from "../access/person.ts";
 import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
+import { bindingOf } from "../plan/model.ts";
 import { instanceName, shortId } from "../profile.ts";
 import { composeRestingHeader, EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { type Cohort, csvCell, daysUntil, UNTRACKED } from "../tracker.ts";
-import { signinCard } from "./connection.ts";
+import {
+  EXPLAIN_ACTION,
+  PREVIEW_CLEANUP_ACTION,
+  PREVIEW_FIX_ACTION,
+  PREVIEW_RESEND_ACTION,
+} from "./change.ts";
+import { SIGNIN_REASON, signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
@@ -236,7 +243,35 @@ export function openAction(who: Identity, selected: string | undefined) {
   };
 }
 
-function attentionCards(people: Identity[], now: Date, selected: string | undefined): Section[] {
+type Verb = (
+  type: string,
+  label: string,
+  p: Identity,
+  extra?: Partial<CanvasActionItem>,
+) => CanvasActionItem;
+
+const BRAND = { tone: "brand" } as const;
+
+function cardVerb(rt: Runtime): Verb {
+  const binding = rt.profile ? { ...bindingOf(rt.profile) } : {};
+  const gate = rt.status.phase === "connected" ? {} : { disabled: true, reason: SIGNIN_REASON };
+  return (type, label, p, extra = {}) => ({
+    type,
+    label,
+    payload: { id: p.id },
+    binding,
+    pendingLabel: "Planning…",
+    ...extra,
+    ...gate,
+  });
+}
+
+function attentionCards(
+  people: Identity[],
+  now: Date,
+  selected: string | undefined,
+  verb: Verb,
+): Section[] {
   const missing = people.filter((p) => p.cause === "missing-users");
   const pending = people.filter((p) => p.state === "pending");
   const duplicate = people.filter((p) => p.duplicateIn !== undefined);
@@ -251,6 +286,10 @@ function attentionCards(people: Identity[], now: Date, selected: string | undefi
         pill: { label: "401", tone: "error" as const },
         fields: personFields(p),
         footnote: `member of ${GROUP_NAMES[roleGroup(p)]} but not users@`,
+        actions: [
+          verb(PREVIEW_FIX_ACTION, "Plan the fix", p, BRAND),
+          verb(EXPLAIN_ACTION, "Why 401/403", p, { pendingLabel: "Opening…" }),
+        ],
         ...openAction(p, selected),
       })),
     });
@@ -267,6 +306,7 @@ function attentionCards(people: Identity[], now: Date, selected: string | undefi
           ...(p.email ? [{ label: "Email", value: p.email, copyable: true }] : []),
           { label: "Invited", value: p.invitedAt ? daysAgo(p.invitedAt, now) : "?" },
         ],
+        actions: [verb(PREVIEW_RESEND_ACTION, "Resend invitation", p)],
         ...openAction(p, selected),
       })),
     });
@@ -281,6 +321,7 @@ function attentionCards(people: Identity[], now: Date, selected: string | undefi
         pill: { label: "duplicate", tone: "warn" as const },
         fields: personFields(p),
         footnote: `email form and object id form are both in ${GROUP_NAMES[p.duplicateIn ?? "users"]}`,
+        actions: [verb(PREVIEW_CLEANUP_ACTION, "Plan the cleanup", p, BRAND)],
         ...openAction(p, selected),
       })),
     });
@@ -316,7 +357,7 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   if (!measured) return EMPTY_BOARD;
   const { model, counts } = measured;
-  const sections = attentionCards(model.people, rt.now(), selectedId(rt));
+  const sections = attentionCards(model.people, rt.now(), selectedId(rt), cardVerb(rt));
   if (sections.length === 0 && model.unknown.length === 0) {
     sections.push({ kind: "rows", items: [{ glyph: "ok", text: "Nothing needs you." }] });
   }

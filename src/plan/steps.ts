@@ -166,6 +166,27 @@ export function addPersonSteps(ctx: StepContext, target: AddTarget, role: RoleKe
   return steps;
 }
 
+export function resendInviteSteps(address: string): Draft[] {
+  return [
+    {
+      subject: address,
+      kind: "invite",
+      text: "POST graph /v1.0/invitations (sends an email)",
+      call: {
+        service: "graph",
+        method: "POST",
+        path: "/v1.0/invitations",
+        body: {
+          invitedUserEmailAddress: address,
+          inviteRedirectUrl: INVITE_REDIRECT,
+          sendInvitationMessage: true,
+        },
+      },
+      change: true,
+    },
+  ];
+}
+
 export function addAppSteps(
   ctx: StepContext,
   appId: string,

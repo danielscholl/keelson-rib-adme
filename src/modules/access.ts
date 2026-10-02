@@ -164,7 +164,8 @@ export const accessModule: RegionModule = {
     },
     [PEOPLE_VIEW_ACTION]: async (rt, payload) => {
       const view = (payload as { view?: unknown } | undefined)?.view;
-      if (!isPeopleView(view)) return { ok: false, error: "Pick Roster or Roles matrix." };
+      if (!isPeopleView(view))
+        return { ok: false, error: "Pick Roster, Roles matrix or Seismic grants." };
       peopleState(rt).view = view;
       rt.recompose([PEOPLE_KEY]);
       return { ok: true };
