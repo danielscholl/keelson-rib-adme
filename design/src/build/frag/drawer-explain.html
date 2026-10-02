@@ -1,0 +1,54 @@
+<aside class="canvas-drawer canvas-drawer-view" role="dialog" aria-modal="true" aria-label="Why 401/403 · Rachel Kim" data-drawer="explain" hidden>
+<header class="canvas-drawer-header"><span class="canvas-drawer-title">Why 401/403 · Rachel Kim</span><button type="button" class="canvas-drawer-close" aria-label="Close canvas" data-close-drawer>×</button></header>
+<div class="canvas-drawer-body"><div class="canvas-view-board">
+<div class="cvb-header"><span class="cvb-header-status" data-tone="error">401: not a member of users@</span><span class="cvb-chip cvb-header-chip">checked 14:05Z · 7 checks</span><span class="cvb-title">rachel.kim@pacrim-energy.example</span>
+<div class="cvb-segments-strip">
+<div class="cvb-strip" aria-hidden="true"><div class="cvb-strip-fill" data-tone="ok" title="passed 3" style="flex-grow:3"></div><div class="cvb-strip-fill" data-tone="error" title="failed 1" style="flex-grow:1"></div><div class="cvb-strip-fill" data-tone="neutral" title="skipped 3" style="flex-grow:3"></div></div>
+<div class="cvb-segments"><span class="cvb-segment"><span class="cvb-segment-bullet" data-tone="ok" aria-hidden="true"></span><span class="cvb-segment-text">3 passed</span></span><span class="cvb-segment"><span class="cvb-segment-bullet" data-tone="error" aria-hidden="true"></span><span class="cvb-segment-text">1 failed</span></span><span class="cvb-segment"><span class="cvb-segment-bullet" data-tone="neutral" aria-hidden="true"></span><span class="cvb-segment-text">3 skipped</span></span></div>
+</div></div>
+<section class="cvb-section"><div class="cvb-section-title">Checks, in the order the platform applies them</div>
+<div class="cvb-rows">
+<div class="cvb-row"><span class="cvb-glyph" data-tone="ok"></span><span class="cvb-chip" data-tone="ok">pass</span><span class="cvb-row-text">Signed in to tenant Contoso as ingrid.halvorsen@contoso.example</span><span class="cvb-row-trailing">tenant 1f2e…9a00</span></div>
+<div class="cvb-row"><span class="cvb-glyph" data-tone="ok"></span><span class="cvb-chip" data-tone="ok">pass</span><span class="cvb-row-text">Request reaches the ADME app (4c7d…2b18)</span><span class="cvb-row-trailing">app id matches</span></div>
+<div class="cvb-row"><span class="cvb-glyph" data-tone="ok"></span><span class="cvb-chip" data-tone="ok">pass</span><span class="cvb-row-text">data-partition-id is opendes</span><span class="cvb-row-trailing">header present</span></div>
+<details class="cvb-row-details"><summary class="cvb-row"><span class="cvb-glyph" data-tone="error"></span><span class="cvb-chip" data-tone="error">fail</span><span class="cvb-row-text">Member of users@opendes.dataservices.energy</span><span class="cvb-row-trailing">this is the cause</span><span class="cvb-row-caret" aria-hidden="true">▸</span></summary>
+<div class="cvb-row-detail">GET entitlements /members/7c2e…41ab/groups returned 32 groups, expected 33 for Editor
+missing: users@opendes.dataservices.energy
+Entitlements rejects any caller outside users@ with 401 before roles are read.</div></details>
+<div class="cvb-row"><span class="cvb-glyph" data-tone="neutral"></span><span class="cvb-chip" data-tone="neutral">skipped</span><span class="cvb-row-text">Role group grants the service role</span><span class="cvb-row-trailing">not reached</span></div>
+<div class="cvb-row"><span class="cvb-glyph" data-tone="neutral"></span><span class="cvb-chip" data-tone="neutral">skipped</span><span class="cvb-row-text">Record ACL intersects effective groups</span><span class="cvb-row-trailing">not reached</span></div>
+<div class="cvb-row"><span class="cvb-glyph" data-tone="neutral"></span><span class="cvb-chip" data-tone="neutral">skipped</span><span class="cvb-row-text">Seismic subproject ACL</span><span class="cvb-row-trailing">not reached</span></div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Fix</div>
+<div class="cvb-cards">
+<div class="cvb-card" data-edge="error">
+<div class="cvb-card-head"><span class="cvb-card-dot" data-tone="error"></span><span class="cvb-card-title">Add Rachel Kim to users@</span><span class="cvb-pill" data-tone="neutral">1 change</span></div>
+<div class="cvb-card-fields cvb-card-fields--stacked">
+<span class="cvb-field"><span class="cvb-field-label">1</span><span class="cvb-field-value">POST entitlements /groups/users@…/members {email: 7c2e…41ab, role: MEMBER}</span></span>
+<span class="cvb-field"><span class="cvb-field-label">2</span><span class="cvb-field-value">GET entitlements /members/7c2e…41ab/groups, expect 33</span></span>
+</div>
+<div class="cvb-card-footnote">Nothing changes until you apply the plan.</div>
+<div class="cvb-card-reason"><span class="cvb-card-reason-label">why </span>member of users.datalake.editors but not users@. The add to users@ failed on 2026-09-28 when sign-in lapsed mid-batch.</div>
+<div class="cvb-actions cvb-card-actions">
+<div class="cvb-action"><button type="button" class="cvb-action-button" data-tone="brand" data-open-drawer="plan"><span class="cvb-action-glyph" aria-hidden="true">±</span>Plan the fix</button></div>
+<div class="cvb-action"><button type="button" class="cvb-action-button" data-open-drawer="person">Open person</button></div>
+</div>
+</div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Send to this person</div>
+<div class="cvb-cards cvb-cards--boxed">
+<div class="cvb-card">
+<div class="cvb-card-head"><span class="cvb-card-title">Note for Rachel Kim</span><span class="cvb-pill" data-tone="neutral">plain text</span></div>
+<div class="cvb-card-fields cvb-card-fields--prose">
+<span class="cvb-field"><span class="cvb-field-label">Note</span><span class="cvb-field-value">Hi Rachel, your sign-in to contoso-adme works. The 401 you see on every call is on our side: your account is in the Editor role group but is missing from the base users group for partition opendes. You do not need a new invitation or a new account. I am adding you now. When I confirm, sign in again with az login and retry. Your Editor access then covers 33 groups.</span><button type="button" class="cvb-copy" aria-label="Copy Note">⧉</button></span>
+</div>
+<div class="cvb-card-footnote">Copy only. The rib does not send mail.</div>
+</div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Recent answers · 2</div>
+<div class="cvb-rows">
+<div class="cvb-row cvb-row--selectable"><button type="button" class="cvb-card-select" aria-pressed="false" aria-label="Marcus Oyelaran, sd://opendes/bravo"></button><span class="cvb-glyph" data-tone="warn"></span><span class="cvb-chip" data-tone="warn">403</span><span class="cvb-row-text">Marcus Oyelaran on sd://opendes/bravo: not in the bravo subproject ACL</span><span class="cvb-row-trailing">11:18Z</span></div>
+<div class="cvb-row cvb-row--selectable"><button type="button" class="cvb-card-select" aria-pressed="false" aria-label="Ben Whitaker"></button><span class="cvb-glyph" data-tone="warn"></span><span class="cvb-chip" data-tone="warn">401</span><span class="cvb-row-text">Ben Whitaker: invitation not accepted, cannot sign in yet</span><span class="cvb-row-trailing">2026-09-30</span></div>
+</div></section>
+</div></div>
+</aside>

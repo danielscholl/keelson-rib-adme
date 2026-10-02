@@ -1,0 +1,61 @@
+<aside class="canvas-drawer canvas-drawer-view" role="dialog" aria-modal="true" aria-label="Plan: add 2 people to Pilot" data-drawer="plan" hidden>
+<header class="canvas-drawer-header"><span class="canvas-drawer-title">Plan · add 2 people to Pilot</span><button type="button" class="canvas-drawer-close" aria-label="Close canvas" data-close-drawer>×</button></header>
+<div class="canvas-drawer-body"><div class="canvas-view-board">
+<div class="cvb-header"><span class="cvb-header-status" data-tone="neutral">dry run · nothing changed</span><span class="cvb-chip cvb-header-chip">plan 4f2a · expires in 28 min</span><span class="cvb-title">Add 2 people to Pilot</span></div>
+<section class="cvb-section"><div class="cvb-section-title">What apply does, in order</div>
+<div class="cvb-journey">
+<div class="cvb-journey-step"><span class="cvb-journey-num">1</span><span class="cvb-journey-title">Resolve identity</span><span class="cvb-journey-text">Match each address to an Entra account, deleted item or nothing.</span></div>
+<div class="cvb-journey-step"><span class="cvb-journey-num">2</span><span class="cvb-journey-title">Invite or reuse</span><span class="cvb-journey-text">Invite only when no account exists.</span></div>
+<div class="cvb-journey-step"><span class="cvb-journey-num">3</span><span class="cvb-journey-title">Roster group</span><span class="cvb-journey-text">Add to contoso-adme (9d3a…5e42).</span></div>
+<div class="cvb-journey-step"><span class="cvb-journey-num">4</span><span class="cvb-journey-title">Entitlements</span><span class="cvb-journey-text">Add to users@, then the Editor role group.</span></div>
+<div class="cvb-journey-step"><span class="cvb-journey-num">5</span><span class="cvb-journey-title">Verify</span><span class="cvb-journey-text">Effective groups must equal 33.</span></div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Dry run result, 14:03Z</div>
+<div class="cvb-stats" style="--cvb-stat-cols:4">
+<div class="cvb-stat"><span class="cvb-stat-value-row"><span class="cvb-stat-value">4</span></span><span class="cvb-stat-label">Will change</span><span class="cvb-stat-sub">all for kofi.mensah</span></div>
+<div class="cvb-stat"><span class="cvb-stat-value-row"><span class="cvb-stat-value">0</span></span><span class="cvb-stat-label">Already true</span><span class="cvb-stat-sub">a 409 on apply counts here</span></div>
+<div class="cvb-stat"><span class="cvb-stat-value-row"><span class="cvb-stat-value" data-tone="warn">1</span></span><span class="cvb-stat-label">Blocked</span><span class="cvb-stat-sub">duplicate identity</span></div>
+<div class="cvb-stat"><span class="cvb-stat-value-row"><span class="cvb-stat-value">2</span></span><span class="cvb-stat-label">People</span><span class="cvb-stat-sub">Editor · Pilot · no seismic</span></div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Protected or excluded · 1</div>
+<div class="cvb-rows cvb-rows--boxed">
+<div class="cvb-row"><span class="cvb-glyph" data-tone="warn"></span><span class="cvb-chip" data-tone="warn">blocked</span><span class="cvb-row-text">r.kim@pacrim.example</span><span class="cvb-row-trailing">Same home identity as Rachel Kim (7c2e…41ab). No invite, no second account. Use her existing entry.</span></div>
+</div></section>
+<section class="cvb-section"><div class="cvb-section-title">Steps per person · 2</div>
+<div class="cvb-cards">
+<div class="cvb-card">
+<div class="cvb-card-head"><span class="cvb-card-dot" data-tone="info"></span><span class="cvb-card-title cvb-card-title--mono">kofi.mensah@volta-subsurface.example</span><span class="cvb-pill" data-tone="info">will invite</span></div>
+<div class="cvb-card-fields cvb-card-fields--stacked">
+<span class="cvb-field"><span class="cvb-field-label">1</span><span class="cvb-field-value">POST graph /v1.0/invitations (sends an email)</span></span>
+<span class="cvb-field"><span class="cvb-field-label">2</span><span class="cvb-field-value">wait 10 s for directory replication</span></span>
+<span class="cvb-field"><span class="cvb-field-label">3</span><span class="cvb-field-value">POST graph /groups/9d3a…5e42/members/$ref</span></span>
+<span class="cvb-field"><span class="cvb-field-label">4</span><span class="cvb-field-value">POST entitlements /groups/users@…/members {email: &lt;oid&gt;, role: MEMBER}</span></span>
+<span class="cvb-field"><span class="cvb-field-label">5</span><span class="cvb-field-value">POST entitlements /groups/users.datalake.editors@…/members</span></span>
+<span class="cvb-field"><span class="cvb-field-label">6</span><span class="cvb-field-value">GET entitlements /members/&lt;oid&gt;/groups, expect 33</span></span>
+</div>
+<div class="cvb-card-footnote">first-seen domain volta-subsurface.example</div>
+</div>
+<div class="cvb-card" data-edge="warn">
+<div class="cvb-card-head"><span class="cvb-card-dot" data-tone="warn"></span><span class="cvb-card-title cvb-card-title--mono">r.kim@pacrim.example</span><span class="cvb-pill" data-tone="warn">existing guest</span></div>
+<div class="cvb-card-reason"><span class="cvb-card-reason-label">collision </span>an invite to this address would return Rachel Kim's object id. The plan stops here by design and never removes an account.</div>
+</div>
+</div></section>
+<section class="cvb-section">
+<div class="cvb-cards cvb-cards--boxed">
+<div class="cvb-card">
+<div class="cvb-card-head"><span class="cvb-card-title">Dry run</span><span class="cvb-pill" data-tone="neutral">nothing changed</span></div>
+<div class="cvb-card-fields">
+<span class="cvb-field"><span class="cvb-field-label">Dry run CSV</span><span class="cvb-field-value">plan-4f2a-dry-run.csv · 6 step lines, 1 blocked line</span><button type="button" class="cvb-copy" aria-label="Copy dry run CSV">⧉</button></span>
+<span class="cvb-field"><span class="cvb-field-label">Correlation id</span><span class="cvb-field-value">keelson-adme-4f2a-&lt;n&gt;</span><button type="button" class="cvb-copy" aria-label="Copy correlation id">⧉</button></span>
+</div>
+<div class="cvb-card-footnote">Apply re-runs the dry run first and stops if anything changed since 14:03Z.</div>
+</div>
+</div></section>
+<section class="cvb-section">
+<div class="cvb-actions cvb-actions--wrap">
+<div class="cvb-action"><button type="button" class="cvb-action-button" data-tone="brand" data-open-modal="apply" data-when="connected firstrun" title="Apply re-runs the dry run first and stops if anything changed since 14:03Z."><span class="cvb-action-glyph" aria-hidden="true">▶</span>Apply 4 changes</button><button type="button" class="cvb-action-button is-disabled" aria-disabled="true" title="sign-in needed: run az login, then Re-test" data-when="expired"><span class="cvb-action-glyph" aria-hidden="true">▶</span>Apply 4 changes</button></div>
+<div class="cvb-action"><button type="button" class="cvb-action-button"><span class="cvb-action-glyph" aria-hidden="true">↻</span>Recheck</button></div>
+<div class="cvb-action cvb-action--end"><button type="button" class="cvb-action-button is-destructive" data-close-drawer>Discard plan</button></div>
+</div></section>
+</div></div>
+</aside>

@@ -1,0 +1,321 @@
+<section>
+<h2>How it is organised</h2>
+<p>Each tab covers one part of the instance. The tab labels carry the rib name because the top bar has no overflow rule and other ribs sit beside them. The Connection region is the footer of all three tabs under one snapshot key.</p>
+<p>Because an inspector replaces whatever the drawer showed, a running plan stays visible in the Operation region on the ADME Access tab, and Recent changes lists every plan that is staged, paused or applied.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Tab</th><th>What it covers</th><th>Regions</th><th>Badge</th></tr></thead>
+<tbody>
+<tr><td><b>ADME Access</b></td><td>Managing people and applications.</td><td>Access (pulse), Needs you, Change access, Operation, Recent changes, People (Roster, Roles matrix, Seismic grants), Cohorts, Applications</td><td class="num">5 (3 pending, 2 broken)</td></tr>
+<tr><td><b>ADME Data</b></td><td>Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only in the first take.</td><td>Data (pulse), Records, Legal tags, Services</td><td class="num">2 (1 invalid, 1 expiring)</td></tr>
+<tr><td><b>ADME Seismic</b></td><td>Seismic subprojects: who is in each by name, grant and revoke.</td><td>Seismic store (pulse), Subprojects (13 cards), the selected subproject, Grant or revoke, What a partner can reach</td><td class="num">none</td></tr>
+</tbody></table></div>
+<p>Figure 1 shows how the three tabs reach the three drawer inspectors: every click is a rib action, and the rib decides which single document the drawer holds.</p>
+<figure class="fig">
+<svg viewBox="0 0 1000 412" role="img" aria-label="Three tabs send actions to the rib, which re-targets one of three drawer inspectors: person, plan or explainer.">
+<defs>
+<marker id="kz-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill: var(--muted)"/></marker>
+<marker id="kz-ah-good" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill: var(--good)"/></marker>
+<marker id="kz-ah-crit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill: var(--crit)"/></marker>
+</defs>
+<rect x="8" y="8" width="984" height="124" rx="10" class="lane"/>
+<text x="24" y="30" class="lane-label">Surfaces: top tabs</text>
+<rect x="24" y="44" width="304" height="76" rx="8" class="box"/>
+<text x="36" y="68" class="t">ADME Access</text>
+<text x="316" y="68" class="tiny" text-anchor="end">tab badge 5</text>
+<text x="36" y="88">Managing people and applications</text>
+<text x="36" y="105" class="tiny">8 regions + Connection footer</text>
+<rect x="348" y="44" width="304" height="76" rx="8" class="box"/>
+<text x="360" y="68" class="t">ADME Data</text>
+<text x="640" y="68" class="tiny" text-anchor="end">tab badge 2</text>
+<text x="360" y="88">Services, legal tags, counts, record search</text>
+<text x="360" y="105" class="tiny">4 regions + Connection footer, read-only</text>
+<rect x="672" y="44" width="304" height="76" rx="8" class="box"/>
+<text x="684" y="68" class="t">ADME Seismic</text>
+<text x="964" y="68" class="tiny" text-anchor="end">no badge</text>
+<text x="684" y="88">Who is in each subproject, by name</text>
+<text x="684" y="105" class="tiny">5 regions + Connection footer</text>
+<path d="M176 120 V176" class="edge"/>
+<text x="186" y="154" class="edge-label">select-person, Preview plan, Why 401/403</text>
+<path d="M500 120 V176" class="edge"/>
+<text x="510" y="154" class="edge-label">Search, Prev, Next 25, Clear</text>
+<path d="M824 120 V176" class="edge"/>
+<text x="834" y="154" class="edge-label">select-person, Preview plan</text>
+<rect x="24" y="176" width="952" height="60" rx="8" class="box id-1"/>
+<text x="36" y="200" class="t">keelson-rib-adme · onAction</text>
+<text x="36" y="220">stores the selection, recomposes the one drawer key that changed, replies open-canvas</text>
+<path d="M176 236 V288" class="edge"/>
+<path d="M500 236 V288" class="edge"/>
+<path d="M824 236 V288" class="edge"/>
+<rect x="8" y="272" width="984" height="128" rx="10" class="lane"/>
+<rect x="24" y="288" width="304" height="76" rx="8" class="box"/>
+<text x="36" y="312" class="t">Person inspector</text>
+<text x="36" y="332">identity, access checks, groups, history</text>
+<text x="36" y="349" class="tiny mono">rib:adme:person</text>
+<rect x="348" y="288" width="304" height="76" rx="8" class="box"/>
+<text x="360" y="312" class="t">Plan sheet</text>
+<text x="360" y="332">dry run, steps per person, Apply</text>
+<text x="360" y="349" class="tiny mono">rib:adme:plan</text>
+<rect x="672" y="288" width="304" height="76" rx="8" class="box"/>
+<text x="684" y="312" class="t">Why 401/403 explainer</text>
+<text x="684" y="332">7 ordered checks, verdict, fix</text>
+<text x="684" y="349" class="tiny mono">rib:adme:explain</text>
+<text x="24" y="388" class="lane-label">Canvas drawer: one document, no back stack</text>
+</svg>
+<figcaption>Figure 1. The three tabs and the drawer inspectors they open. The drawer holds one document, so each inspector replaces the last.</figcaption>
+</figure>
+</section>
+<section>
+<h2>One way to change anything</h2>
+<p>Every form submits <b>Preview plan</b> and never mutates. A plan is rib-held state with an id and a hash, and it expires after 30 minutes. The plan sheet classifies each address (existing guest, restorable from deleted items, will invite, ambiguous) before any invitation is sent. The worked example adds 2 people to Pilot: 4 calls will change something, and 1 address is blocked because it resolves to Rachel Kim's existing account.</p>
+<p>During Apply each call carries the correlation id <code>keelson-adme-&lt;planId&gt;-&lt;n&gt;</code>, which joins to OEPAuditLogs. A 409 counts as already true. Adds get a simple confirm ("Apply 4 changes?"); removals need a typed subject, for example typing <code>Rachel Kim</code> to remove her (2 membership deletes, Entra guest kept). Removing a whole cohort and the <code>adme_plan_*</code> agent tools come later.</p>
+<p>Figure 2 follows a plan from the form to the tracker, with the three ways Apply stops.</p>
+<figure class="fig">
+<svg viewBox="0 0 1000 312" role="img" aria-label="A form produces a dry-run plan; Apply re-checks, writes and verifies, then the tracker is appended. Apply stops on a stale plan, on an identity collision, or when sign-in is needed.">
+<rect x="20" y="24" width="168" height="96" rx="8" class="box"/>
+<text x="32" y="48" class="t">Form</text>
+<text x="32" y="68">Preview plan</text>
+<text x="32" y="85">never mutates</text>
+<path d="M188 72 H218" class="edge"/>
+<rect x="218" y="24" width="168" height="96" rx="8" class="box"/>
+<text x="230" y="48" class="t">Dry-run plan</text>
+<text x="230" y="68">classifies each identity</text>
+<text x="230" y="85">lists the exact calls</text>
+<text x="230" y="106" class="tiny">id + hash, expires in 30 min</text>
+<path d="M386 72 H416" class="edge"/>
+<rect x="416" y="24" width="168" height="96" rx="8" class="box"/>
+<text x="428" y="48" class="t">Apply</text>
+<text x="428" y="68">re-runs the dry run</text>
+<text x="428" y="85">saves a pre-image</text>
+<text x="428" y="106" class="tiny">serial writes, as an op</text>
+<path d="M584 72 H614" class="edge"/>
+<rect x="614" y="24" width="168" height="96" rx="8" class="box"/>
+<text x="626" y="48" class="t">Verify</text>
+<text x="626" y="68">effective group count</text>
+<text x="626" y="85">against the expected</text>
+<text x="626" y="106" class="tiny">Editor: 33</text>
+<path d="M782 72 H812" class="edge"/>
+<rect x="812" y="24" width="168" height="96" rx="8" class="box"/>
+<text x="824" y="48" class="t">Tracker</text>
+<text x="824" y="68">appends the applied plan</text>
+<text x="824" y="85">JSON + CSV export</text>
+<path d="M440 120 V156 H180 V200" class="edge"/>
+<text x="310" y="148" class="edge-label" text-anchor="middle">dry run changed</text>
+<path d="M500 120 V200" class="edge crit"/>
+<text x="508" y="184" class="edge-label">object id already known</text>
+<path d="M560 120 V156 H820 V200" class="edge"/>
+<text x="690" y="148" class="edge-label" text-anchor="middle">401 or repeated 5xx</text>
+<rect x="60" y="200" width="240" height="96" rx="8" class="box warn"/>
+<text x="72" y="224" class="t">Stale: abort</text>
+<text x="72" y="244">the re-check differs from 14:03Z</text>
+<text x="72" y="261">nothing is written</text>
+<rect x="380" y="200" width="240" height="96" rx="8" class="box crit"/>
+<text x="392" y="224" class="t">Collision: halt</text>
+<text x="392" y="244">invite returned a known object id</text>
+<text x="392" y="261">an add never creates a removal</text>
+<rect x="700" y="200" width="240" height="96" rx="8" class="box warn"/>
+<text x="712" y="224" class="t">Sign-in needed: pause</text>
+<text x="712" y="244">resume after az login, Re-test</text>
+<text x="712" y="261">completed steps are kept</text>
+<text x="712" y="282" class="tiny">5xx: 2 retries, then pause</text>
+</svg>
+<figcaption>Figure 2. The plan path. The dashed edge is the collision halt: after an invitation, the returned object id and createdDateTime are compared with known accounts, and a match stops the plan.</figcaption>
+</figure>
+<div class="callout warn"><p class="eyebrow">Limit</p><p>The collision is detected after the invitation email has gone out. Classifying by <code>mail</code> and <code>otherMails</code> first catches the cases Graph can see; a new address on the same home identity is visible only when the object id comes back.</p></div>
+</section>
+<section>
+<h2>How it reaches the instance</h2>
+<p>The rib runs in-process in the Keelson server: no workflow, no cadence, no stored credential. The connection profile is six non-secret values (host, partition, entitlements domain, tenant id, ADME app id, roster group id).</p>
+<p>Figure 3 shows the four actors and the path of every call.</p>
+<figure class="fig">
+<svg viewBox="0 0 1000 344" role="img" aria-label="The rib inside the Keelson server shells the Azure CLI for the operator's sign-in, then calls ADME services and Entra Graph directly.">
+<rect x="208" y="8" width="400" height="324" rx="10" class="lane"/>
+<text x="224" y="30" class="lane-label">Keelson server, local</text>
+<rect x="16" y="44" width="168" height="96" rx="8" class="box"/>
+<text x="28" y="68" class="t">Keelson web</text>
+<text x="28" y="88">3 surfaces, 1 drawer</text>
+<text x="28" y="105">board actions in</text>
+<text x="28" y="126" class="tiny">snapshots out</text>
+<path d="M184 92 H232" class="edge"/>
+<rect x="232" y="44" width="352" height="96" rx="8" class="box id-1"/>
+<text x="244" y="68" class="t">keelson-rib-adme</text>
+<text x="244" y="88">in-process composers, plan engine, registered ops</text>
+<text x="244" y="105">sweep cache, tracker and names in the data dir</text>
+<text x="244" y="126" class="tiny">no secrets, no workflows, no cadence</text>
+<path d="M408 140 V220" class="edge"/>
+<text x="418" y="184" class="edge-label">ctx.getExec(), az sign-in</text>
+<rect x="232" y="220" width="352" height="96" rx="8" class="box id-3"/>
+<text x="244" y="244" class="t">Azure CLI sign-in</text>
+<text x="244" y="264">az account get-access-token, before each batch</text>
+<text x="244" y="281">delegated: ingrid.halvorsen@contoso.example</text>
+<path d="M584 76 H740" class="edge"/>
+<text x="662" y="68" class="edge-label" text-anchor="middle">bearer token + partition</text>
+<path d="M584 116 H664 V268 H740" class="edge"/>
+<text x="674" y="204" class="edge-label">bearer</text>
+<text x="674" y="219" class="edge-label">token</text>
+<rect x="740" y="44" width="244" height="96" rx="8" class="box id-4"/>
+<text x="752" y="68" class="t">ADME services</text>
+<text x="752" y="88">entitlements, legal, storage,</text>
+<text x="752" y="105">search, seismic</text>
+<text x="752" y="126" class="tiny mono">contoso-adme.energy.azure.com</text>
+<rect x="740" y="220" width="244" height="96" rx="8" class="box id-5"/>
+<text x="752" y="244" class="t">Entra Graph</text>
+<text x="752" y="264">users, invitations, deleted items,</text>
+<text x="752" y="281">roster group contoso-adme</text>
+<text x="752" y="302" class="tiny mono">graph.microsoft.com</text>
+</svg>
+<figcaption>Figure 3. The rib shells <code>az</code> for one token per resource and calls ADME and Graph itself. ADME does not read the roster group; it is kept for tracking only.</figcaption>
+</figure>
+<h3>Sign-in</h3>
+<p>The rib uses the operator's Azure CLI sign-in. Before each batch of calls it asks <code>az</code> for a token again with the two commands below, so token lifetime never appears in the UI. Every ADME request sends <code>Authorization: Bearer</code> and <code>data-partition-id: opendes</code>.</p>
+<p>The only state the operator sees is "sign-in needed": a card with <code>az login --tenant 1f2e…9a00</code> to copy, cached data under a "cached from 13:02Z" chip, and changes paused, with every button that would change something disabled for that reason. A running plan pauses at its step and resumes after sign-in.</p>
+<pre class="term"><span class="d"># Token for ADME: the resource is the ADME app id, not the instance URL</span>
+<span class="d">$</span> az account get-access-token --resource <span class="hi">4c7d…2b18</span>
+<span class="d"># Token for Graph</span>
+<span class="d">$</span> az account get-access-token --resource <span class="hi">https://graph.microsoft.com</span></pre>
+<h3>Call tiers</h3>
+<p>Calls are tiered so that opening a tab never triggers the expensive reads. Timers run only for 15 minutes after the last operator action and never while signed out. Record lists page server-side, 25 per frame.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Tier</th><th>When</th><th class="num">Calls</th><th>What is read</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Every paint</td><td class="num">0</td><td>The disk cache of the last sweep, with a "cached from HH:MMZ" chip</td></tr>
+<tr><td>1</td><td>On open, and on Refresh now</td><td class="num">about 12</td><td><code>users@</code> members, 4 role groups, roster group (Graph), legal tags valid and invalid, search total and aggregate by kind, seismic status and subproject list</td></tr>
+<tr><td>2</td><td>When the People lens or the ADME Seismic tab is opened</td><td class="num">22 to 26</td><td>Member lists of the 22 <code>data.sdms</code> groups, inverted into the matrix; Graph <code>$batch</code> for names and acceptance state, 20 per batch</td></tr>
+<tr><td>3</td><td>On demand only</td><td class="num">1 per person</td><td>Effective groups when an inspector opens or after a mutation; "Verify all" runs as a registered op</td></tr>
+</tbody></table></div>
+</section>
+<section>
+<h2>What Keelson cannot do yet</h2>
+<p>A rib publishes board snapshots; it does not author UI. These limits, verified against keelson main <code>e7f7314b</code>, shaped the layout.</p>
+<p>An unmeasured value is drawn as "?" or a hatched bar and worded "not measured": dataset counts, schemas, and records affected by an invalid legal tag all appear that way.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Constraint</th><th>Workaround used</th></tr></thead>
+<tbody>
+<tr><td>Table rows cannot be clicked</td><td>The Roster lens is a rows section with <code>select-person</code>. The two table lenses end with a one-line "Open person" form.</td></tr>
+<tr><td>Tables have no paging, sorting, sticky header or scroll cap</td><td>Matrix chunks of at most 15 rows per cohort with a "Showing 10 of 32" caption; records at 25 per page with Prev and Next actions.</td></tr>
+<tr><td>Rows carry no copy button, clock or people dots</td><td>Identity blocks, group emails and expiry are card fields. Rows keep one chip, text and a trailing string.</td></tr>
+<tr><td>Form controls are text, textarea, select and segmented only</td><td>Emails go one per line in a textarea. Person and subproject pickers are selects, which work at 36 identities and 13 subprojects.</td></tr>
+<tr><td>No masked input, so a secret cannot be typed into a board</td><td>No secret exists: the operator signs in with <code>az login</code> outside Keelson and the rib uses that sign-in in-process.</td></tr>
+<tr><td>An always-open form does not show the query just run</td><td>The active query sits in the region chip and the section title ("88,104 records · kind osdu:wks:master-data--Well:*"), with a Clear action.</td></tr>
+<tr><td>The drawer holds one document and has no back stack</td><td>One snapshot key per inspector, an inline Operation region for the running plan, and "Recent answers" rows in the explainer.</td></tr>
+<tr><td>Regions share a row equally; stats never wrap</td><td>At most 5 stat tiles. Unequal splits are a columns section inside one region (Records, 1:2). Card grids get a full-width row.</td></tr>
+<tr><td>Navigation is top tabs only, with no overflow</td><td>Three tabs. A fourth waits for evidence that the top bar handles overflow.</td></tr>
+<tr><td>An in-process region gets no host "updated" label</td><td>The rib prints "measured 14:05Z" in the header chip.</td></tr>
+<tr><td>Copy exists only on card fields</td><td>The dry run CSV, the access note and <code>az login</code> are card fields with a copy button, not menu verbs.</td></tr>
+</tbody></table></div>
+</section>
+<section>
+<h2>Scope of the first take</h2>
+<p>The first take is built in three slices, in this order. Each slice is usable without the next.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Slice</th><th>Scope</th><th>What it proves</th></tr></thead>
+<tbody>
+<tr><td><b>1. Connection and ADME Data, read-only</b></td><td>Services reachable and their versions, record counts by kind, legal tags with expiry, record search.</td><td>The <code>az</code> sign-in path, with nothing that can change the instance.</td></tr>
+<tr><td><b>2. ADME Access</b></td><td>People and applications, Needs you, the three people views, the person inspector, the plan engine for add, remove and fix, Why 401/403, tracker export.</td><td>The plan engine on real writes: dry run, Apply, verify, tracker.</td></tr>
+<tr><td><b>3. ADME Seismic</b></td><td>Subprojects with members by name, grant and revoke through the same plan engine, what a partner can reach.</td><td>The same plan engine on the UUID-named seismic groups.</td></tr>
+</tbody></table></div>
+<h3>Later</h3>
+<ul>
+<li>Legal tag create and extend.</li>
+<li>Cohort removal with pre-image and undo.</li>
+<li>Agent tools (<code>adme_plan_*</code>) and the ask policy.</li>
+<li>The roster document.</li>
+<li>A record inspector with versions and an ACL explanation.</li>
+</ul>
+<h3>Not planned yet</h3>
+<ul>
+<li>Schemas.</li>
+<li>Workflows.</li>
+<li>A group nesting graph and a general entitlement-group browser.</li>
+<li>The audit log feed.</li>
+<li>Multiple instances.</li>
+<li>Reindex.</li>
+<li>Creating or deleting subprojects.</li>
+<li>Dataset browsing.</li>
+</ul>
+</section>
+<section>
+<h2>Open questions</h2>
+<ul>
+<li><b>Shelling <code>az</code> through <code>ctx.getExec()</code> is unverified.</b> Resolve with a spike before any board work: one composer that signs in through <code>az</code> for both resources and makes one read against ADME and one against Graph.</li>
+<li><b>Seismic reads may not behave as assumed.</b> The subproject list returning ACL group names, reading other subprojects' members as tenant admin, and <code>GET /groups/all</code> are untested. Test connection probes each one and writes the capability matrix; the fallback parses <code>data.sdms.*</code> from the operator's own groups and may be incomplete.</li>
+<li><b>Aggregate by kind, the schema service and the partition API.</b> Not exercised. The partition API returns 403 to a user sign-in. The capability matrix records each result; until then the tiles read "?".</li>
+<li><b>One Connection key on three surfaces.</b> No uniqueness check was found in the host's rib registration. If it fails in practice, three keys share one composer.</li>
+<li><b>Confirm on Apply.</b> A confirm fires only on an action marked destructive, so the mockup's brand-toned "Apply 4 changes" with a confirm needs the host change in appendix C. Decide once: wait for it, or treat the plan sheet as the review and let adds apply without a dialog.</li>
+<li><b>Expected group counts drift.</b> 33, 39, 46 and 49 change with platform releases. Derive the count from a peer with the same grants, and add a per-person baseline so a known one-off stops counting as an access gap.</li>
+<li><b>The tracker is a second source of truth.</b> Cohort, pass end date and history live only in the rib's data dir. Ship import with export in the first take.</li>
+<li><b>Strict schemas, unproven primitives.</b> Tabbed actions, table badges, grid and head menu actions have little precedent in existing ribs, and one unknown key blanks a panel. Give every composer a schema test.</li>
+<li><b>Action timeout is unknown.</b> Identity resolution for a cohort can take tens of seconds. "Preview plan" should return at once and recompose; Apply runs as a registered op.</li>
+<li><b>Nothing was observed running.</b> Three tab labels beside other ribs, an 11-column matrix and narrow viewports were read from CSS only. Check them in the app once the first composer exists.</li>
+<li><b>Selection is rib-held and global.</b> Two browser windows share one drawer target and one lens. Accept it for a single operator and say so in the rib's docs.</li>
+<li><b>Names, emails and object ids are plain text</b> in snapshot frames and the data dir. Acceptable on a local workbench; state it in the rib's docs.</li>
+</ul>
+</section>
+<div class="appendix">
+<p class="eyebrow">Appendix</p>
+<section>
+<h2>A. Snapshot keys and regions</h2>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Where</th><th>Key</th><th>Title</th><th>Holds</th></tr></thead>
+<tbody>
+<tr><td>Access, header</td><td><code>rib:adme:pulse</code></td><td>Access</td><td>5 stats, role mix segments, head menu; the connect journey on first run</td></tr>
+<tr><td>Access, Now</td><td><code>rib:adme:attention</code></td><td>Needs you</td><td>Cards by cause (5), then the checks that found nothing</td></tr>
+<tr><td>Access, Now</td><td><code>rib:adme:change</code></td><td>Change access</td><td>Tabbed forms: Add people, Grant seismic, Remove person, Add application, Why 401/403</td></tr>
+<tr><td>Access, Now</td><td><code>rib:adme:operation</code></td><td>Operation</td><td>Steps of the running plan; hidden when empty</td></tr>
+<tr><td>Access, Now</td><td><code>rib:adme:recent</code></td><td>Recent changes</td><td>Plans and events, collapsible</td></tr>
+<tr><td>Access, People</td><td><code>rib:adme:people</code></td><td>People</td><td>Lens chips, filter chips, then Roster rows or a matrix table</td></tr>
+<tr><td>Access, Cohorts</td><td><code>rib:adme:cohorts</code></td><td>Cohorts</td><td>3 cards: Pilot 29, Vendor 1, Permanent 2</td></tr>
+<tr><td>Access, Cohorts</td><td><code>rib:adme:principals</code></td><td>Applications</td><td>4 cards keyed by app id</td></tr>
+<tr><td>Data, header</td><td><code>rib:adme:data-pulse</code></td><td>Data</td><td>5 stats; Schemas reads "?"</td></tr>
+<tr><td>Data, Records</td><td><code>rib:adme:records</code></td><td>Records</td><td>Columns 1:2: find tabs and top kinds; 25 results per page</td></tr>
+<tr><td>Data, Governance</td><td><code>rib:adme:legal</code></td><td>Legal tags</td><td>14 valid, 1 invalid; expiry cards</td></tr>
+<tr><td>Data, Governance</td><td><code>rib:adme:services</code></td><td>Services</td><td>Version grid for 10 services, collapsible</td></tr>
+<tr><td>Seismic, header</td><td><code>rib:adme:seis-pulse</code></td><td>Seismic store</td><td>4 stats</td></tr>
+<tr><td>Seismic</td><td><code>rib:adme:seis-subprojects</code></td><td>Subprojects</td><td>13 cards, 4 across; 11 with their own ACL, 2 on the default ACL</td></tr>
+<tr><td>Seismic</td><td><code>rib:adme:seis-selected</code></td><td>alpha</td><td>Copyable paths and group emails; admins 3, viewers 4</td></tr>
+<tr><td>Seismic</td><td><code>rib:adme:seis-change</code></td><td>Grant or revoke</td><td>Tabbed forms: Grant, Revoke, Copy grants from person</td></tr>
+<tr><td>Seismic</td><td><code>rib:adme:seis-reach</code></td><td>What a partner can reach</td><td>Paths for one person and a copyable access note</td></tr>
+<tr><td>All tabs, footer</td><td><code>rib:adme:connection</code></td><td>Connection</td><td>Sign-in state, profile, <code>az login</code>; collapsed once connected</td></tr>
+<tr><td>Drawer</td><td><code>rib:adme:person</code></td><td>Person</td><td>Identity card, access checks, effective groups, history</td></tr>
+<tr><td>Drawer</td><td><code>rib:adme:plan</code></td><td>Plan</td><td>Journey, 4 stats, protected rows, one card per person, Apply</td></tr>
+<tr><td>Drawer</td><td><code>rib:adme:explain</code></td><td>Why 401/403</td><td>7 checks in platform order, the fix, a note to send</td></tr>
+</tbody></table></div>
+</section>
+<section>
+<h2>B. Actions</h2>
+<p>Two action types are named so far; the rest are listed by their control label. Every mutating action stamps host, partition and tenant in its binding and is revalidated in the rib.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Action</th><th>Where</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>select-person</code></td><td>Needs you cards, Roster rows, subproject member rows, the "Open person" form</td><td>Sets the selected person, reads their effective groups (tier 3), opens <code>rib:adme:person</code></td></tr>
+<tr><td><code>select-subproject</code></td><td>Subproject cards</td><td>Recomposes the sibling region <code>rib:adme:seis-selected</code>; no drawer</td></tr>
+<tr><td>Preview plan</td><td>Every Change access and Grant or revoke form; "Plan the fix", "Plan the cleanup"</td><td>Builds the dry run and opens the plan sheet. Changes nothing.</td></tr>
+<tr><td>Apply N changes</td><td>Plan sheet</td><td>Re-runs the dry run, saves a pre-image, runs the writes as a registered op, verifies</td></tr>
+<tr><td>Recheck, Discard plan</td><td>Plan sheet</td><td>Rebuilds the dry run; deletes the staged plan (destructive, simple confirm)</td></tr>
+<tr><td>Why 401/403</td><td>Change access tabs, person inspector</td><td>Runs the 7 checks for one person and opens the explainer. Read-only.</td></tr>
+<tr><td>Resend invitation</td><td>"Invited, not accepted" cards</td><td>Stages a one-call plan for the Graph invitation, like any other write</td></tr>
+<tr><td>Lens and filter chips</td><td>People</td><td>Sets the rib-held lens and filter, recomposes; the chip reads "32 of 32 · all cohorts"</td></tr>
+<tr><td>Refresh now, Re-test connection, Verify all</td><td>Access head menu, Connection footer</td><td>Tier 1 sweep; rewrites the capability matrix; per-person verify as a registered op</td></tr>
+<tr><td>Remove person…</td><td>Person inspector</td><td>Destructive, typed subject. Stages a removal plan: entitlement groups and the roster group; the Entra guest is kept.</td></tr>
+<tr><td>Add myself as admin</td><td>Selected subproject</td><td>Stages a one-person grant; disabled with the reason "you are already an admin"</td></tr>
+<tr><td>Search, Prev, Next 25, Clear</td><td>Records</td><td>Runs or pages the query server-side. Read-only.</td></tr>
+<tr><td><code>adme_plan_*</code> tools</td><td>Agents, from chat (later)</td><td>Stage a plan marked "by agent". <code>adme_plan_apply</code> asks the operator first.</td></tr>
+</tbody></table></div>
+</section>
+<section>
+<h2>C. Host changes worth asking for</h2>
+<p>None is assumed by the first take. Each removes a workaround above.</p>
+<div class="scroll"><table class="tbl">
+<thead><tr><th>Host change</th><th>What it would replace</th></tr></thead>
+<tbody>
+<tr><td>A masked or typeahead form field</td><td>Person and subproject selects, which stop working at a few hundred entries</td></tr>
+<tr><td>A confirm that is not destructive</td><td>Marking a routine add as destructive to get a dialog</td></tr>
+<tr><td>Sticky table header and clickable table rows</td><td>15-row chunks and the "Open person" form under each table</td></tr>
+<tr><td>Region max-height with scroll</td><td>A long ADME Access tab when the People region is on a table lens</td></tr>
+<tr><td>A drawer back stack</td><td>"Recent answers" rows and the inline Operation region</td></tr>
+<tr><td>open-surface from drawer boards</td><td>Closing the inspector to jump to the ADME Seismic tab</td></tr>
+<tr><td>Top bar overflow</td><td>The three-tab ceiling</td></tr>
+<tr><td>A nav group, so one rib's surfaces nest under one tab</td><td>Repeating "ADME" in every tab label</td></tr>
+</tbody></table></div>
+</section>
+</div>
+<p class="provenance">sample data: every person, count and id is illustrative · drawn against Keelson main (app.css and canvas.ts) as of 2026-10-02 · nothing was called live</p>

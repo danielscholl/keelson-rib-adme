@@ -1,0 +1,222 @@
+<style>
+@@CSS@@
+</style>
+<style>
+/* ===== Mockup scaffolding. Not part of Keelson. ===== */
+[hidden] { display: none !important; }
+body { padding: 0; display: block; min-height: 0; }
+:root { --good: var(--green); --warn: var(--yellow); --crit: var(--red); --info: var(--cyan);
+  --id-1: var(--id-blue); --id-2: var(--id-amber); --id-3: var(--id-teal); --id-4: var(--id-rose); --id-5: var(--id-olive);
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+/* --- design document (scoped under .doc so nothing leaks into the prototype) --- */
+.doc { max-width: 1080px; margin: 0 auto; padding: 32px 20px 8px; font: 15px/1.55 var(--sans); color: var(--fg); }
+.doc.doc--tail { padding-bottom: 64px; }
+.doc .eyebrow { margin: 0 0 8px; font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.doc h1, .doc h2, .doc h3 { margin: 0; color: var(--fg-strong); text-wrap: balance; letter-spacing: 0; }
+.doc h1 { margin-bottom: 10px; font-size: clamp(24px, 3.4vw, 32px); line-height: 1.2; font-weight: 650; }
+.doc h2 { margin-bottom: 8px; font-size: 19px; line-height: 1.3; font-weight: 620; }
+.doc h3 { margin: 18px 0 6px; font-size: 15px; font-weight: 620; }
+.doc p { margin: 0 0 10px; max-width: 68ch; }
+.doc ul, .doc ol { margin: 0 0 10px; padding-left: 20px; max-width: 68ch; }
+.doc li { margin-bottom: 4px; }
+.doc b, .doc strong { color: var(--fg-strong); font-weight: 600; }
+.doc .lede { font-size: 16.5px; max-width: 64ch; }
+.doc code, .doc .mono { font-family: var(--mono); font-size: .9em; }
+.doc a { color: var(--accent); }
+.doc :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.doc section { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); }
+.doc .good { --c: var(--good); } .doc .warn { --c: var(--warn); } .doc .crit { --c: var(--crit); } .doc .info { --c: var(--info); }
+.doc .id-1 { --c: var(--id-1); } .doc .id-2 { --c: var(--id-2); } .doc .id-3 { --c: var(--id-3); } .doc .id-4 { --c: var(--id-4); } .doc .id-5 { --c: var(--id-5); }
+.doc .summary { margin-top: 20px; padding: 18px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.doc .summary p { max-width: 80ch; } .doc .summary p:last-child { margin-bottom: 0; }
+.doc .legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 16px 0 0; padding: 0; list-style: none; font-size: 13.5px; max-width: none; }
+.doc .legend li { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.doc .legend li::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 2px; background: var(--c, var(--muted)); }
+.doc .legend li.mute::before { background: none; border: 1.5px dashed var(--muted); }
+.doc .tag { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--fg); white-space: nowrap; vertical-align: middle; }
+.doc .tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--muted)); }
+.doc .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 20px; }
+.doc .stat { padding: 14px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.doc .stat:is(.good, .warn, .crit, .info) { box-shadow: inset 3px 0 0 var(--c); }
+.doc .stat .v { font-family: var(--mono); font-size: 28px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--fg-strong); }
+.doc .stat .l { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.doc .scroll { margin-top: 16px; overflow-x: auto; }
+.doc .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+.doc .tbl th { padding: 9px 14px; text-align: left; background: var(--card-2); border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.doc .tbl th:first-child { border-top-left-radius: 10px; } .doc .tbl th:last-child { border-top-right-radius: 10px; }
+.doc .tbl td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.doc .tbl tr:last-child td { border-bottom: 0; }
+.doc .tbl .num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.doc .callout { margin-top: 16px; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; font-size: 14px; }
+.doc .callout:is(.good, .warn, .crit, .info) { border-color: color-mix(in srgb, var(--c) 55%, var(--border)); }
+.doc .callout p:last-child { margin-bottom: 0; }
+.doc .term { margin: 16px 0 0; padding: 14px 16px; background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; white-space: pre; overflow-x: auto; }
+.doc .term .d { color: var(--muted); } .doc .term .ok { color: var(--good); } .doc .term .bad { color: var(--crit); } .doc .term .hi { color: var(--fg-strong); font-weight: 600; }
+.doc .fig { margin: 18px 0 0; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
+.doc .fig svg { display: block; width: 100%; height: auto; min-width: 720px; }
+.doc .fig figcaption { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.doc .fig text { font-family: var(--sans); font-size: 12px; fill: var(--fg); }
+.doc .fig .t { font-size: 14px; font-weight: 600; fill: var(--fg-strong); }
+.doc .fig .tiny { font-size: 11px; fill: var(--muted); }
+.doc .fig .mono { font-family: var(--mono); }
+.doc .fig .box, .doc .fig .diamond { fill: var(--card-2); stroke: var(--border); stroke-width: 1.2; }
+.doc .fig :is(.box, .pill):is(.good, .warn, .crit, .info, .id-1, .id-2, .id-3, .id-4, .id-5) { fill: color-mix(in srgb, var(--c) 16%, var(--card)); stroke: var(--c); }
+.doc .fig .box.mute { fill: none; stroke: var(--muted); stroke-dasharray: 4 3; }
+.doc .fig .pill-t { font-size: 11px; font-weight: 600; fill: var(--fg-strong); }
+.doc .fig .lane { fill: none; stroke: var(--border); stroke-dasharray: 3 4; }
+.doc .fig .lane-label { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; fill: var(--muted); }
+.doc .fig .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; marker-end: url(#kz-ah); }
+.doc .fig .edge.good { stroke: var(--good); marker-end: url(#kz-ah-good); }
+.doc .fig .edge.crit { stroke: var(--crit); stroke-dasharray: 5 4; marker-end: url(#kz-ah-crit); }
+.doc .fig .edge-label { font-size: 11px; fill: var(--muted); }
+.doc .appendix { margin-top: 56px; padding-top: 24px; border-top: 2px solid var(--border); }
+.doc .appendix section { margin-top: 28px; padding-top: 18px; }
+.doc .provenance { max-width: none; margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+
+/* --- prototype stage --- */
+.proto { max-width: 1640px; margin: 28px auto 0; padding: 0 20px; }
+.proto-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 10px; font: 12px/1.4 var(--sans); color: var(--muted); }
+.proto-bar b { color: var(--fg-strong); font-weight: 600; }
+.proto-bar .grp { display: inline-flex; align-items: center; gap: 6px; }
+.proto-bar .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.proto-btn { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+.proto-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--fg-strong); background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.proto-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* A transformed ancestor is the containing block for position:fixed, so the real
+   drawer, modal and toast rules render inside the window unedited. */
+.proto-window { position: relative; transform: translateZ(0); overflow: hidden; height: min(1040px, 88vh); min-height: 640px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); box-shadow: var(--shadow-card); }
+.proto-scroll { height: 100%; overflow-y: auto; overflow-x: hidden; padding: 24px; }
+.proto-window .canvas-drawer { height: 100%; }
+.proto-window .canvas-drawer-body { overflow-y: auto; }
+.proto-window *, .proto-window { animation-duration: 0s !important; }
+.proto-window [data-open-drawer], .proto-window [data-open-modal], .proto-window [data-lens-target], .proto-window [data-tab-target], .proto-window [data-apply] { cursor: pointer; }
+.proto-hint { margin: 10px 0 0; font: 12px/1.5 var(--sans); color: var(--muted); max-width: none; }
+@media (max-width: 640px) { .doc { padding-inline: 16px; } .proto { padding-inline: 8px; } .proto-scroll { padding: 12px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="doc">
+@@FRAG:doc-top@@
+</div>
+
+<div class="proto" id="prototype">
+  <div class="proto-bar" role="group" aria-label="Prototype controls">
+    <span class="grp"><span class="lbl">Prototype</span></span>
+    <span class="grp"><span>State</span>
+      <button type="button" class="proto-btn" data-state-target="connected" aria-pressed="true">Connected</button>
+      <button type="button" class="proto-btn" data-state-target="expired" aria-pressed="false">Sign-in needed</button>
+      <button type="button" class="proto-btn" data-state-target="firstrun" aria-pressed="false">First run</button>
+    </span>
+    <span class="grp"><span>Open</span>
+      <button type="button" class="proto-btn" data-open-drawer="person">Person inspector</button>
+      <button type="button" class="proto-btn" data-open-drawer="plan">Plan sheet</button>
+      <button type="button" class="proto-btn" data-open-drawer="explain">Why 401/403</button>
+      <button type="button" class="proto-btn" data-open-modal="remove-person">Typed confirm</button>
+    </span>
+    <span class="grp"><button type="button" class="proto-btn" id="proto-theme">Theme</button></span>
+  </div>
+  <div class="proto-window" id="proto-window" data-state="connected" data-op="idle">
+    <div class="proto-scroll"><div class="wrap">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button type="button" class="brand-button" aria-label="New chat" title="New chat"><span class="brand">Keelson</span></button>
+          <nav class="topbar-nav" aria-label="Primary">
+            <button type="button" class="nav-tab" aria-pressed="false">Chat</button>
+            <button type="button" class="nav-tab" aria-pressed="false">Workflows</button>
+            <span class="nav-divider" aria-hidden="true"></span>
+            <button type="button" class="nav-tab is-active" aria-pressed="true" data-tab-target="access">ADME Access<span class="nav-pip" role="img" aria-label="5 people need you" title="5 people need you">5</span></button>
+            <button type="button" class="nav-tab" aria-pressed="false" data-tab-target="data">ADME Data<span class="nav-pip" role="img" aria-label="2 legal tags need review" title="1 invalid, 1 expiring within 30 days">2</span></button>
+            <button type="button" class="nav-tab" aria-pressed="false" data-tab-target="seismic">ADME Seismic</button>
+            <button type="button" class="nav-tab" aria-pressed="false">Beads</button>
+            <button type="button" class="nav-tab" aria-pressed="false">Swarms</button>
+          </nav>
+        </div>
+        <div class="topbar-right">
+          <div class="instruments">
+            <button type="button" class="instruments-trigger" aria-expanded="false" aria-label="Harness controls" title="Harness">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+@@FRAG:surface-access@@
+@@FRAG:surface-data@@
+@@FRAG:surface-seismic@@
+    </div></div>
+    <div class="canvas-backdrop" aria-hidden="true" data-drawer-backdrop hidden></div>
+@@FRAG:drawer-person@@
+@@FRAG:drawer-plan@@
+@@FRAG:drawer-explain@@
+@@FRAG:modals@@
+  </div>
+  <p class="proto-hint">Sample data. Tabs, the people lens chips, person rows, "Preview plan", "Apply" and the drawer close button respond; other controls are drawn in one state. The markup uses the class names Keelson's board renderer emits, styled by rules copied from <code>apps/web/src/app.css</code>.</p>
+</div>
+
+<div class="doc doc--tail">
+@@FRAG:doc-body@@
+</div>
+
+<script>
+(function () {
+  var win = document.getElementById("proto-window");
+  if (!win) return;
+  var proto = document.getElementById("prototype");
+  function all(sel, root) { return Array.prototype.slice.call((root || proto).querySelectorAll(sel)); }
+  function applyWhen() {
+    var state = win.getAttribute("data-state"), op = win.getAttribute("data-op");
+    all("[data-when],[data-op-when]", win).forEach(function (el) {
+      var w = el.getAttribute("data-when"), o = el.getAttribute("data-op-when");
+      el.hidden = (w !== null && w.split(/\s+/).indexOf(state) < 0) || (o !== null && o.split(/\s+/).indexOf(op) < 0);
+    });
+  }
+  function showTab(name) {
+    all("[data-surface]", win).forEach(function (s) { s.hidden = s.getAttribute("data-surface") !== name; });
+    all("[data-tab-target]", win).forEach(function (b) { var on = b.getAttribute("data-tab-target") === name; b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+    var sc = win.querySelector(".proto-scroll"); if (sc) sc.scrollTop = 0;
+  }
+  function closeOverlays() {
+    all("[data-drawer]", win).forEach(function (d) { d.hidden = true; });
+    all("[data-modal]", win).forEach(function (d) { d.hidden = true; });
+    all("[data-drawer-backdrop],[data-modal-backdrop]", win).forEach(function (d) { d.hidden = true; });
+  }
+  function openDrawer(name) {
+    closeOverlays();
+    var d = win.querySelector('[data-drawer="' + name + '"]'); if (!d) return;
+    d.hidden = false; var b = win.querySelector("[data-drawer-backdrop]"); if (b) b.hidden = false;
+    var body = d.querySelector(".canvas-drawer-body"); if (body) body.scrollTop = 0;
+    win.scrollIntoView({ block: "nearest" });
+  }
+  function openModal(name) {
+    all("[data-modal]", win).forEach(function (m) { m.hidden = m.getAttribute("data-modal") !== name; });
+    var b = win.querySelector("[data-modal-backdrop]"); if (b) b.hidden = false;
+  }
+  function setState(state) {
+    win.setAttribute("data-state", state); closeOverlays(); showTab("access"); applyWhen();
+    all("[data-state-target]").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-state-target") === state ? "true" : "false"); });
+  }
+  proto.addEventListener("click", function (ev) {
+    var t = ev.target.closest("[data-state-target],[data-tab-target],[data-open-drawer],[data-close-drawer],[data-open-modal],[data-close-modal],[data-lens-target],[data-apply],[data-drawer-backdrop]");
+    if (!t || !proto.contains(t)) return;
+    if (t.hasAttribute("data-state-target")) return setState(t.getAttribute("data-state-target"));
+    if (t.hasAttribute("data-tab-target")) { closeOverlays(); return showTab(t.getAttribute("data-tab-target")); }
+    if (t.hasAttribute("data-open-drawer")) { ev.preventDefault(); return openDrawer(t.getAttribute("data-open-drawer")); }
+    if (t.hasAttribute("data-open-modal")) { ev.preventDefault(); return openModal(t.getAttribute("data-open-modal")); }
+    if (t.hasAttribute("data-apply")) { win.setAttribute("data-op", "running"); closeOverlays(); showTab("access"); applyWhen(); return; }
+    if (t.hasAttribute("data-close-modal")) { all("[data-modal]", win).forEach(function (m) { m.hidden = true; }); var mb = win.querySelector("[data-modal-backdrop]"); if (mb) mb.hidden = true; return; }
+    if (t.hasAttribute("data-close-drawer") || t.hasAttribute("data-drawer-backdrop")) return closeOverlays();
+    if (t.hasAttribute("data-lens-target")) {
+      var name = t.getAttribute("data-lens-target");
+      all("[data-lens]", win).forEach(function (el) { el.hidden = el.getAttribute("data-lens") !== name; });
+      all("[data-lens-target]", win).forEach(function (b) { var on = b === t; b.classList.toggle("is-selected", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+    }
+  });
+  proto.addEventListener("submit", function (ev) { ev.preventDefault(); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeOverlays(); });
+  var th = document.getElementById("proto-theme"), root = document.documentElement;
+  if (th) th.addEventListener("click", function () { root.setAttribute("data-theme", root.getAttribute("data-theme") === "light" ? "dark" : "light"); });
+  showTab("access"); closeOverlays(); applyWhen();
+  var lens0 = win.querySelector("[data-lens-target].is-selected"); if (lens0) all("[data-lens]", win).forEach(function (el) { el.hidden = el.getAttribute("data-lens") !== lens0.getAttribute("data-lens-target"); });
+})();
+</script>

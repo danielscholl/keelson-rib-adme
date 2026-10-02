@@ -1,0 +1,16 @@
+<p class="eyebrow">keelson · rib adme · design mockup</p>
+<h1>Access is the daily work on an ADME instance, so the rib opens on an access desk and every change is a previewed plan</h1>
+<p class="lede">The design is <b>3 tabs</b> for <b>36 identities</b> (<b>32 people</b> and <b>4 applications</b>) and <b>13 seismic subprojects</b>. A fresh first paint costs <b>about 12 API calls</b>; a repeat visit paints from the disk cache with none.</p>
+<div class="summary">
+<p><b>Today.</b> An ADME instance is typically run with ad hoc scripts, <code>az</code> and Graph calls, and a tracker kept by hand. An invitation to a new address can resolve to an existing guest and return that guest's object id; acting on that mistaken identity can strip access from the wrong person. Seismic access sits in groups named by UUID (<code>data.sdms.opendes.alpha.3f9a…e1.admin</code>), acceptance state lives only in Graph, and no batch change has a dry run.</p>
+<p><b>The rib.</b> The ADME Access tab lists who needs attention and why, shows every person against roles and seismic grants by name, and routes every write through one plan: a form produces a dry run, the plan sheet classifies each identity before any invitation, Apply re-checks, writes serially, verifies the effective group count and appends to the tracker. It works from the operator's Azure CLI sign-in, so the rib holds no secret.</p>
+<p><b>Limits.</b> Every name and count on this page is sample data. Nothing is built, and nothing was called live. Shelling <code>az</code> through <code>ctx.getExec()</code> is unverified and the whole design rests on it. The collision can be detected and halted, not prevented, once an invitation email is sent. ADME Data is read-only in the first take: it creates, extends and deletes nothing.</p>
+</div>
+<ul class="legend">
+<li class="id-1">Rib · composes boards, holds plans, makes every call</li>
+<li class="id-3">Azure CLI sign-in · the rib calls ADME and Graph as the operator</li>
+<li class="id-4">ADME services · entitlements, legal, storage, search, seismic</li>
+<li class="id-5">Entra Graph · users, invitations, roster group</li>
+</ul>
+<h3>Prototype</h3>
+<p>The prototype below is the Keelson window with the three ADME tabs, drawn with the board renderer's own DOM and the rules from <code>app.css</code>. Tabs, lens chips, the person inspector, the plan sheet, the explainer and both confirm dialogs respond to clicks; the state buttons above it switch between connected, sign-in needed and first run.</p>
