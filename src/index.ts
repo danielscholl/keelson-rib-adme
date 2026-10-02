@@ -26,6 +26,7 @@ import { dataPulseModule } from "./modules/data.ts";
 import { legalModule } from "./modules/legal.ts";
 import { planModule } from "./modules/plan.ts";
 import { recordsModule } from "./modules/records.ts";
+import { seismicModule } from "./modules/seismic.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
 import { Runtime, TICK_MS } from "./runtime.ts";
@@ -40,6 +41,7 @@ const MODULES: readonly RegionModule[] = [
   legalModule,
   recordsModule,
   planModule,
+  seismicModule,
 ];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
