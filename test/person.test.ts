@@ -143,9 +143,11 @@ describe("person inspector", () => {
       "Why 401/403",
       "Remove person…",
     ]);
-    for (const a of planned.items) {
-      expect(a).toMatchObject({ disabled: true, reason: "arrives with the plan engine" });
-    }
+    const [fix, , , remove] = planned.items;
+    expect(fix).toMatchObject({ type: "preview-fix-users", payload: { id: rachel } });
+    expect(fix?.disabled).toBeUndefined();
+    expect(remove).toMatchObject({ type: "preview-remove-person", payload: { id: rachel } });
+    expect(remove?.destructive).toBeUndefined();
     expect(JSON.stringify(find(right, "History"))).toContain("Accepted the invitation");
   });
 

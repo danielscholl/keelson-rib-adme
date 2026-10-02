@@ -22,12 +22,14 @@ import {
   GROUP_NAMES,
   type GroupKey,
 } from "../access/read.ts";
+import { bindingOf } from "../plan/model.ts";
 import { shortId } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { day, measuredAccess, passText } from "./access.ts";
+import { PREVIEW_CLEANUP_ACTION, PREVIEW_FIX_ACTION, PREVIEW_REMOVE_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -41,7 +43,6 @@ type Tone = NonNullable<Row["glyph"]>;
 export const REFRESH_PERSON_ACTION = "refresh-person";
 export const ACCEPT_EXTRAS_ACTION = "accept-extra-groups";
 
-const PLAN_REASON = "arrives with the plan engine";
 const PLAIN_LIMIT = 13;
 const ROLE_KEYS = ["ops", "admins", "editors", "viewers"] as const;
 
@@ -317,21 +318,57 @@ function history(rt: Runtime, who: Identity, entry: DirectoryEntry | undefined):
     .map(({ at, row }) => ({ ...row, trailing: day(at) ?? at }));
 }
 
-function plannedActions(who: Identity, failing: boolean): CanvasActionItem[] {
-  const planned = (type: string, label: string, extra: Partial<CanvasActionItem> = {}) => ({
+function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
+  const profile = rt.profile;
+  const binding = profile ? { ...bindingOf(profile) } : {};
+  const gate = rt.status.phase === "connected" ? {} : { disabled: true, reason: SIGNIN_REASON };
+  const preview = (type: string, label: string, extra: Partial<CanvasActionItem> = {}) => ({
     type,
     label,
-    disabled: true,
-    reason: PLAN_REASON,
+    payload: { id: who.id },
+    binding,
+    pendingLabel: "Planning…",
+    ...gate,
     ...extra,
   });
+  const fix =
+    who.cause === "missing-users"
+      ? PREVIEW_FIX_ACTION
+      : who.cause === "duplicate"
+        ? PREVIEW_CLEANUP_ACTION
+        : undefined;
   return [
-    ...(failing ? [planned("plan-fix", "Plan the fix", { tone: "brand" })] : []),
-    ...(who.kind === "person" ? [planned("grant-seismic", "Grant seismic…")] : []),
-    planned("explain-access", "Why 401/403"),
-    planned("remove-person", `Remove ${who.kind === "app" ? "application" : "person"}…`, {
-      destructive: true,
-    }),
+    ...(fix
+      ? [
+          preview(fix, who.cause === "duplicate" ? "Plan the cleanup" : "Plan the fix", {
+            tone: "brand",
+          }),
+        ]
+      : []),
+    ...(who.kind === "person"
+      ? [
+          {
+            type: "grant-seismic",
+            label: "Grant seismic…",
+            disabled: true,
+            reason: "arrives with the ADME Seismic tab",
+          },
+        ]
+      : []),
+    {
+      type: "explain-access",
+      label: "Why 401/403",
+      disabled: true,
+      reason: "arrives with the explainer",
+    },
+    who.kind === "person"
+      ? preview(PREVIEW_REMOVE_ACTION, "Remove person…")
+      : {
+          type: "remove-application",
+          label: "Remove application…",
+          disabled: true,
+          reason: "removing an application is not planned yet",
+        },
   ];
 }
 
@@ -421,7 +458,7 @@ export function composePerson(rt: Runtime): CanvasBoardView {
       })),
     });
   }
-  left.push({ kind: "actions", items: plannedActions(who, bad !== undefined) });
+  left.push({ kind: "actions", items: plannedActions(rt, who) });
 
   const right: Leaf[] = [
     {
