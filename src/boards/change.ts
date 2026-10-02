@@ -18,6 +18,7 @@ export const PREVIEW_ADD_APP_ACTION = "preview-add-app";
 export const PREVIEW_REMOVE_ACTION = "preview-remove-person";
 export const PREVIEW_FIX_ACTION = "preview-fix-users";
 export const PREVIEW_CLEANUP_ACTION = "preview-cleanup-duplicate";
+export const EXPLAIN_ACTION = "explain-access";
 
 const ROLE_OPTIONS = ["Viewer", "Editor", "Admin"].map((r) => ({ value: r, label: r }));
 
@@ -110,10 +111,17 @@ export function composeChange(rt: Runtime): CanvasBoardView {
       ],
     },
     {
-      type: "explain-access",
+      type: EXPLAIN_ACTION,
       label: "Why 401/403",
-      disabled: true,
-      reason: "arrives with the explainer",
+      submitLabel: "Explain",
+      submitTone: "brand",
+      pendingLabel: "Checking…",
+      binding,
+      ...(people.length === 0 ? { disabled: true, reason: "nobody has entitlements" } : {}),
+      fields:
+        people.length > 0
+          ? [{ name: "id", label: "Person", options: people, required: true }]
+          : [{ name: "id", label: "Person", placeholder: "nobody has entitlements" }],
     },
   ];
   return {

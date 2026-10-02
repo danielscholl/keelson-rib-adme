@@ -23,6 +23,7 @@ import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { dataPulseModule } from "./modules/data.ts";
+import { explainModule } from "./modules/explain.ts";
 import { legalModule } from "./modules/legal.ts";
 import { planModule } from "./modules/plan.ts";
 import { recordsModule } from "./modules/records.ts";
@@ -42,6 +43,7 @@ const MODULES: readonly RegionModule[] = [
   recordsModule,
   planModule,
   seismicModule,
+  explainModule,
 ];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
