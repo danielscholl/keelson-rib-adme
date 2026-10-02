@@ -146,3 +146,14 @@ export function sampleAccess(): AccessRead {
 }
 
 export const SIGNED_IN_AS = "ingrid.halvorsen@contoso.example";
+
+// Cohorts from the cast: Pilot 29, Vendor 1, Permanent 2 (no pass).
+export function sampleCohortCsv(): string {
+  const lines = ["email,cohort,pass_end"];
+  for (const p of [...NAMED, ...MORE]) {
+    if (p.member) lines.push(`${p.mail},Permanent`);
+    else if (p.mail.endsWith("@vendor-partners.example")) lines.push(`${p.mail},Vendor,2026-10-29`);
+    else lines.push(`${p.mail},Pilot,2026-10-28`);
+  }
+  return lines.join("\n");
+}

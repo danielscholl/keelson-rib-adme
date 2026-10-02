@@ -1,23 +1,31 @@
 import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
+import { z } from "zod";
 import { buildAccess, countAccess } from "../src/access/model";
 import { ACCESS_AREA, readAccess } from "../src/access/read";
 import {
   composeAccessPulse,
   composeAttention,
+  composeCohorts,
   composePeople,
   composePrincipals,
+  EXPORT_ROSTER_ACTION,
+  exportRoster,
+  IMPORT_COHORTS_ACTION,
 } from "../src/boards/access";
 import { Batch } from "../src/client";
 import {
   ACCESS_BADGE_KEY,
   ATTENTION_KEY,
+  COHORTS_KEY,
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
 } from "../src/keys";
 import { accessModule } from "../src/modules/access";
-import { SAMPLE_APPS, SIGNED_IN_AS, sampleAccess } from "./fixtures/access";
+import { Store } from "../src/store";
+import { csvCell, Tracker, trackerFile } from "../src/tracker";
+import { SAMPLE_APPS, SIGNED_IN_AS, sampleAccess, sampleCohortCsv } from "./fixtures/access";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { azExec, routeTransport, seededRuntime } from "./harness";
 
@@ -156,6 +164,152 @@ describe("access boards", () => {
     const text = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(runtime)));
     expect(text).toContain("Last read failed at 14:20Z: Graph names: Forbidden");
     expect(text).toContain('"label":"People","value":32');
+  });
+});
+
+describe("cohorts", () => {
+  const NOW = new Date("2026-10-02T14:05:00Z");
+  const tracked = () => {
+    const runtime = rt();
+    const res = runtime.tracker.importCsv(sampleCohortCsv(), NOW);
+    expect(res).toMatchObject({ ok: true, cohorts: 3 });
+    expect(res.ok && res.emails).toHaveLength(32);
+    return runtime;
+  };
+
+  test("untracked people draw as one Untracked card and the pass stays unmeasured", () => {
+    const view = expectView(COHORTS_KEY, "board")(composeCohorts(rt()));
+    const text = JSON.stringify(view);
+    expect(text).toContain("No cohort is tracked");
+    expect(text).toContain('"title":"Untracked","pill":{"label":"32 people"}');
+    expect(text).toContain("32 people · 0 cohorts · 32 untracked");
+    expect(text).toContain('{"label":"Pass ends","value":"?"}');
+  });
+
+  test("an import reproduces the cast: Pilot 29, Vendor 1, Permanent 2", () => {
+    const runtime = tracked();
+    const text = JSON.stringify(expectView(COHORTS_KEY, "board")(composeCohorts(runtime)));
+    expect(text).toContain('"title":"Pilot","pill":{"label":"29 people"}');
+    expect(text).toContain(
+      '"segments":[{"label":"broken","n":2,"tone":"error"},{"label":"pending","n":3,"tone":"warn"},{"label":"healthy","n":24,"tone":"ok"}]',
+    );
+    expect(text).toContain('"value":"26 d · 2026-10-28"');
+    expect(text).toContain('"title":"Vendor","pill":{"label":"1 person"}');
+    expect(text).toContain('"value":"27 d · 2026-10-29"');
+    expect(text).toContain('"label":"Pass ends","value":"none"');
+    expect(text).not.toContain("Untracked");
+    const pulse = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(runtime)));
+    expect(pulse).toContain('"label":"Next pass ends","value":"26 d","sub":"Pilot · 2026-10-28"');
+    expect(pulse).toContain("2 Permanent · 29 Pilot · 1 Vendor");
+    const roster = JSON.stringify(expectView(PEOPLE_KEY, "board")(composePeople(runtime)));
+    expect(roster).toContain("Pilot · 24");
+    expect(roster).toContain("Permanent · 2");
+  });
+
+  test("a bad line refuses the whole import and names the line", () => {
+    const runtime = rt();
+    const csv = "lena.fischer@rheinseis.example,Pilot,2026-10-28\nnot-an-email,Pilot";
+    expect(runtime.tracker.importCsv(csv, NOW)).toEqual({
+      ok: false,
+      error: "line 2: not an email address",
+    });
+    expect(runtime.tracker.cohorts).toEqual([]);
+    expect(
+      runtime.tracker.importCsv("a@b.example,Pilot,2026-10-28\nc@d.example,pilot,2026-11-01", NOW),
+    ).toMatchObject({ ok: false, error: "line 2: Pilot already has pass end 2026-10-28" });
+    for (const bad of ["2026-13-45", "2026-02-30"]) {
+      expect(runtime.tracker.importCsv(`a@b.example,Pilot,${bad}`, NOW)).toMatchObject({
+        ok: false,
+        error: "line 1: pass end is not YYYY-MM-DD",
+      });
+    }
+    expect(runtime.tracker.importCsv("a@b.example,untracked", NOW)).toMatchObject({
+      ok: false,
+      error: "line 1: Untracked is not a cohort name",
+    });
+  });
+
+  test("quoted cells, a trailing comma and a repeated address import cleanly", () => {
+    const runtime = rt();
+    const csv = [
+      '"lena.fischer@rheinseis.example","Pilot","2026-10-28"',
+      "h.tanaka@kaiyo-data.example,Vendor,",
+      "h.tanaka@kaiyo-data.example,Pilot",
+    ].join("\n");
+    expect(runtime.tracker.importCsv(csv, NOW)).toMatchObject({ ok: true, cohorts: 1 });
+    expect(runtime.tracker.cohorts).toEqual([
+      { name: "Pilot", created: "2026-10-02", passEnds: "2026-10-28" },
+    ]);
+    expect(runtime.tracker.cohortOf("H.Tanaka@kaiyo-data.example")).toBe("Pilot");
+  });
+
+  test("a tracker file that does not parse is shown as unreadable and never overwritten", () => {
+    const store = new Store(undefined);
+    const name = trackerFile(SAMPLE_PROFILE);
+    const broken = { cohorts: [{ name: "Pilot", created: "2026-09-28", passEnds: "" }] };
+    store.write(name, broken);
+    const tracker = new Tracker(store, name);
+    expect(tracker.unreadable).toBe(true);
+    expect(tracker.importCsv("a@b.example,Pilot", NOW)).toMatchObject({ ok: false });
+    expect(store.read(name, z.unknown())).toEqual(broken);
+    const runtime = rt();
+    runtime.tracker = tracker;
+    expect(JSON.stringify(composeCohorts(runtime))).toContain("could not be read");
+    expect(JSON.stringify(composeAccessPulse(runtime))).toContain(
+      '{"label":"Next pass ends","value":null,"sub":"the tracker could not be read"}',
+    );
+  });
+
+  test("cohorts are kept per instance and survive a restart", () => {
+    const store = new Store(undefined);
+    const first = new Tracker(store, trackerFile(SAMPLE_PROFILE));
+    first.importCsv("lena.fischer@rheinseis.example,Pilot,2026-10-28", NOW);
+    expect(new Tracker(store, trackerFile(SAMPLE_PROFILE)).cohorts).toHaveLength(1);
+    const other = new Tracker(store, trackerFile({ ...SAMPLE_PROFILE, partition: "pilot" }));
+    expect(other.cohorts).toEqual([]);
+    expect(other.unreadable).toBe(false);
+  });
+
+  test("import and export actions report what happened", async () => {
+    const runtime = rt();
+    const imported = await accessModule.actions?.[IMPORT_COHORTS_ACTION]?.(runtime, {
+      csv: "lena.fischer@rheinseis.example,R&D\nnobody@nowhere.example,R/D",
+    });
+    expect(imported).toEqual({
+      ok: true,
+      data: { message: "Imported 2 into 2 cohort(s); 1 not in entitlements" },
+    });
+    const exported = await accessModule.actions?.[EXPORT_ROSTER_ACTION]?.(runtime, {
+      cohort: "R&D",
+    });
+    expect(exported).toEqual({ ok: false, error: "The rib has no data directory to write to." });
+    const missing = await accessModule.actions?.[EXPORT_ROSTER_ACTION]?.(runtime, {
+      cohort: "R/D",
+    });
+    expect(missing).toEqual({ ok: false, error: "Nobody is in that cohort." });
+  });
+
+  test("a formula-looking cell is defused and a comma is quoted", () => {
+    expect(csvCell("=HYPERLINK(1)")).toBe("'=HYPERLINK(1)");
+    expect(csvCell("Dutta, Sample")).toBe('"Dutta, Sample"');
+    expect(csvCell("a\rb")).toBe('"a\rb"');
+  });
+
+  test("a pass that has ended is an error, not a negative count", () => {
+    const runtime = rt();
+    runtime.tracker.importCsv("lena.fischer@rheinseis.example,Pilot,2026-09-30", NOW);
+    const pulse = JSON.stringify(composeAccessPulse(runtime));
+    expect(pulse).toContain('"label":"Next pass ends","value":"ended"');
+    expect(JSON.stringify(composeCohorts(runtime))).toContain("ended 2 d ago · 2026-09-30");
+  });
+
+  test("the roster export quotes names and carries the pass end", () => {
+    const runtime = tracked();
+    const csv = exportRoster(runtime, "Vendor");
+    expect(csv).toBe(
+      "name,email,role,state,cohort,pass_end\nElena Petrova,elena.petrova@vendor-partners.example,Editor,healthy,Vendor,2026-10-29\n",
+    );
+    expect(exportRoster(runtime, "Nobody")).toBeUndefined();
   });
 });
 

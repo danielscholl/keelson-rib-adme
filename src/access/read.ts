@@ -7,7 +7,14 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallFailure, CallResult } from "../client.ts";
-import { ACCESS_BADGE_KEY, ATTENTION_KEY, PEOPLE_KEY, PRINCIPALS_KEY, PULSE_KEY } from "../keys.ts";
+import {
+  ACCESS_BADGE_KEY,
+  ATTENTION_KEY,
+  COHORTS_KEY,
+  PEOPLE_KEY,
+  PRINCIPALS_KEY,
+  PULSE_KEY,
+} from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const ACCESS_AREA = "access";
@@ -178,7 +185,7 @@ export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> 
 export const ACCESS_AREAS: readonly Area[] = [
   {
     name: ACCESS_AREA,
-    keys: [PULSE_KEY, ATTENTION_KEY, PEOPLE_KEY, PRINCIPALS_KEY, ACCESS_BADGE_KEY],
+    keys: [PULSE_KEY, ATTENTION_KEY, PEOPLE_KEY, COHORTS_KEY, PRINCIPALS_KEY, ACCESS_BADGE_KEY],
     read: readAccess,
   },
 ];

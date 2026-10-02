@@ -24,6 +24,7 @@ import { type Discovery, discoverInstances } from "./discover.ts";
 import { type Profile, profileSchema } from "./profile.ts";
 import type { Store } from "./store.ts";
 import { clock, SweepCache } from "./sweep.ts";
+import { Tracker, trackerFile } from "./tracker.ts";
 
 export const IDLE_WINDOW_MS = 15 * 60_000;
 export const TICK_MS = 5 * 60_000;
@@ -48,6 +49,7 @@ export interface RuntimeOptions {
 
 export class Runtime {
   readonly cache: SweepCache;
+  tracker: Tracker;
   status: ConnectionStatus = { phase: "firstrun" };
   discovery: Discovery = { state: "idle" };
   private readonly areas: Area[] = [];
@@ -59,6 +61,7 @@ export class Runtime {
   constructor(private readonly opts: RuntimeOptions) {
     this.now = opts.now ?? (() => new Date());
     this.cache = new SweepCache(opts.store);
+    this.tracker = new Tracker(opts.store, trackerFile(undefined));
     const profile = opts.store.read("profile.json", profileSchema);
     const test = opts.store.read("test.json", testResultSchema);
     if (profile) this.useProfile(profile, test);
@@ -77,6 +80,10 @@ export class Runtime {
     const at = clock(this.cache.get(area).at);
     if (!at) return undefined;
     return this.status.phase === "connected" ? `measured ${at}` : `cached from ${at}`;
+  }
+
+  writeExport(name: string, text: string): string | undefined {
+    return this.opts.store.writeText(`exports/${name}`, text);
   }
 
   recompose(keys: readonly string[]): void {
@@ -252,6 +259,7 @@ export class Runtime {
 
   private useProfile(profile: Profile, test: TestResult | undefined): void {
     this.client = this.clientFor(profile);
+    this.tracker = new Tracker(this.opts.store, trackerFile(profile));
     this.status = test
       ? { phase: "connected", profile, test }
       : { phase: "profile-error", profile, error: "Test connection has not run yet." };
