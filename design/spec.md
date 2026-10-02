@@ -443,7 +443,7 @@ There is one sign-in state and it is worded "sign-in needed" everywhere.
 - The page keeps showing the last sweep. Chips read "cached from 13:02Z" in place of "measured 14:05Z". Stats stay at their cached values, and the fifth Access tile stays Applications 4.
 - The Access header gains a section "Sign in again" with one card: `az login`, pill `needed`, a copyable command `az login --tenant 1f2e…9a00`, and the line "Run this in a terminal, then Re-test. Until then this page shows the last sweep and changes are paused."
 - Every control that would change something or needs a live read is disabled with the reason "sign-in needed: run az login, then Re-test". That covers Plan the fix, Plan the cleanup, Resend invitation, Add people, Preview plan, Apply, Grant access, Grant, Revoke, Copy grants from person, Verify all, and on ADME Data the By kind tab, Search and Next 25. "Why 401/403" stays enabled.
-- The Connection footer is open and holds: the same "Sign in again" card; actions "Re-test connection" (brand) and "Verify all" (disabled); and rows "Instance profile (no secrets)": Host, Partition, Entitlements domain, Tenant "Contoso · 1f2e…9a00", ADME app id, Roster group "contoso-adme · 9d3a…5e42", and "Changes: paused until Re-test passes".
+- The Connection footer is open and holds: the same "Sign in again" card; actions "Re-test connection" (brand) and "Verify all" (disabled); and rows "Instance profile (no secrets)": Host, Partition, Entitlements domain, Tenant "Contoso · 1f2e…9a00", ADME app id, Roster group "contoso-adme · 9d3a…5e42", and "Changes: paused until Re-test passes". An entitlements domain that has not been read yet shows "?", and a roster group that is not set shows "not set". While it is not set and exactly one Entra group carries the instance's name, a "Roster group" card offers that group with "Use this group".
 - A running plan pauses at its step and resumes after sign-in. History and Recent changes describe a past pause as "sign-in lapsed at step 3" or "sign-in lapsed mid-batch".
 
 ### First run
@@ -454,10 +454,11 @@ The ADME Access tab shows only the header region, composed as the connect flow. 
 
 - Journey "Connect":
   1. Sign in with Azure CLI. "Run az login in a terminal. The rib uses that sign-in and stores no secret."
-  2. Describe the instance. "Six values, none secret. They are saved as the instance profile and stamped on every change."
-  3. Test connection. "About 7 read-only calls. The result records what this sign-in can and cannot do."
+  2. Pick the instance. "Found through your Azure sign-in. Its values, none secret, are saved as the instance profile and stamped on every change."
+  3. Test connection. "About 8 read-only calls. The result records what this sign-in can and cannot do."
 - "Step 1: sign in": a card "Azure CLI" with pill `signed in` and the copyable `az login --tenant 1f2e…9a00`.
-- "Step 2: instance profile": a form with Host, Partition, Entitlements domain, Tenant id, ADME app id and Roster group id, then "Test connection" (brand).
+- "Step 2: pick the instance": one card per ADME instance the sign-in can see in Azure, with Host, Region and Partition, and "Connect" (brand). An instance with several partitions shows one "Connect to <partition>" each. While the lookup runs the step reads "Looking for ADME instances in Azure…"; a failed lookup shows the reason.
+- Under the list: "Look again", and "Enter it by hand", a form with Host, Partition, Entitlements domain (optional), Tenant id, ADME app id and Roster group id (optional), then "Test connection" (brand). The form opens by itself when the lookup fails or finds nothing.
 - "Step 3: what this sign-in can do": the capability matrix the test writes.
 
   | Capability | Result | Source |
@@ -502,7 +503,9 @@ Limits:
 
 ## Sign-in and connection
 
-The rib uses the operator's Azure CLI sign-in. It runs in-process in the Keelson server and stores no credential. The connection profile is six non-secret values: host, partition, entitlements domain, tenant id, ADME app id and roster group id.
+The rib uses the operator's Azure CLI sign-in. It runs in-process in the Keelson server and stores no credential. The connection profile is up to six non-secret values: host, partition, entitlements domain, tenant id, ADME app id and, optionally, roster group id.
+
+The operator does not type them. On first run the rib asks Azure Resource Graph, through `az rest`, for every `Microsoft.OpenEnergyPlatform/energyServices` resource the sign-in can read. That covers all subscriptions, not only the selected one, and needs no `az` extension. The chosen instance supplies host, tenant id, ADME app id and partition. Test connection reads the entitlements domain from the operator's own groups. The roster group is optional: when exactly one Entra group carries the instance's name, the Connection footer offers it and the operator confirms. An operator who has data access but no Azure role on the instance sees an empty list and enters the values by hand.
 
 Before each batch of calls the rib asks `az` for a token again through `ctx.getExec()`:
 

@@ -37,10 +37,12 @@ Then sign in to the tenant that holds the instance and open the ADME Access tab:
 az login --tenant <tenant id>
 ```
 
-The first-run journey asks for six values, none of them secret: host,
-partition, entitlements domain, tenant id, ADME app id and roster group id.
-Test connection makes about seven read-only calls and records what this
-sign-in can do. A missing capability disables the feature that needs it.
+The first-run journey lists the ADME instances that sign-in can see in Azure,
+across every subscription. Connect on one saves its host, partition, tenant
+id and ADME app id as the profile; none of them is secret. Without an Azure
+role on the instance, enter them by hand. Test connection makes about eight
+read-only calls, reads the entitlements domain from the instance and records
+what this sign-in can do. A missing capability disables the feature that needs it.
 
 ## How it reaches the instance
 

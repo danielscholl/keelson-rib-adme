@@ -165,8 +165,8 @@ This is the only sign-in state the operator sees. Once connected, the Connection
 The ADME Access tab shows only the connect journey; the other two tabs read "not connected".
 
 1. Sign in with Azure CLI. Run `az login` in a terminal.
-2. Describe the instance. The six profile values, none secret.
-3. Test connection. About 7 read-only calls. The result is a capability matrix that records what this sign-in can and cannot do (list own groups, list every group, invite guests, read deleted users, list seismic subprojects, partition API, count records by kind). A missing capability disables the feature that needs it, with a reason.
+2. Pick the instance. The rib lists the ADME instances the sign-in can see in Azure; picking one fills the profile values, none secret. They can also be entered by hand.
+3. Test connection. About 8 read-only calls. The result is a capability matrix that records what this sign-in can and cannot do (list own groups, list every group, invite guests, read deleted users, list seismic subprojects, partition API, count records by kind). A missing capability disables the feature that needs it, with a reason.
 
 ## How it reaches the instance
 

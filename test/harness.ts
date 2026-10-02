@@ -81,17 +81,23 @@ export interface ExecCall {
 }
 
 // An exec that answers `az account get-access-token` with a token per resource,
-// or with a failure line, and records every call.
+// or with a failure line, answers `az rest` with `rest`, and records every call.
 export function azExec(
   answer: (resource: string) => { token: string } | { error: string } = (r) => ({
     token: `tok-${r}`,
   }),
+  rest: () => { data: unknown } | { error: string } = () => ({ data: { data: [] } }),
 ): RibExec & { calls: ExecCall[] } {
   const calls: ExecCall[] = [];
   const exec = {
     calls,
     runJSON: async <T>(cmd: string, args: string[]) => {
       calls.push({ cmd, args });
+      if (args[0] === "rest") {
+        const r = rest();
+        if ("error" in r) return { ok: false as const, error: r.error, code: 1 };
+        return { ok: true as const, data: r.data as T };
+      }
       const resource = args[args.indexOf("--resource") + 1] ?? "";
       const a = answer(resource);
       if ("error" in a) return { ok: false as const, error: a.error, code: 1 };
