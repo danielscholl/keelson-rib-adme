@@ -226,7 +226,19 @@ export function composePlan(rt: Runtime): CanvasBoardView {
     };
   }
   if (!s.plan) {
-    if (!s.error) return EMPTY_BOARD;
+    if (!s.error) {
+      if (!rt.profile) return EMPTY_BOARD;
+      return {
+        view: "board",
+        title: "Plan",
+        sections: [
+          {
+            kind: "rows",
+            items: [{ glyph: "neutral", text: "No plan is open. Preview one from Change access." }],
+          },
+        ],
+      };
+    }
     return {
       view: "board",
       title: "Plan",

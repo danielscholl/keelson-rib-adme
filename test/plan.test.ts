@@ -323,3 +323,13 @@ describe("dry run export and the change region", () => {
     expect(composeChange(seededRuntime({}, { phase: "firstrun" })).sections).toEqual([]);
   });
 });
+
+describe("plan sheet resting", () => {
+  test("after a discard the drawer says no plan is open instead of going blank", async () => {
+    const { rt } = runtime();
+    await act(rt, "preview-add-people", ADD);
+    const id = planState(rt).plan?.id;
+    expect(await act(rt, "discard-plan", { planId: id })).toMatchObject({ ok: true });
+    expect(JSON.stringify(composePlan(rt))).toContain("No plan is open");
+  });
+});
