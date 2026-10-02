@@ -14,6 +14,9 @@ import {
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
+  SEIS_PULSE_KEY,
+  SEIS_SELECTED_KEY,
+  SEIS_SUBPROJECTS_KEY,
 } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
@@ -120,7 +123,7 @@ function chunks<T>(items: readonly T[], size: number): T[][] {
 
 // Entitlements lists people by object id and applications by app id, so an id
 // Graph does not know as an object is looked up as an app id.
-async function readDirectory(
+export async function readDirectory(
   batch: Batch,
   ids: readonly string[],
 ): Promise<CallResult<Record<string, DirectoryEntry>>> {
@@ -273,7 +276,18 @@ export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> 
 export const ACCESS_AREAS: readonly Area[] = [
   {
     name: ACCESS_AREA,
-    keys: [PULSE_KEY, ATTENTION_KEY, PEOPLE_KEY, COHORTS_KEY, PRINCIPALS_KEY, ACCESS_BADGE_KEY],
+    // Seismic boards name members through this directory.
+    keys: [
+      PULSE_KEY,
+      ATTENTION_KEY,
+      PEOPLE_KEY,
+      COHORTS_KEY,
+      PRINCIPALS_KEY,
+      ACCESS_BADGE_KEY,
+      SEIS_PULSE_KEY,
+      SEIS_SUBPROJECTS_KEY,
+      SEIS_SELECTED_KEY,
+    ],
     read: readAccess,
   },
 ];

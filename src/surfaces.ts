@@ -8,6 +8,7 @@
 
 import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
 import { RETEST_ACTION } from "./boards/connection.ts";
+import { SEIS_REFRESH_ACTION } from "./boards/seismic.ts";
 import {
   ACCESS_BADGE_KEY,
   ACCESS_SURFACE_ID,
@@ -47,6 +48,12 @@ const connectionFooter: RibSurfaceRegion = {
 
 const headMenu: RibSurfaceRegion["headActions"] = [
   { type: REFRESH_ACTION, label: "Refresh now" },
+  { type: RETEST_ACTION, label: "Re-test connection" },
+];
+
+// Refresh here also reads the seismic store, which the plain sweep skips.
+const seismicHeadMenu: RibSurfaceRegion["headActions"] = [
+  { type: SEIS_REFRESH_ACTION, label: "Refresh now" },
   { type: RETEST_ACTION, label: "Re-test connection" },
 ];
 
@@ -189,9 +196,10 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
       header: {
         key: SEIS_PULSE_KEY,
         title: "Seismic store",
+        byline: "subprojects in the partition's seismic tenant",
         glyph: { char: "◉", tone: "accent" },
         live: true,
-        headActions: headMenu,
+        headActions: seismicHeadMenu,
       },
       rows: [
         {
@@ -199,6 +207,8 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
             {
               key: SEIS_SUBPROJECTS_KEY,
               title: "Subprojects",
+              byline:
+                "select one to see its members · datasets are not measured until one is opened",
               glyph: { char: "▦", tone: "info" },
               hideWhenEmpty: true,
             },
@@ -209,6 +219,7 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
             {
               key: SEIS_SELECTED_KEY,
               title: "Selected subproject",
+              byline: "identifiers and members by name",
               glyph: { char: "◎" },
               hideWhenEmpty: true,
             },
