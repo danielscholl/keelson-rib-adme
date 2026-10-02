@@ -14,7 +14,7 @@ import {
   SAVE_PROFILE_ACTION,
   USE_ROSTER_ACTION,
 } from "../boards/connection.ts";
-import { CONNECTION_KEY, DATA_PULSE_KEY, PULSE_KEY, SEIS_PULSE_KEY } from "../keys.ts";
+import { CONNECTION_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 import { composeRestingHeader } from "../resting.ts";
 import { REFRESH_ACTION } from "../surfaces.ts";
@@ -22,12 +22,6 @@ import { REFRESH_ACTION } from "../surfaces.ts";
 export const connectionModule: RegionModule = {
   composers: {
     [CONNECTION_KEY]: (rt) => composeConnection(rt.status),
-    [PULSE_KEY]: (rt) =>
-      composeRestingHeader(rt.status, {
-        firstRunHere: true,
-        discovery: rt.discovery,
-        connectedText: `Connected${rt.status.test?.signedInAs ? ` as ${rt.status.test.signedInAs}` : ""}.`,
-      }),
     [DATA_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
     [SEIS_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
   },

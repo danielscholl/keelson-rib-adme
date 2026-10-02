@@ -20,6 +20,7 @@ import {
 } from "@keelson/shared";
 import { DOCS } from "./docs.ts";
 import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
+import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { dataPulseModule } from "./modules/data.ts";
 import { legalModule } from "./modules/legal.ts";
@@ -33,6 +34,7 @@ import { SURFACES } from "./surfaces.ts";
 // Later modules override earlier ones for the same key.
 const MODULES: readonly RegionModule[] = [
   connectionModule,
+  accessModule,
   dataPulseModule,
   legalModule,
   recordsModule,
