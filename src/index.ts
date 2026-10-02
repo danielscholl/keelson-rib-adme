@@ -7,6 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import {
+  type CanvasBoardView,
   expectView,
   type Rib,
   type RibAction,
@@ -17,38 +18,100 @@ import {
   ribSurfaceBadgeSchema,
   type SnapshotManager,
 } from "@keelson/shared";
+import { DOCS } from "./docs.ts";
 import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
-import { composeResting } from "./resting.ts";
-import { REFRESH_ACTION, RETEST_ACTION, SURFACES } from "./surfaces.ts";
+import { connectionModule } from "./modules/connection.ts";
+import { dataPulseModule } from "./modules/data.ts";
+import { legalModule } from "./modules/legal.ts";
+import { recordsModule } from "./modules/records.ts";
+import type { ActionHandler, RegionModule } from "./region.ts";
+import { EMPTY_BOARD } from "./resting.ts";
+import { Runtime, TICK_MS } from "./runtime.ts";
+import { Store } from "./store.ts";
+import { SURFACES } from "./surfaces.ts";
+
+// Later modules override earlier ones for the same key.
+const MODULES: readonly RegionModule[] = [
+  connectionModule,
+  dataPulseModule,
+  legalModule,
+  recordsModule,
+];
+
+const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
 
 let snapshots: SnapshotManager | undefined;
+let runtime: Runtime | undefined;
 let unregisters: Array<() => void> = [];
+let ticker: ReturnType<typeof setInterval> | undefined;
 
-function recomposeAll(): void {
-  for (const key of [...BOARD_KEYS, ...BADGE_KEYS]) {
-    snapshots?.recompose(key).catch(() => undefined);
-  }
+function recompose(keys: readonly string[]): void {
+  for (const key of keys) snapshots?.recompose(key).catch(() => undefined);
 }
 
+function boardComposers(): Map<string, (rt: Runtime) => CanvasBoardView> {
+  const map = new Map<string, (rt: Runtime) => CanvasBoardView>();
+  for (const m of MODULES) for (const [k, f] of Object.entries(m.composers ?? {})) map.set(k, f);
+  return map;
+}
+
+function badgeCount(rt: Runtime, key: string): number {
+  let n = 0;
+  for (const m of MODULES) n += m.badges?.[key]?.(rt) ?? 0;
+  return n;
+}
+
+const ACTIONS = new Map<string, ActionHandler>(
+  MODULES.flatMap((m) => Object.entries(m.actions ?? {})),
+);
+
 function bind(ctx: RibContext): void {
-  for (const un of unregisters) un();
-  unregisters = [];
+  unbind();
   snapshots = ctx.getSnapshotManager?.();
   const sm = snapshots;
+  const rt = new Runtime({
+    exec: ctx.getExec(),
+    store: new Store(ctx.getDataDir?.()),
+    recompose,
+    allKeys: ALL_KEYS,
+  });
+  for (const m of MODULES) for (const area of m.areas ?? []) rt.addArea(area);
+  runtime = rt;
   if (!sm) return;
+  const byKey = boardComposers();
   for (const key of BOARD_KEYS) {
+    const compose = byKey.get(key);
     unregisters.push(
-      sm.register(key, async () => composeResting(key), { validate: expectView(key, "board") }),
+      sm.register(key, async () => (compose ? compose(rt) : EMPTY_BOARD), {
+        validate: expectView(key, "board"),
+      }),
     );
   }
   for (const key of BADGE_KEYS) {
     unregisters.push(
-      sm.register(key, async (): Promise<RibSurfaceBadge> => ({ count: 0 }), {
-        validate: (data) => ribSurfaceBadgeSchema.parse(data),
-      }),
+      sm.register(
+        key,
+        async (): Promise<RibSurfaceBadge> => ({
+          count: rt.status.phase === "connected" ? badgeCount(rt, key) : 0,
+        }),
+        { validate: (data) => ribSurfaceBadgeSchema.parse(data) },
+      ),
     );
   }
-  recomposeAll();
+  recompose(ALL_KEYS);
+  rt.sweep().catch(() => undefined);
+  ticker = setInterval(() => {
+    if (rt.shouldTick()) rt.sweep().catch(() => undefined);
+  }, TICK_MS);
+  ticker.unref?.();
+}
+function unbind(): void {
+  for (const un of unregisters) un();
+  unregisters = [];
+  if (ticker) clearInterval(ticker);
+  ticker = undefined;
+  snapshots = undefined;
+  runtime = undefined;
 }
 
 const rib: Rib = {
@@ -65,6 +128,8 @@ const rib: Rib = {
 
   surfaces: SURFACES,
 
+  contributeDocs: () => DOCS,
+
   // Composers bind here because this is the first hook that receives the context.
   registerTools: (ctx: RibContext) => {
     bind(ctx);
@@ -72,20 +137,16 @@ const rib: Rib = {
   },
 
   onAction: async (action: RibAction): Promise<RibActionResult> => {
-    switch (action.type) {
-      case REFRESH_ACTION:
-      case RETEST_ACTION:
-        recomposeAll();
-        return { ok: true };
-      default:
-        return { ok: false, error: `adme does not handle '${action.type}'` };
-    }
+    const rt = runtime;
+    if (!rt) return { ok: false, error: "adme is not bound yet" };
+    rt.touch();
+    const handle = ACTIONS.get(action.type);
+    if (!handle) return { ok: false, error: `adme does not handle '${action.type}'` };
+    return handle(rt, action.payload);
   },
 
   dispose: () => {
-    for (const un of unregisters) un();
-    unregisters = [];
-    snapshots = undefined;
+    unbind();
   },
 };
 

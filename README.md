@@ -5,8 +5,9 @@ A [keelson](https://github.com/danielscholl/keelson) rib for administering an
 (ADME) instance: who has access, what data is in it, and who can reach each
 seismic subproject.
 
-**Status: design stage.** Nothing is built yet. The repository holds the design
-and an interactive mockup; the rib code follows.
+**Status: first slice.** The connection and the read-only ADME Data tab work.
+ADME Access and ADME Seismic show the connection state only; their boards
+follow in the next slices.
 
 ## What the first take covers
 
@@ -22,6 +23,53 @@ Three surfaces, one per tab:
 
 The rib works from the operator's Azure CLI sign-in and stores no secret. Every
 change is a dry-run plan first; nothing is written until the plan is applied.
+
+## Install
+
+```sh
+keelson rib add github:danielscholl/keelson-rib-adme
+keelson restart
+```
+
+Then sign in to the tenant that holds the instance and open the ADME Access tab:
+
+```sh
+az login --tenant <tenant id>
+```
+
+The first-run journey asks for six values, none of them secret: host,
+partition, entitlements domain, tenant id, ADME app id and roster group id.
+Test connection makes about seven read-only calls and records what this
+sign-in can do. A missing capability disables the feature that needs it.
+
+## How it reaches the instance
+
+The rib runs inside the Keelson server. Before each batch of calls it asks
+`az account get-access-token` for a token for the ADME app id and for Microsoft
+Graph, scoped to the profile's tenant, and calls the ADME services and Graph
+directly. When the sign-in lapses, every tab says "sign-in needed", keeps
+showing the last sweep, and pauses changes until `az login` and Re-test.
+
+Reads are tiered so that opening a tab is cheap: the last sweep is cached in
+the rib's data directory (`~/.keelson/rib-adme`), a sweep runs on Refresh now
+and after Re-test, and a timer refreshes only within 15 minutes of the last
+action.
+
+## What to know before using it
+
+- Names, email addresses and object ids appear as plain text in board frames
+  and in the rib's data directory. That suits a single operator on a local
+  workbench; don't run it on a shared host.
+- Selection is held by the rib, not per browser window: two windows share one
+  drawer target and one view.
+
+## Develop
+
+```sh
+bun install
+bun test && bun run typecheck && bun run check
+keelson rib add "$PWD" && keelson restart
+```
 
 ## Design
 
