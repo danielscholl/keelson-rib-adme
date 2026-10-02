@@ -24,6 +24,7 @@ import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { dataPulseModule } from "./modules/data.ts";
 import { legalModule } from "./modules/legal.ts";
+import { planModule } from "./modules/plan.ts";
 import { recordsModule } from "./modules/records.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
@@ -38,6 +39,7 @@ const MODULES: readonly RegionModule[] = [
   dataPulseModule,
   legalModule,
   recordsModule,
+  planModule,
 ];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
