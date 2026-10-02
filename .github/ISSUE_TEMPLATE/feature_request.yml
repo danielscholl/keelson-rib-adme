@@ -8,6 +8,9 @@ body:
         The rib administers one ADME instance through three tabs. Every change it
         makes is a previewed plan first. Describe the admin task you are trying to
         do; we'll work out where it fits.
+
+        This repo is public. Leave out instance hosts, partition names, tenant ids,
+        people, emails and object ids; describe them by role instead.
   - type: textarea
     id: problem
     attributes:
