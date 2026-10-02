@@ -12,7 +12,13 @@ import {
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
 import { DATA_AREAS, SERVICES_AREA } from "../src/data/areas";
-import { PEOPLE_KEY, SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../src/keys";
+import {
+  PEOPLE_KEY,
+  SEIS_CHANGE_KEY,
+  SEIS_PULSE_KEY,
+  SEIS_SELECTED_KEY,
+  SEIS_SUBPROJECTS_KEY,
+} from "../src/keys";
 import { accessModule } from "../src/modules/access";
 import { seismicModule } from "../src/modules/seismic";
 import type { Runtime } from "../src/runtime";
@@ -430,8 +436,9 @@ describe("subprojects and the selected subproject", () => {
       now: NOW,
       recompose: (keys) => recomposed.push([...keys]),
     });
-    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" })).toEqual({ ok: true });
-    expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY]]);
+    const res = await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" });
+    expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
+    expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]]);
     const view = selected(rt);
     expect(view.header?.status?.label).toBe("1 admin · 3 viewers");
     expect(view.header?.chip).toBe("sd://opendes/delta");
@@ -458,7 +465,7 @@ describe("subprojects and the selected subproject", () => {
       { [ACCESS_AREA]: sampleAccess(), [SERVICES_AREA]: SAMPLE_SERVICES },
       { now: NOW, transport },
     );
-    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "golf" })).toEqual({ ok: true });
+    expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "golf" })).toMatchObject({ ok: true });
     expect(selected(rt).header?.chip).toBe("sd://opendes/golf");
   });
 });

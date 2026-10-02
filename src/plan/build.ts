@@ -10,6 +10,7 @@ import type { AccessModel, Identity } from "../access/model.ts";
 import type { GroupKey } from "../access/read.ts";
 import type { Batch, CallResult } from "../client.ts";
 import { type Profile, shortId } from "../profile.ts";
+import type { SeismicModel } from "../seismic/model.ts";
 import { type Classified, classifyAddress, parseAddresses } from "./classify.ts";
 import {
   bindingOf,
@@ -20,6 +21,7 @@ import {
   type Plan,
   type PlanKind,
 } from "./model.ts";
+import { type SeismicInputs, seismicPlan } from "./seismic.ts";
 import {
   addAppSteps,
   addPersonSteps,
@@ -41,6 +43,7 @@ export interface BuildContext {
   profile: Profile;
   model: AccessModel | undefined;
   closures: Record<GroupKey, string[]> | undefined;
+  seismic?: SeismicModel | undefined;
   now: Date;
 }
 
@@ -50,7 +53,8 @@ export type PlanInputs =
   | { kind: "fix-users"; id: string }
   | { kind: "cleanup-duplicate"; id: string }
   | { kind: "remove-person"; id: string }
-  | { kind: "resend-invite"; id: string };
+  | { kind: "resend-invite"; id: string }
+  | SeismicInputs;
 
 function stepContext(ctx: BuildContext): StepContext | string {
   const domain = ctx.profile.entitlementsDomain;
@@ -190,6 +194,17 @@ export async function buildPlan(
         subject,
       ]);
     }
+    case "seismic-grant":
+    case "seismic-revoke":
+    case "seismic-copy": {
+      const draft = await seismicPlan(batch, inputs, {
+        model: ctx.model,
+        seismic: ctx.seismic,
+        admeAppId: ctx.profile.admeAppId,
+      });
+      if (!draft.ok) return draft;
+      return done(ctx, inputs.kind, draft.data.title, inputs, draft.data.subjects);
+    }
     default: {
       const person = ctx.model?.people.find((p) => p.id === inputs.id);
       if (!person) return fail("That person is not in the last sweep. Refresh and try again.");
@@ -201,7 +216,7 @@ export async function buildPlan(
 function personPlan(
   ctx: BuildContext,
   sc: StepContext,
-  inputs: Extract<PlanInputs, { id: string }>,
+  inputs: Exclude<Extract<PlanInputs, { id: string }>, SeismicInputs>,
   person: Identity,
 ): CallResult<Plan> {
   const base = {

@@ -8,6 +8,7 @@
 
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { measuredAccess } from "../boards/access.ts";
+import { measuredSeismic } from "../boards/seismic.ts";
 import { PLAN_KEY, RECENT_KEY } from "../keys.ts";
 import type { Runtime } from "../runtime.ts";
 import { type BuildContext, buildPlan, type PlanInputs } from "./build.ts";
@@ -36,13 +37,14 @@ export function planState(rt: Runtime): PlanState {
   return s;
 }
 
-function buildContext(rt: Runtime): BuildContext | undefined {
+export function buildContext(rt: Runtime): BuildContext | undefined {
   const profile = rt.profile;
   if (!profile) return undefined;
   return {
     profile,
     model: measuredAccess(rt)?.model,
     closures: rt.cache.get<AccessRead>(ACCESS_AREA).data?.closures,
+    seismic: measuredSeismic(rt)?.model,
     now: rt.now(),
   };
 }

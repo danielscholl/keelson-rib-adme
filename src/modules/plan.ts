@@ -31,6 +31,13 @@ import {
   EXPORT_PLAN_ACTION,
   RECHECK_PLAN_ACTION,
 } from "../boards/plan.ts";
+import {
+  measuredSeismic,
+  PREVIEW_SEIS_COPY_ACTION,
+  PREVIEW_SEIS_GRANT_ACTION,
+  PREVIEW_SEIS_REVOKE_ACTION,
+  PREVIEW_SEIS_SELF_ACTION,
+} from "../boards/seismic.ts";
 import { CHANGE_KEY, OPERATION_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
 import { cancelApply, dismissOperation, resumeApply, startApply } from "../plan/apply.ts";
 import { type PlanInputs, ROLE_KEYS } from "../plan/build.ts";
@@ -93,6 +100,30 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function personName(rt: Runtime, id: string): string {
   return measuredAccess(rt)?.model.people.find((x) => x.id === id)?.name ?? id;
+}
+
+function seismicInputs(
+  rt: Runtime,
+  p: Payload,
+  kind: "seismic-grant" | "seismic-revoke",
+): PlanInputs | string {
+  if (!measuredSeismic(rt)) return "Read the seismic subprojects first.";
+  const id = str(p, "id");
+  const subproject = str(p, "subproject");
+  const role = str(p, "role") ?? "viewer";
+  if (!id) return "Pick a person.";
+  if (!subproject) return "Pick a subproject.";
+  if (role !== "viewer" && role !== "admin") return "Pick Viewer or Admin.";
+  return { kind, id, subproject, role };
+}
+
+function seismicTitle(rt: Runtime, i: PlanInputs): string {
+  if (i.kind === "seismic-copy") return `copy ${personName(rt, i.from)}'s grants`;
+  if (i.kind === "seismic-grant" || i.kind === "seismic-revoke") {
+    const verb = i.kind === "seismic-grant" ? "grant" : "revoke";
+    return `${verb} ${personName(rt, i.id)} ${i.role} on ${i.subproject}`;
+  }
+  return i.kind;
 }
 
 function currentPlan(rt: Runtime, p: Payload) {
@@ -187,6 +218,45 @@ export const planModule: RegionModule = {
           return id ? { kind: "resend-invite", id } : "Pick a person.";
         },
         (i) => `resend ${personName(rt, (i as { id: string }).id)}'s invitation`,
+      ),
+    [PREVIEW_SEIS_GRANT_ACTION]: (rt, payload) =>
+      preview(
+        rt,
+        payload,
+        (p) => seismicInputs(rt, p, "seismic-grant"),
+        (i) => seismicTitle(rt, i),
+      ),
+    [PREVIEW_SEIS_REVOKE_ACTION]: (rt, payload) =>
+      preview(
+        rt,
+        payload,
+        (p) => seismicInputs(rt, p, "seismic-revoke"),
+        (i) => seismicTitle(rt, i),
+      ),
+    [PREVIEW_SEIS_SELF_ACTION]: (rt, payload) =>
+      preview(
+        rt,
+        payload,
+        (p) => {
+          const you = measuredAccess(rt)?.model.people.find((x) => x.you);
+          if (!you) return "You are not in the last sweep. Refresh and try again.";
+          return seismicInputs(rt, { ...p, id: you.id, role: "admin" }, "seismic-grant");
+        },
+        (i) => seismicTitle(rt, i),
+      ),
+    [PREVIEW_SEIS_COPY_ACTION]: (rt, payload) =>
+      preview(
+        rt,
+        payload,
+        (p) => {
+          if (!measuredSeismic(rt)) return "Read the seismic subprojects first.";
+          const from = str(p, "from");
+          const to = str(p, "to");
+          if (!from || !to) return "Pick both people.";
+          if (from === to) return "Pick two different people.";
+          return { kind: "seismic-copy", from, to };
+        },
+        (i) => seismicTitle(rt, i),
       ),
     [APPLY_PLAN_ACTION]: async (rt, payload) => {
       const p = asPayload(payload);

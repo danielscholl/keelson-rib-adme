@@ -8,18 +8,29 @@
 
 import type { RibActionResult } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
+import { measuredAccess } from "../boards/access.ts";
 import { RETEST_ACTION, SIGNIN_REASON } from "../boards/connection.ts";
 import {
   composeSeismicPulse,
   composeSeismicSelected,
   composeSeismicSubprojects,
   measuredSeismic,
+  SEIS_REACH_ACTION,
   SEIS_READ_ACTION,
   SEIS_REFRESH_ACTION,
   SEIS_SELECT_ACTION,
   seismicState,
 } from "../boards/seismic.ts";
-import { PEOPLE_KEY, SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../keys.ts";
+import { composeSeismicChange, composeSeismicReach } from "../boards/seismic-change.ts";
+import {
+  PEOPLE_KEY,
+  SEIS_CHANGE_KEY,
+  SEIS_PULSE_KEY,
+  SEIS_REACH_KEY,
+  SEIS_SELECTED_KEY,
+  SEIS_SUBPROJECTS_KEY,
+  SEISMIC_SURFACE_ID,
+} from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
 import { readSeismic, SEISMIC_AREA, SEISMIC_KEYS } from "../seismic/read.ts";
@@ -64,6 +75,11 @@ function used(rt: Runtime): boolean {
   return m.at !== undefined || m.errorAt !== undefined;
 }
 
+// A handled effect suppresses the success toast a plain selection would raise.
+function focus(regionKey: string): RibActionResult {
+  return { ok: true, data: { effect: "open-surface", surfaceId: SEISMIC_SURFACE_ID, regionKey } };
+}
+
 const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;
 
 export const seismicModule: RegionModule = {
@@ -71,6 +87,8 @@ export const seismicModule: RegionModule = {
     [SEIS_PULSE_KEY]: composeSeismicPulse,
     [SEIS_SUBPROJECTS_KEY]: composeSeismicSubprojects,
     [SEIS_SELECTED_KEY]: composeSeismicSelected,
+    [SEIS_CHANGE_KEY]: composeSeismicChange,
+    [SEIS_REACH_KEY]: composeSeismicReach,
   },
   actions: {
     [SEIS_READ_ACTION]: (rt) => measureSeismic(rt),
@@ -90,8 +108,18 @@ export const seismicModule: RegionModule = {
         return { ok: false, error: "That subproject is no longer listed. Refresh now." };
       }
       seismicState(rt).selected = name;
-      rt.recompose([SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY]);
-      return { ok: true };
+      rt.recompose([SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]);
+      return focus(SEIS_SELECTED_KEY);
+    },
+    [SEIS_REACH_ACTION]: async (rt, payload) => {
+      const id = (payload as { id?: unknown } | undefined)?.id;
+      if (typeof id !== "string" || !id) return { ok: false, error: "Pick a person." };
+      if (!measuredAccess(rt)?.model.people.some((p) => p.id === id)) {
+        return { ok: false, error: "That person is not in the last sweep. Refresh and try again." };
+      }
+      seismicState(rt).reach = id;
+      rt.recompose([SEIS_REACH_KEY]);
+      return focus(SEIS_REACH_KEY);
     },
     // Re-test sweeps tier 1; seismic follows only once the tab has been used.
     [RETEST_ACTION]: async (rt, payload) => {

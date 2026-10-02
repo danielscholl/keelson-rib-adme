@@ -14,7 +14,9 @@ import {
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
+  SEIS_CHANGE_KEY,
   SEIS_PULSE_KEY,
+  SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
 } from "../keys.ts";
@@ -287,6 +289,8 @@ export const ACCESS_AREAS: readonly Area[] = [
       SEIS_PULSE_KEY,
       SEIS_SUBPROJECTS_KEY,
       SEIS_SELECTED_KEY,
+      SEIS_CHANGE_KEY,
+      SEIS_REACH_KEY,
     ],
     read: readAccess,
   },

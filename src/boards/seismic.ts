@@ -9,6 +9,7 @@
 import type { CanvasBoardView } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { SERVICES_AREA, type ServiceProbe } from "../data/areas.ts";
+import { bindingOf } from "../plan/model.ts";
 import { instanceName } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
@@ -25,7 +26,7 @@ import {
 } from "../seismic/model.ts";
 import { SEISMIC_AREA, type SeismicRead } from "../seismic/read.ts";
 import { measuredAccess, SELECT_PERSON_ACTION } from "./access.ts";
-import { phasePill, signinCard } from "./connection.ts";
+import { phasePill, SIGNIN_REASON, signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
@@ -38,9 +39,21 @@ type Row = Extract<Section, { kind: "rows" }>["items"][number];
 export const SEIS_READ_ACTION = "seis-read";
 export const SEIS_REFRESH_ACTION = "seis-refresh";
 export const SEIS_SELECT_ACTION = "seis-select";
+export const SEIS_REACH_ACTION = "seis-reach";
+export const PREVIEW_SEIS_GRANT_ACTION = "preview-seismic-grant";
+export const PREVIEW_SEIS_REVOKE_ACTION = "preview-seismic-revoke";
+export const PREVIEW_SEIS_COPY_ACTION = "preview-seismic-copy";
+export const PREVIEW_SEIS_SELF_ACTION = "preview-seismic-add-self";
+
+export const SEIS_ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "admin", label: "Admin" },
+];
 
 interface SeismicState {
   selected?: string;
+  // The person "What a partner can reach" shows.
+  reach?: string;
 }
 
 const state = new WeakMap<Runtime, SeismicState>();
@@ -70,6 +83,15 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
     admeAppId: rt.profile?.admeAppId,
   });
   return { model, counts: countSeismic(model) };
+}
+
+// Own-ACL subprojects a person can be granted on, for a select; empty before the store is read.
+export function grantableSubprojects(rt: Runtime): { value: string; label: string }[] {
+  const measured = measuredSeismic(rt);
+  if (!measured) return [];
+  return displayOrder(measured.model)
+    .filter((s) => s.acl === "own")
+    .map((s) => ({ value: s.name, label: s.name }));
 }
 
 export function selectedSubproject(rt: Runtime, model: SeismicModel): SubprojectView | undefined {
@@ -419,6 +441,72 @@ function roleCount(role: SeisRole, s: RoleState): string {
   return `${many} ?`;
 }
 
+function isAdmin(s: RoleState): boolean {
+  if (s.kind === "members") return s.members.some((m) => m.you);
+  return s.kind === "unread" && s.you;
+}
+
+function selectedActions(rt: Runtime, s: SubprojectView): Section | undefined {
+  const profile = rt.profile;
+  const access = measuredAccess(rt);
+  if (!profile || !access) return undefined;
+  const binding = { ...bindingOf(profile), subproject: s.name };
+  const signedOut = rt.status.phase !== "connected";
+  const people = access.model.people.map((p) => ({ value: p.id, label: p.name }));
+  const you = access.model.people.find((p) => p.you);
+  const grantReason = signedOut
+    ? SIGNIN_REASON
+    : s.admins.kind === "default" && s.viewers.kind === "default"
+      ? "this subproject is on the default ACL"
+      : people.length === 0
+        ? "nobody has entitlements"
+        : undefined;
+  const selfReason = signedOut
+    ? SIGNIN_REASON
+    : s.admins.kind === "default"
+      ? `admins come through ${s.admins.group}`
+      : isAdmin(s.admins)
+        ? "you are already an admin"
+        : !you
+          ? "you are not in the last sweep"
+          : undefined;
+  return {
+    kind: "actions",
+    wrap: true,
+    items: [
+      {
+        type: PREVIEW_SEIS_GRANT_ACTION,
+        label: "Grant access…",
+        submitLabel: "Preview plan",
+        submitTone: "brand",
+        pendingLabel: "Planning…",
+        binding,
+        fields: [
+          people.length > 0
+            ? { name: "id", label: "Person", options: people, required: true }
+            : { name: "id", label: "Person", placeholder: "nobody has entitlements" },
+          {
+            name: "role",
+            label: "Role",
+            options: SEIS_ROLE_OPTIONS,
+            segmented: true,
+            required: true,
+            defaultValue: "viewer",
+          },
+        ],
+        ...(grantReason ? { disabled: true, reason: grantReason } : {}),
+      },
+      {
+        type: PREVIEW_SEIS_SELF_ACTION,
+        label: "Add myself as admin",
+        pendingLabel: "Planning…",
+        binding,
+        ...(selfReason ? { disabled: true, reason: selfReason } : {}),
+      },
+    ],
+  };
+}
+
 export function composeSeismicSelected(rt: Runtime): CanvasBoardView {
   const measured = measuredSeismic(rt);
   if (!measured) return EMPTY_BOARD;
@@ -430,6 +518,7 @@ export function composeSeismicSelected(rt: Runtime): CanvasBoardView {
   for (const g of s.viewerGroups) fields.push({ label: "viewer group", value: g, copyable: true });
   if (s.legalTag) fields.push({ label: "legal tag", value: s.legalTag, copyable: true });
   if (s.accessPolicy) fields.push({ label: "access policy", value: s.accessPolicy });
+  const actions = selectedActions(rt, s);
   return {
     view: "board",
     title: s.name,
@@ -461,6 +550,7 @@ export function composeSeismicSelected(rt: Runtime): CanvasBoardView {
           },
         ],
       },
+      ...(actions ? [actions] : []),
     ],
   };
 }
