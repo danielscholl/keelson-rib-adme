@@ -1,0 +1,7 @@
+name: CodeQL config
+
+# Keep CodeQL on the shipped surface (src/, dev/). Tests and the design mockups are noise.
+paths-ignore:
+  - "**/*.test.ts"
+  - "test/**"
+  - "design/**"

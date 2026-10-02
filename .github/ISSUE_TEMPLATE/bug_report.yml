@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in the ADME rib isn't working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repo is public. Leave out instance hosts, partition names, tenant ids,
+        people, emails and object ids; describe them by role instead ("a guest in
+        the users group"). For a security issue, do **not** file here; see
+        [SECURITY.md](https://github.com/danielscholl/keelson-rib-adme/security/policy).
+  - type: dropdown
+    id: tab
+    attributes:
+      label: Where
+      options:
+        - ADME Access
+        - ADME Data
+        - ADME Seismic
+        - Connection / first run
+        - Plan preview or Apply
+        - Not sure / other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The actual behavior and the control or action that triggered it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Rib version or commit, `keelson version`, `az version` (azure-cli line), and OS.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Any useful `[rib-adme]` server log lines, with tokens and identifiers redacted.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: I searched existing issues for a duplicate.
+          required: true
+        - label: I removed real instance names, people and ids from this report.
+          required: true

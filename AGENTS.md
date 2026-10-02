@@ -65,6 +65,11 @@ workaround, an order dependency. One short line. No PR narration.
 
 ## Conventions
 
-- Conventional commits; the PR title is the squash subject.
-- PR body: What, Why now, and Notes for review only when needed.
+- Conventional commits; the PR title is the squash subject, checked by the PR
+  Title workflow. release-please builds the version and CHANGELOG from those
+  subjects, so `feat` and `fix` are for changes an operator would notice.
+- PR body: What, Why now, and Notes for review only when needed
+  (`.github/pull_request_template.md`).
+- Contribution flow is in `CONTRIBUTING.md`; vulnerability reports follow
+  `SECURITY.md`.
 - No abstractions ahead of a concrete second caller.
