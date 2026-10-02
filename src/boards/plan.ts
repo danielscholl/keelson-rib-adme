@@ -7,6 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasActionItem, CanvasBoardView, CanvasTone } from "@keelson/shared";
+import { currentOperation, isActive } from "../plan/apply.ts";
 import {
   type Classification,
   isExpired,
@@ -180,36 +181,78 @@ function dryRunCard(plan: Plan): Section {
   };
 }
 
+const REMOVALS: readonly PlanKind[] = ["remove-person", "cleanup-duplicate"];
+
+function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
+  const label = `Apply ${changes} change${changes === 1 ? "" : "s"}`;
+  const invites = plan.subjects
+    .flatMap((s) => (s.blocked ? [] : s.steps))
+    .filter((t) => t.kind === "invite" && !t.already).length;
+  const writes = changes - invites;
+  if (REMOVALS.includes(plan.kind)) {
+    const subject = plan.subjects[0]?.name ?? plan.subjects[0]?.address ?? plan.id;
+    return {
+      destructive: true,
+      inline: true,
+      confirm: {
+        irreversible: true,
+        subject,
+        title: plan.kind === "remove-person" ? `Remove ${subject}` : `Clean up ${subject}`,
+        body:
+          plan.kind === "remove-person"
+            ? `Removes ${subject} from ${writes} membership${writes === 1 ? "" : "s"}. The Entra guest account is kept, so they can be added again.`
+            : `Removes the second member entry for ${subject}. The entry by object id stays.`,
+        confirmLabel: label,
+      },
+    };
+  }
+  const parts = [
+    ...(invites > 0 ? [`${invites} invitation email${invites === 1 ? " is" : "s are"} sent.`] : []),
+    `${writes} membership write${writes === 1 ? "" : "s"}.`,
+    "The dry run is re-checked first.",
+  ];
+  return { confirm: { title: `${label}?`, body: parts.join(" "), confirmLabel: label } };
+}
+
 function actions(rt: Runtime, plan: Plan): Section {
   const binding = { ...plan.binding, planId: plan.id };
   const st = planStats(plan);
   const signedOut = rt.status.phase !== "connected";
   const expired = isExpired(plan, rt.now());
+  const handedOff = planState(rt).appliedAs === plan.id;
+  const busy = isActive(currentOperation(rt));
   const applyReason = signedOut
     ? SIGNIN_REASON
-    : expired
-      ? "the plan expired; Recheck to refresh it"
-      : st.willChange === 0
-        ? "nothing to change"
-        : "Apply is not available yet";
+    : handedOff
+      ? "this plan was applied; see Operation"
+      : expired
+        ? "the plan expired; Recheck to refresh it"
+        : st.willChange === 0
+          ? "nothing to change"
+          : busy
+            ? "another plan is applying; see Operation"
+            : undefined;
   const items: CanvasActionItem[] = [
     {
       type: APPLY_PLAN_ACTION,
       label: `Apply ${st.willChange} change${st.willChange === 1 ? "" : "s"}`,
       tone: "brand",
       binding,
-      disabled: true,
-      reason: applyReason,
+      pendingLabel: "Starting…",
+      ...confirmFor(plan, st.willChange),
+      ...(applyReason ? { disabled: true, reason: applyReason } : {}),
     },
     {
       type: RECHECK_PLAN_ACTION,
       label: "Recheck",
       binding,
       pendingLabel: "Rechecking…",
-      ...(signedOut ? { disabled: true, reason: SIGNIN_REASON } : {}),
+      ...(signedOut || handedOff
+        ? { disabled: true, reason: handedOff ? "this plan was applied" : SIGNIN_REASON }
+        : {}),
     },
     { type: EXPORT_PLAN_ACTION, label: "Save dry run CSV", binding },
-    { type: DISCARD_PLAN_ACTION, label: "Discard plan", binding },
+    { type: DISCARD_PLAN_ACTION, label: handedOff ? "Close plan" : "Discard plan", binding },
   ];
   return { kind: "actions", wrap: true, items };
 }
@@ -291,11 +334,14 @@ export function composePlan(rt: Runtime): CanvasBoardView {
     view: "board",
     title: `Plan · ${plan.title}`,
     header: {
-      status: expired
-        ? { label: "expired · nothing changed", tone: "warn" }
-        : s.building
-          ? { label: "rechecking", tone: "info" }
-          : { label: "dry run · nothing changed", tone: "neutral" },
+      status:
+        s.appliedAs === plan.id
+          ? { label: "applied · see Operation", tone: "info" }
+          : expired
+            ? { label: "expired · nothing changed", tone: "warn" }
+            : s.building
+              ? { label: "rechecking", tone: "info" }
+              : { label: "dry run · nothing changed", tone: "neutral" },
       chip: expired
         ? `plan ${plan.id} · expired`
         : `plan ${plan.id} · expires in ${minutesLeft(plan, now)} min`,

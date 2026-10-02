@@ -82,6 +82,7 @@ function bind(ctx: RibContext): void {
     store: new Store(ctx.getDataDir?.()),
     recompose,
     allKeys: ALL_KEYS,
+    registerOp: ctx.registerOp,
   });
   for (const m of MODULES) for (const area of m.areas ?? []) rt.addArea(area);
   runtime = rt;

@@ -24,7 +24,16 @@ const trackerSchema = z.object({
   // Lowercased email address to cohort name.
   members: z.record(z.string(), z.string()),
   // `who` is the identity id an event is about, for that person's history.
-  events: z.array(z.object({ at: z.string(), text: z.string(), who: z.string().optional() })),
+  // `kind` labels a change in Recent changes; `plan` is the plan id it came from.
+  events: z.array(
+    z.object({
+      at: z.string(),
+      text: z.string(),
+      who: z.string().optional(),
+      kind: z.string().optional(),
+      plan: z.string().optional(),
+    }),
+  ),
   // Identity id to the groups accepted beyond the expected set for that person.
   baselines: z.record(z.string(), z.array(z.string())).optional(),
 });
@@ -109,6 +118,39 @@ export class Tracker {
       baselines: { ...this.file.baselines, [id]: [...groups].sort() },
       events: [event, ...this.file.events].slice(0, EVENT_LIMIT),
     };
+    this.store.write(this.name, this.file);
+    return { ok: true };
+  }
+
+  get events(): readonly TrackerEvent[] {
+    return this.file.events;
+  }
+
+  record(events: readonly Omit<TrackerEvent, "at">[], now: Date): SaveResult {
+    if (this.unreadable) return { ok: false, error: this.unreadableError() };
+    const at = now.toISOString();
+    this.file = {
+      ...this.file,
+      events: [...events.map((e) => ({ ...e, at })).reverse(), ...this.file.events].slice(
+        0,
+        EVENT_LIMIT,
+      ),
+    };
+    this.store.write(this.name, this.file);
+    return { ok: true };
+  }
+
+  // Puts people into a tracked cohort, setting its pass end when one is given.
+  assign(emails: readonly string[], cohort: string, passEnds: string | undefined): SaveResult {
+    if (this.unreadable) return { ok: false, error: this.unreadableError() };
+    const known = this.file.cohorts.find((c) => c.name === cohort);
+    if (!known) return { ok: false, error: `${cohort} is not a tracked cohort` };
+    const members = { ...this.file.members };
+    for (const e of emails) members[e.toLowerCase()] = cohort;
+    const cohorts = this.file.cohorts.map((c) =>
+      c.name === cohort && passEnds ? { ...c, passEnds } : c,
+    );
+    this.file = { ...this.file, cohorts, members };
     this.store.write(this.name, this.file);
     return { ok: true };
   }

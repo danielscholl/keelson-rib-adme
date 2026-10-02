@@ -105,7 +105,7 @@ describe("add people", () => {
     expect(sent.every((r) => r.method === "GET")).toBe(true);
   });
 
-  test("the plan sheet draws the dry run and never offers Apply yet", async () => {
+  test("the plan sheet draws the dry run and offers Apply with a plain confirm", async () => {
     const { rt } = runtime();
     await act(rt, "preview-add-people", ADD);
     const view = expectView(PLAN_KEY, "board")(composePlan(rt));
@@ -116,7 +116,8 @@ describe("add people", () => {
     expect(text).toContain("Protected or excluded · 1");
     expect(text).toContain("POST graph /v1.0/invitations (sends an email)");
     expect(text).toContain('"label":"Apply 4 changes"');
-    expect(text).toContain('"disabled":true');
+    expect(text).toContain('"title":"Apply 4 changes?"');
+    expect(text).toContain("1 invitation email is sent. 3 membership writes.");
   });
 
   test("an address already in entitlements by its own mail reads as already true", async () => {
