@@ -53,13 +53,15 @@ function versionRow(p: ServiceProbe): Row | undefined {
 
 function summary(probes: readonly ServiceProbe[]): string {
   const n = (s: ServiceProbe["state"]) => probes.filter((p) => p.state === s).length;
-  const parts = [
-    `${n("ok")} answered`,
-    `${n("forbidden")} not permitted`,
-    ...(n("error") > 0 ? [`${n("error")} failed`] : []),
-    `${n("unprobed")} not probed`,
+  const parts: [number, string][] = [
+    [n("forbidden"), "not permitted"],
+    [n("error"), "failed"],
+    [n("unprobed"), "not probed"],
   ];
-  return parts.join(" · ");
+  return [
+    `${n("ok")} answered`,
+    ...parts.filter(([count]) => count > 0).map(([count, what]) => `${count} ${what}`),
+  ].join(" · ");
 }
 
 export function composeServices(rt: Runtime): CanvasBoardView {

@@ -316,7 +316,7 @@ describe("top kinds", () => {
     expect(bars.title).toBe("Top kinds · share of 1,284,512 records");
     expect(bars.items).toHaveLength(7);
     expect(bars.items[0]).toMatchObject({
-      label: "osdu:wks:work-product-component--WellLog:1.2.0",
+      label: "work-product-component--WellLog:1.2.0",
       value: 412_300,
       total: 1_284_512,
       trailing: "412,300",
@@ -331,7 +331,7 @@ describe("top kinds", () => {
     await act(rt, SEARCH_ACTIONS.kind, { kind: WELLS });
     bars = leaf(frame(rt), 0, "bars");
     expect(bars.items.filter((b) => b.tone === "accent").map((b) => b.label)).toEqual([
-      "osdu:wks:master-data--Well:1.2.0",
+      "master-data--Well:1.2.0",
     ]);
   });
 

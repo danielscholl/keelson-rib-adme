@@ -141,7 +141,7 @@ function kindBars(kinds: KindCounts | undefined, search: RecordsState | undefine
   const top = kinds.kinds.slice(0, TOP_KINDS);
   const rest = kinds.kinds.slice(TOP_KINDS);
   const items: Bar[] = top.map((k) => ({
-    label: k.kind,
+    label: k.kind.replace(/^osdu:wks:/, ""),
     value: k.count,
     total: kinds.total,
     trailing: n(k.count),
