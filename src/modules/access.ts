@@ -45,6 +45,7 @@ import {
 } from "../boards/person.ts";
 import {
   ACCESS_BADGE_KEY,
+  ACCESS_SURFACE_ID,
   ATTENTION_KEY,
   COHORTS_KEY,
   PEOPLE_KEY,
@@ -119,6 +120,14 @@ function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
   return findIdentity(measured.model, id) ?? "That person is not in the last read of entitlements.";
 }
 
+// A handled effect suppresses the success toast a plain view switch would raise.
+function stayOnPeople() {
+  return {
+    ok: true as const,
+    data: { effect: "open-surface" as const, surfaceId: ACCESS_SURFACE_ID, regionKey: PEOPLE_KEY },
+  };
+}
+
 export const accessModule: RegionModule = {
   areas: ACCESS_AREAS,
   composers: {
@@ -168,7 +177,7 @@ export const accessModule: RegionModule = {
         return { ok: false, error: "Pick Roster, Roles matrix or Seismic grants." };
       peopleState(rt).view = view;
       rt.recompose([PEOPLE_KEY]);
-      return { ok: true };
+      return stayOnPeople();
     },
     [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
       const filter = (payload as { filter?: unknown } | undefined)?.filter;
@@ -179,7 +188,7 @@ export const accessModule: RegionModule = {
       }
       peopleState(rt).filter = filter;
       rt.recompose([PEOPLE_KEY]);
-      return { ok: true };
+      return stayOnPeople();
     },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
       const csv = (payload as { csv?: unknown } | undefined)?.csv;
