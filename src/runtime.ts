@@ -77,6 +77,28 @@ export class Runtime {
     return this.status.phase === "connected" ? `measured ${at}` : `cached from ${at}`;
   }
 
+  recompose(keys: readonly string[]): void {
+    this.opts.recompose(keys);
+  }
+
+  // An on-demand read outside the tier-1 sweep (a record search, an inspector).
+  // A lapsed sign-in flips the phase so every header says so.
+  async run<T>(work: (batch: Batch) => Promise<CallResult<T>>): Promise<CallResult<T>> {
+    const client = this.client;
+    if (!client || this.status.phase !== "connected") {
+      return {
+        ok: false,
+        failure: { kind: "signin", status: null, message: "not connected" },
+      };
+    }
+    const res = await client.batch(work);
+    if (!res.ok && res.failure.kind === "signin" && res.failure.status === null) {
+      this.status = { ...this.status, phase: "signin", error: res.failure.message };
+      this.opts.recompose(this.opts.allKeys);
+    }
+    return res;
+  }
+
   touch(): void {
     this.lastActionAt = this.now().getTime();
   }

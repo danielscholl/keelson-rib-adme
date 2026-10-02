@@ -232,3 +232,20 @@ describe("headers", () => {
     expect(text).toContain("Finish the steps on the ADME Access tab");
   });
 });
+
+describe("on-demand reads", () => {
+  test("run refuses before connecting and flips to sign-in needed on a lapsed sign-in", async () => {
+    const { rt } = runtime();
+    expect((await rt.run((b) => b.adme("search", "/info"))).ok).toBe(false);
+    let expired = false;
+    const exec = azExec(() =>
+      expired ? { error: "ERROR: AADSTS50173: expired" } : { token: "t" },
+    );
+    const second = runtime({ exec });
+    await second.rt.saveProfile(SAMPLE_PROFILE);
+    expired = true;
+    const res = await second.rt.run((b) => b.adme("legal", "/info"));
+    expect(res.ok).toBe(false);
+    expect(second.rt.status.phase).toBe("signin");
+  });
+});
