@@ -21,6 +21,7 @@ import {
 import { DOCS } from "./docs.ts";
 import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
 import { connectionModule } from "./modules/connection.ts";
+import { dataPulseModule } from "./modules/data.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
 import { Runtime, TICK_MS } from "./runtime.ts";
@@ -28,7 +29,7 @@ import { Store } from "./store.ts";
 import { SURFACES } from "./surfaces.ts";
 
 // Later modules override earlier ones for the same key.
-const MODULES: readonly RegionModule[] = [connectionModule];
+const MODULES: readonly RegionModule[] = [connectionModule, dataPulseModule];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
 
