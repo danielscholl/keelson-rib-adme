@@ -14,14 +14,12 @@ import {
   type LegalTags,
   SERVICES_AREA,
 } from "../data/areas.ts";
+import { classifyTags, EXPIRY_WINDOW_DAYS } from "../data/legal.ts";
 import type { Runtime } from "../runtime.ts";
 import { phasePill, signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
-
-const DAY_MS = 86_400_000;
-export const EXPIRY_WINDOW_DAYS = 30;
 
 export interface LegalAttention {
   invalid: number;
@@ -29,12 +27,8 @@ export interface LegalAttention {
 }
 
 export function legalAttention(legal: LegalTags, now: Date): LegalAttention {
-  const horizon = now.getTime() + EXPIRY_WINDOW_DAYS * DAY_MS;
-  const expiring = legal.valid.filter((t) => {
-    const at = t.expirationDate ? Date.parse(t.expirationDate) : Number.NaN;
-    return Number.isFinite(at) && at <= horizon;
-  }).length;
-  return { invalid: legal.invalid.length, expiring };
+  const { invalid, expiring } = classifyTags(legal, now);
+  return { invalid: invalid.length, expiring: expiring.length };
 }
 
 function fmt(n: number): string {
