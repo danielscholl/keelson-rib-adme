@@ -7,6 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
+import { RETEST_ACTION } from "./boards/connection.ts";
 import {
   ACCESS_BADGE_KEY,
   ACCESS_SURFACE_ID,
@@ -34,14 +35,14 @@ import {
 } from "./keys.ts";
 
 export const REFRESH_ACTION = "refresh";
-export const RETEST_ACTION = "retest-connection";
 
+// Not statically collapsed: the board's defaultCollapsed folds it while connected
+// and leaves it open when sign-in is needed.
 const connectionFooter: RibSurfaceRegion = {
   key: CONNECTION_KEY,
   title: "Connection",
   glyph: { char: "⌁", tone: "neutral" },
   collapsible: true,
-  collapsed: true,
 };
 
 const headMenu: RibSurfaceRegion["headActions"] = [

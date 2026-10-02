@@ -7,30 +7,39 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasBoardView } from "@keelson/shared";
-import { CONNECTION_KEY, DATA_PULSE_KEY, PULSE_KEY, SEIS_PULSE_KEY } from "./keys.ts";
+import { composeFirstRun, phasePill, signinCard } from "./boards/connection.ts";
+import type { ConnectionStatus } from "./connection.ts";
 
-const HEADER_KEYS = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY, CONNECTION_KEY]);
-
-// Before a connection exists only the header and footer say so; every other
-// region publishes no sections, which hides it.
-export function composeResting(key: string): CanvasBoardView {
-  if (!HEADER_KEYS.has(key)) return { view: "board", sections: [] };
+// A header region for a surface whose measured board is not built yet, or
+// cannot be measured in the current phase.
+export function composeRestingHeader(
+  status: ConnectionStatus,
+  opts: { firstRunHere?: boolean; connectedText: string },
+): CanvasBoardView {
+  if (status.phase === "firstrun" || status.phase === "profile-error") {
+    if (opts.firstRunHere) return composeFirstRun(status);
+    return {
+      view: "board",
+      header: { status: { label: "not connected", tone: "neutral" } },
+      sections: [
+        {
+          kind: "rows",
+          items: [
+            { glyph: "neutral", text: "Not connected. Finish the steps on the ADME Access tab." },
+          ],
+        },
+      ],
+    };
+  }
+  if (status.phase === "signin") {
+    return { view: "board", header: { status: phasePill(status) }, sections: [signinCard(status)] };
+  }
   return {
     view: "board",
-    header: { status: { label: "not connected", tone: "neutral" } },
-    sections: [
-      {
-        kind: "rows",
-        items: [
-          {
-            glyph: "neutral",
-            text:
-              key === PULSE_KEY || key === CONNECTION_KEY
-                ? "Connect this rib to one ADME instance."
-                : "Not connected. Finish the steps on the ADME Access tab.",
-          },
-        ],
-      },
-    ],
+    header: { status: phasePill(status) },
+    sections: [{ kind: "rows", items: [{ glyph: "ok", text: opts.connectedText }] }],
   };
 }
+
+// Publishing no sections hides a region.
+export const EMPTY_BOARD: CanvasBoardView = { view: "board", sections: [] };
