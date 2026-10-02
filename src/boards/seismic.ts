@@ -85,6 +85,15 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
   return { model, counts: countSeismic(model) };
 }
 
+// Own-ACL subprojects a person can be granted on, for a select; empty before the store is read.
+export function grantableSubprojects(rt: Runtime): { value: string; label: string }[] {
+  const measured = measuredSeismic(rt);
+  if (!measured) return [];
+  return displayOrder(measured.model)
+    .filter((s) => s.acl === "own")
+    .map((s) => ({ value: s.name, label: s.name }));
+}
+
 export function selectedSubproject(rt: Runtime, model: SeismicModel): SubprojectView | undefined {
   const order = displayOrder(model);
   const name = seismicState(rt).selected;

@@ -36,6 +36,7 @@ import {
   PREVIEW_REMOVE_ACTION,
 } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
+import { grantableSubprojects, PREVIEW_SEIS_GRANT_ACTION, SEIS_ROLE_OPTIONS } from "./seismic.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Exclude<Section, { kind: "columns" }>;
@@ -336,6 +337,7 @@ function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
     ...gate,
     ...extra,
   });
+  const subprojects = grantableSubprojects(rt);
   const fix =
     who.cause === "missing-users"
       ? PREVIEW_FIX_ACTION
@@ -353,10 +355,29 @@ function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
     ...(who.kind === "person"
       ? [
           {
-            type: "grant-seismic",
+            type: PREVIEW_SEIS_GRANT_ACTION,
             label: "Grant seismic…",
-            disabled: true,
-            reason: "arrives with the ADME Seismic tab",
+            submitLabel: "Preview plan",
+            submitTone: "brand" as const,
+            payload: { id: who.id },
+            binding,
+            ...gate,
+            ...(subprojects.length === 0
+              ? { disabled: true, reason: "read the subprojects on the ADME Seismic tab first" }
+              : {}),
+            fields: [
+              subprojects.length > 0
+                ? { name: "subproject", label: "Subproject", options: subprojects, required: true }
+                : { name: "subproject", label: "Subproject", placeholder: "not read yet" },
+              {
+                name: "role",
+                label: "Role",
+                options: SEIS_ROLE_OPTIONS,
+                segmented: true,
+                required: true,
+                defaultValue: "viewer",
+              },
+            ],
           },
         ]
       : []),
