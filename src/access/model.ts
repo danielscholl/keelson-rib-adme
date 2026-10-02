@@ -6,7 +6,13 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import { type AccessRead, type DirectoryEntry, GROUP_KEYS, type GroupKey } from "./read.ts";
+import {
+  type AccessRead,
+  type DirectoryEntry,
+  GROUP_KEYS,
+  type GroupKey,
+  type RosterMember,
+} from "./read.ts";
 
 export type Role = "Ops" | "Admin" | "Editor" | "Viewer";
 export const ROLES: readonly Role[] = ["Ops", "Admin", "Editor", "Viewer"];
@@ -40,12 +46,40 @@ export interface Identity {
   appId?: string;
   // The app the instance itself runs as; entitlements treats it as root.
   root: boolean;
+  // Effective groups from the role groups held, against what the role needs.
+  groups?: GroupCount;
+  // In the Entra roster group; absent when the roster was not read.
+  inRoster?: boolean;
+  // Unknown principals only: Entra holds this id as a deleted user.
+  deleted?: boolean;
+}
+
+export interface GroupCount {
+  held: number;
+  expected: number;
 }
 
 export interface AccessModel {
   people: Identity[];
   apps: Identity[];
   unknown: Identity[];
+  // Roster group members who hold no entitlement; absent when the roster was not read.
+  rosterOnly?: RosterMember[];
+}
+
+// Every identity needs users@ besides its role group, so it counts in the expected set.
+export function groupCount(
+  held: Identity["memberships"],
+  closures: Record<GroupKey, string[]> | undefined,
+): GroupCount | undefined {
+  if (!closures) return undefined;
+  const keys = GROUP_KEYS.filter((k) => held[k]);
+  const union = (ks: readonly GroupKey[]) => new Set(ks.flatMap((k) => closures[k])).size;
+  const roles = keys.filter((k) => k !== "users");
+  return {
+    held: union(keys),
+    expected: roles.length > 0 ? union(["users", ...roles]) : union(keys),
+  };
 }
 
 export interface ModelContext {
@@ -92,13 +126,30 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
   }
 
   const you = ctx.signedInAs?.toLowerCase();
+  const roster = read.roster ? new Set(read.roster.map((m) => m.id)) : undefined;
+  const deleted = new Set(read.deleted ?? []);
   const model: AccessModel = { people: [], apps: [], unknown: [] };
   for (const [id, held] of memberships) {
     const entry = read.directory[id];
     const role = highestRole(held);
-    const base = { id, memberships: held, ...(role ? { role } : {}), you: false, root: false };
+    const groups = groupCount(held, read.closures);
+    const base = {
+      id,
+      memberships: held,
+      ...(role ? { role } : {}),
+      ...(groups ? { groups } : {}),
+      you: false,
+      root: false,
+    };
     if (!entry) {
-      model.unknown.push({ ...base, kind: "unknown", name: id, state: "healthy", guest: false });
+      model.unknown.push({
+        ...base,
+        kind: "unknown",
+        name: id,
+        state: "healthy",
+        guest: false,
+        ...(deleted.has(id) ? { deleted: true } : {}),
+      });
       continue;
     }
     if (entry.kind === "app") {
@@ -137,8 +188,10 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
         ? { acceptedAt: entry.inviteChangedAt }
         : {}),
       you: you !== undefined && addresses(entry).includes(you),
+      ...(roster ? { inRoster: roster.has(id) } : {}),
     });
   }
+  if (read.roster) model.rosterOnly = read.roster.filter((m) => !memberships.has(m.id));
   const byName = (a: Identity, b: Identity) => a.name.localeCompare(b.name);
   model.people.sort(byName);
   model.apps.sort(byName);
@@ -160,6 +213,10 @@ export interface AccessCounts {
   apps: number;
   rootApps: number;
   unknown: number;
+  deleted: number;
+  // People with entitlements outside the roster group, plus roster members without any;
+  // undefined when the roster was not read.
+  rosterDrift?: number;
   oldestInvite?: string;
 }
 
@@ -188,6 +245,10 @@ export function countAccess(model: AccessModel): AccessCounts {
     apps: model.apps.length,
     rootApps: model.apps.filter((a) => a.root).length,
     unknown: model.unknown.length,
+    deleted: model.unknown.filter((u) => u.deleted).length,
+    ...(model.rosterOnly
+      ? { rosterDrift: n((p) => p.inRoster === false) + model.rosterOnly.length }
+      : {}),
     ...(oldestInvite ? { oldestInvite } : {}),
   };
 }

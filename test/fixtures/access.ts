@@ -118,6 +118,26 @@ export const SAMPLE_APPS = [
   },
 ];
 
+const D = "@opendes.dataservices.energy";
+const series = (prefix: string, n: number) =>
+  Array.from({ length: n }, (_, i) => `${prefix}.${String(i + 1).padStart(2, "0")}${D}`);
+const EDITOR_PARENTS = series("service.editor", 31);
+
+// Sized so the cast's effective counts match the spec: Editor 33, Admin 49, Ops 46,
+// and 32 for an editor missing users@.
+export const SAMPLE_CLOSURES: NonNullable<AccessRead["closures"]> = {
+  users: [`users${D}`],
+  viewers: [`users.datalake.viewers${D}`, ...series("service.viewer", 10)],
+  editors: [`users.datalake.editors${D}`, ...EDITOR_PARENTS],
+  admins: [
+    `users.datalake.admins${D}`,
+    `users.datalake.editors${D}`,
+    ...EDITOR_PARENTS,
+    ...series("service.admin", 15),
+  ],
+  ops: [`users.datalake.ops${D}`, ...series("service.ops", 44)],
+};
+
 export function sampleAccess(): AccessRead {
   const groups: AccessRead["groups"] = { users: [], viewers: [], editors: [], admins: [], ops: [] };
   const directory: Record<string, DirectoryEntry> = {};
@@ -142,7 +162,12 @@ export function sampleAccess(): AccessRead {
     groups.users.push(member(app.id));
     groups[app.group].push(member(app.id));
   }
-  return { groups, directory };
+  const roster = [...NAMED, ...MORE].map((p, i) => ({
+    id: oid(i + 1),
+    name: p.name,
+    mail: p.mail,
+  }));
+  return { groups, directory, closures: SAMPLE_CLOSURES, roster, deleted: [] };
 }
 
 export const SIGNED_IN_AS = "ingrid.halvorsen@contoso.example";

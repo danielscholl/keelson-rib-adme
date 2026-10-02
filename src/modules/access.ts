@@ -12,13 +12,19 @@ import {
   composeAccessPulse,
   composeAttention,
   composeCohorts,
-  composePeople,
   composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
   IMPORT_COHORTS_ACTION,
   measuredAccess,
 } from "../boards/access.ts";
+import {
+  composePeople,
+  isPeopleView,
+  PEOPLE_FILTER_ACTION,
+  PEOPLE_VIEW_ACTION,
+  peopleState,
+} from "../boards/people.ts";
 import {
   ACCESS_BADGE_KEY,
   ATTENTION_KEY,
@@ -58,6 +64,24 @@ export const accessModule: RegionModule = {
     [COHORTS_KEY]: composeCohorts,
   },
   actions: {
+    [PEOPLE_VIEW_ACTION]: async (rt, payload) => {
+      const view = (payload as { view?: unknown } | undefined)?.view;
+      if (!isPeopleView(view)) return { ok: false, error: "Pick Roster or Roles matrix." };
+      peopleState(rt).view = view;
+      rt.recompose([PEOPLE_KEY]);
+      return { ok: true };
+    },
+    [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
+      const filter = (payload as { filter?: unknown } | undefined)?.filter;
+      const cohorts = rt.tracker.cohorts.map((c) => `cohort:${c.name}`);
+      const known = ["all", "apps", "pending", "gaps", "cohort:Untracked", ...cohorts];
+      if (typeof filter !== "string" || !known.includes(filter)) {
+        return { ok: false, error: "That filter is no longer available." };
+      }
+      peopleState(rt).filter = filter;
+      rt.recompose([PEOPLE_KEY]);
+      return { ok: true };
+    },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
       const csv = (payload as { csv?: unknown } | undefined)?.csv;
       if (typeof csv !== "string") return { ok: false, error: "Paste the list to import." };

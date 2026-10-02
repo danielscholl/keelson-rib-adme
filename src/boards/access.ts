@@ -16,7 +16,7 @@ import {
   ROLES,
 } from "../access/model.ts";
 import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
-import { instanceName } from "../profile.ts";
+import { instanceName, shortId } from "../profile.ts";
 import { composeRestingHeader, EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
@@ -28,22 +28,20 @@ type Card = Extract<Section, { kind: "cards" }>["items"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
 
-const ROSTER_LIMIT = 25;
-
 export const IMPORT_COHORTS_ACTION = "import-cohorts";
 export const EXPORT_ROSTER_ACTION = "export-roster";
 
-function inCohort(people: Identity[], name: string): Identity[] {
+export function inCohort(people: Identity[], name: string): Identity[] {
   return people.filter((p) => (p.cohort ?? UNTRACKED) === name);
 }
 
 // Tracked cohorts in the order they were created, then Untracked when anyone is.
-function cohortNames(rt: Runtime, people: Identity[]): string[] {
+export function cohortNames(rt: Runtime, people: Identity[]): string[] {
   const names = rt.tracker.cohorts.map((c) => c.name);
   return people.some((p) => !p.cohort) ? [...names, UNTRACKED] : names;
 }
 
-function passText(cohort: Cohort | undefined, now: Date): string {
+export function passText(cohort: Cohort | undefined, now: Date): string {
   if (!cohort?.passEnds) return "none";
   const days = daysUntil(cohort.passEnds, now);
   return days < 0 ? `ended ${-days} d ago · ${cohort.passEnds}` : `${days} d · ${cohort.passEnds}`;
@@ -91,7 +89,7 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-function day(iso: string | undefined): string | undefined {
+export function day(iso: string | undefined): string | undefined {
   return iso?.slice(0, 10);
 }
 
@@ -277,6 +275,23 @@ function attentionCards(people: Identity[], now: Date): Section[] {
   return sections;
 }
 
+// The roster group is tracking only: ADME never reads it, so drift is a note, not a gap.
+function rosterDrift(model: AccessModel): Row[] {
+  const outside = model.people
+    .filter((p) => p.inRoster === false)
+    .map((p) => ({
+      glyph: "warn" as const,
+      text: p.name,
+      trailing: `${p.email ?? shortId(p.id)} · has entitlements, not in the roster group`,
+    }));
+  const extra = (model.rosterOnly ?? []).map((m) => ({
+    glyph: "neutral" as const,
+    text: m.name ?? shortId(m.id),
+    trailing: `${m.mail ?? shortId(m.id)} · in the roster group, no entitlements`,
+  }));
+  return [...outside, ...extra];
+}
+
 function roleGroup(p: Identity): "ops" | "admins" | "editors" | "viewers" {
   for (const key of ["ops", "admins", "editors", "viewers"] as const) {
     if (p.memberships[key]) return key;
@@ -292,30 +307,47 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   if (sections.length === 0 && model.unknown.length === 0) {
     sections.push({ kind: "rows", items: [{ glyph: "ok", text: "Nothing needs you." }] });
   }
-  if (model.unknown.length > 0) {
+  const deleted = model.unknown.filter((u) => u.deleted);
+  const unknown = model.unknown.filter((u) => !u.deleted);
+  if (deleted.length > 0) {
     sections.push({
       kind: "rows",
-      title: `Unknown principals · ${model.unknown.length}`,
-      items: model.unknown.map((u) => ({
+      title: `Deleted in Entra, still in entitlements · ${deleted.length}`,
+      items: deleted.map((u) => ({
+        glyph: "warn" as const,
+        text: shortId(u.id),
+        trailing: `${u.role ?? "no role"} · restorable for 30 days after deletion`,
+      })),
+    });
+  }
+  if (unknown.length > 0) {
+    sections.push({
+      kind: "rows",
+      title: `Unknown principals · ${unknown.length}`,
+      items: unknown.map((u) => ({
         glyph: "warn" as const,
         text: u.name,
         trailing: `${u.role ?? "no role"} · ${u.id.includes("@") ? "listed by email, not resolved" : "not found in Entra"}`,
       })),
     });
   }
+  const drift = rosterDrift(model);
+  if (drift.length > 0) {
+    sections.push({ kind: "rows", title: `Roster drift · ${drift.length}`, items: drift });
+  }
+  const clean = (found: boolean, text: string) =>
+    found ? [] : [{ glyph: "ok" as const, text, trailing: "0 found" }];
   sections.push({
     kind: "rows",
     title: "Checks that found nothing",
     items: [
-      ...(model.unknown.length === 0
-        ? [{ glyph: "ok" as const, text: "Unknown principals", trailing: "0 found" }]
-        : []),
-      ...(counts.missingUsers === 0
-        ? [{ glyph: "ok" as const, text: "Role without users@", trailing: "0 found" }]
-        : []),
-      ...(counts.duplicates === 0
-        ? [{ glyph: "ok" as const, text: "Duplicate member entries", trailing: "0 found" }]
-        : []),
+      ...(counts.rosterDrift === undefined
+        ? []
+        : clean(drift.length > 0, "Roster drift (Entra roster vs entitlements)")),
+      ...clean(deleted.length > 0, "Deleted in Entra, still in entitlements"),
+      ...clean(unknown.length > 0, "Unknown principals"),
+      ...clean(counts.missingUsers > 0, "Role without users@"),
+      ...clean(counts.duplicates > 0, "Duplicate member entries"),
     ],
   });
   const checks = sections.at(-1);
@@ -332,69 +364,6 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
           : []),
       ],
     },
-    sections,
-  };
-}
-
-function rosterRow(p: Identity): Row {
-  const tone = p.state === "broken" ? "error" : p.state === "pending" ? "warn" : "ok";
-  const when = p.acceptedAt
-    ? `accepted ${day(p.acceptedAt)}`
-    : p.invitedAt
-      ? `invited ${day(p.invitedAt)}`
-      : p.guest
-        ? ""
-        : "member";
-  return {
-    glyph: tone,
-    chip: { label: p.role ?? "No role" },
-    text: p.you ? `${p.name} (you)` : p.name,
-    trailing: [p.email, when].filter(Boolean).join(" · "),
-  };
-}
-
-const ROLE_RANK: Record<string, number> = { Ops: 0, Admin: 1, Editor: 2, Viewer: 3 };
-
-export function composePeople(rt: Runtime): CanvasBoardView {
-  const measured = measuredAccess(rt);
-  if (!measured) return EMPTY_BOARD;
-  const { model, counts } = measured;
-  const attention = model.people.filter((p) => p.state !== "healthy");
-  const healthy = model.people
-    .filter((p) => p.state === "healthy")
-    .sort((a, b) => (ROLE_RANK[a.role ?? ""] ?? 4) - (ROLE_RANK[b.role ?? ""] ?? 4));
-  const sections: Section[] = [];
-  if (attention.length > 0) {
-    sections.push({
-      kind: "rows",
-      title: `Needs attention · ${attention.length}`,
-      items: attention.map(rosterRow),
-    });
-  }
-  const capped = (title: string, people: Identity[]) => {
-    if (people.length === 0) return;
-    const shown = people.slice(0, ROSTER_LIMIT);
-    const rest = people.length - shown.length;
-    sections.push({
-      kind: "rows",
-      title: `${title} · ${people.length}`,
-      items: [
-        ...shown.map(rosterRow),
-        ...(rest > 0 ? [{ glyph: "neutral" as const, text: `… ${rest} more · all healthy` }] : []),
-      ],
-    });
-  };
-  if (rt.tracker.cohorts.length === 0) capped("Healthy", healthy);
-  else for (const name of cohortNames(rt, healthy)) capped(name, inCohort(healthy, name));
-  if (sections.length === 0) {
-    sections.push({
-      kind: "rows",
-      items: [{ glyph: "neutral", text: "No people have entitlements." }],
-    });
-  }
-  return {
-    view: "board",
-    header: { chip: `${counts.people} people` },
     sections,
   };
 }
