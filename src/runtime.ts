@@ -6,7 +6,8 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { RibExec } from "@keelson/shared";
+import type { OpHandle, RegisterOpRequest, RibExec } from "@keelson/shared";
+import type { z } from "zod";
 import {
   type AdmeClient,
   type Batch,
@@ -45,6 +46,7 @@ export interface RuntimeOptions {
   now?: () => Date;
   transport?: Transport;
   sleep?: (ms: number) => Promise<void>;
+  registerOp?: ((req: RegisterOpRequest) => OpHandle) | undefined;
 }
 
 export class Runtime {
@@ -88,6 +90,23 @@ export class Runtime {
 
   recompose(keys: readonly string[]): void {
     this.opts.recompose(keys);
+  }
+
+  sleep(ms: number): Promise<void> {
+    return this.opts.sleep ? this.opts.sleep(ms) : new Promise((r) => setTimeout(r, ms));
+  }
+
+  // A durable handle the host's run_cancel can reach; absent on older hosts.
+  registerOp(req: RegisterOpRequest): OpHandle | undefined {
+    return this.opts.registerOp?.(req);
+  }
+
+  readStore<T>(name: string, schema: z.ZodType<T>): T | undefined {
+    return this.opts.store.read(name, schema);
+  }
+
+  writeStore(name: string, data: unknown): void {
+    this.opts.store.write(name, data);
   }
 
   // An on-demand read outside the tier-1 sweep (a record search, an inspector).

@@ -18,12 +18,21 @@ import {
   PREVIEW_RESEND_ACTION,
 } from "../boards/change.ts";
 import {
+  CANCEL_OPERATION_ACTION,
+  composeOperation,
+  composeRecent,
+  DISMISS_OPERATION_ACTION,
+  RESUME_OPERATION_ACTION,
+} from "../boards/operation.ts";
+import {
+  APPLY_PLAN_ACTION,
   composePlan,
   DISCARD_PLAN_ACTION,
   EXPORT_PLAN_ACTION,
   RECHECK_PLAN_ACTION,
 } from "../boards/plan.ts";
-import { CHANGE_KEY, PLAN_KEY } from "../keys.ts";
+import { CHANGE_KEY, OPERATION_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
+import { cancelApply, dismissOperation, resumeApply, startApply } from "../plan/apply.ts";
 import { type PlanInputs, ROLE_KEYS } from "../plan/build.ts";
 import { bindingOf, dryRunCsv, sameBinding } from "../plan/model.ts";
 import { discardPlan, inputsOf, planState, startPlan } from "../plan/state.ts";
@@ -96,6 +105,8 @@ export const planModule: RegionModule = {
   composers: {
     [CHANGE_KEY]: composeChange,
     [PLAN_KEY]: composePlan,
+    [OPERATION_KEY]: composeOperation,
+    [RECENT_KEY]: composeRecent,
   },
   actions: {
     [PREVIEW_ADD_PEOPLE_ACTION]: (rt, payload) =>
@@ -177,6 +188,27 @@ export const planModule: RegionModule = {
         },
         (i) => `resend ${personName(rt, (i as { id: string }).id)}'s invitation`,
       ),
+    [APPLY_PLAN_ACTION]: async (rt, payload) => {
+      const p = asPayload(payload);
+      const refused = bindingError(rt, p);
+      if (refused) return { ok: false, error: refused };
+      const plan = currentPlan(rt, p);
+      if (!plan) return { ok: false, error: "That plan is no longer open." };
+      const res = startApply(rt, plan);
+      return res.ok ? { ok: true, data: { message: res.message } } : res;
+    },
+    [RESUME_OPERATION_ACTION]: async (rt) => {
+      const res = resumeApply(rt);
+      return res.ok ? { ok: true, data: { message: res.message } } : res;
+    },
+    [CANCEL_OPERATION_ACTION]: async (rt) => {
+      const res = cancelApply(rt);
+      return res.ok ? { ok: true, data: { message: res.message } } : res;
+    },
+    [DISMISS_OPERATION_ACTION]: async (rt) => {
+      const res = dismissOperation(rt);
+      return res.ok ? { ok: true, data: { message: res.message } } : res;
+    },
     [RECHECK_PLAN_ACTION]: async (rt, payload) => {
       const p = asPayload(payload);
       const refused = bindingError(rt, p);

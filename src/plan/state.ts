@@ -8,7 +8,7 @@
 
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { measuredAccess } from "../boards/access.ts";
-import { PLAN_KEY } from "../keys.ts";
+import { PLAN_KEY, RECENT_KEY } from "../keys.ts";
 import type { Runtime } from "../runtime.ts";
 import { type BuildContext, buildPlan, type PlanInputs } from "./build.ts";
 import type { Plan } from "./model.ts";
@@ -21,6 +21,8 @@ export interface PlanState {
   // Set by Recheck when the new dry run differs from the plan it replaced.
   changedFrom?: { id: string; at: string };
   pending?: Promise<void>;
+  // The plan id handed to the executor; the sheet stops offering Apply for it.
+  appliedAs?: string;
 }
 
 const states = new WeakMap<Runtime, PlanState>();
@@ -74,8 +76,19 @@ export function startPlan(rt: Runtime, inputs: PlanInputs, title: string, replac
     } else {
       if (replacing) s.changedFrom = { id: replacing.id, at: replacing.createdAt };
       s.plan = res.data;
+      const title = res.data.title;
+      rt.tracker.record(
+        [
+          {
+            kind: "dry run",
+            plan: res.data.id,
+            text: `${title.charAt(0).toUpperCase()}${title.slice(1)}`,
+          },
+        ],
+        rt.now(),
+      );
     }
-    rt.recompose([PLAN_KEY]);
+    rt.recompose([PLAN_KEY, RECENT_KEY]);
   })();
 }
 
