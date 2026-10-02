@@ -1,4 +1,8 @@
 import type { RibContext, RibExec, SnapshotManager } from "@keelson/shared";
+import type { Transport } from "../src/client";
+import { Runtime } from "../src/runtime";
+import { Store } from "../src/store";
+import { SAMPLE_PROFILE } from "./fixtures/profile";
 
 type Composer = () => Promise<unknown>;
 type Validator = (data: unknown) => unknown;
@@ -135,4 +139,34 @@ export function routeTransport(
     };
   };
   return { transport, sent };
+}
+
+// A runtime that is connected to the sample instance with the given areas
+// already measured at `now`, for composer tests. Pass `phase` to draw another state.
+export function seededRuntime(
+  seed: Record<string, unknown>,
+  opts: { now?: Date; phase?: "connected" | "signin" | "firstrun"; transport?: Transport } = {},
+): Runtime {
+  const now = opts.now ?? new Date("2026-10-02T14:05:00Z");
+  const store = new Store(undefined);
+  if (opts.phase !== "firstrun") {
+    store.write("profile.json", SAMPLE_PROFILE);
+    store.write("test.json", {
+      testedAt: now.toISOString(),
+      signedInAs: "ingrid.halvorsen@contoso.example",
+      capabilities: [],
+    });
+  }
+  const rt = new Runtime({
+    exec: azExec(),
+    store,
+    recompose: () => undefined,
+    allKeys: [],
+    now: () => now,
+    ...(opts.transport ? { transport: opts.transport } : {}),
+    sleep: async () => undefined,
+  });
+  for (const [area, data] of Object.entries(seed)) rt.cache.succeed(area, data, now);
+  if (opts.phase === "signin") rt.status = { ...rt.status, phase: "signin", error: "expired" };
+  return rt;
 }

@@ -70,9 +70,19 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
         {
           zoneTitle: "Now",
           columns: [
-            { key: ATTENTION_KEY, title: "Needs you", glyph: { char: "!", tone: "caution" } },
+            {
+              key: ATTENTION_KEY,
+              title: "Needs you",
+              glyph: { char: "!", tone: "caution" },
+              hideWhenEmpty: true,
+            },
             [
-              { key: CHANGE_KEY, title: "Change access", glyph: { char: "+", tone: "brand" } },
+              {
+                key: CHANGE_KEY,
+                title: "Change access",
+                glyph: { char: "+", tone: "brand" },
+                hideWhenEmpty: true,
+              },
               {
                 key: OPERATION_KEY,
                 title: "Operation",
@@ -83,6 +93,7 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
                 key: RECENT_KEY,
                 title: "Recent changes",
                 glyph: { char: "↺", tone: "neutral" },
+                hideWhenEmpty: true,
                 collapsible: true,
               },
             ],
@@ -90,13 +101,30 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
         },
         {
           zoneTitle: "People",
-          columns: [{ key: PEOPLE_KEY, title: "People", glyph: { char: "☰", tone: "info" } }],
+          columns: [
+            {
+              key: PEOPLE_KEY,
+              title: "People",
+              glyph: { char: "☰", tone: "info" },
+              hideWhenEmpty: true,
+            },
+          ],
         },
         {
           zoneTitle: "Cohorts",
           columns: [
-            { key: COHORTS_KEY, title: "Cohorts", glyph: { char: "▦", tone: "info" } },
-            { key: PRINCIPALS_KEY, title: "Applications", glyph: { char: "⚙", tone: "neutral" } },
+            {
+              key: COHORTS_KEY,
+              title: "Cohorts",
+              glyph: { char: "▦", tone: "info" },
+              hideWhenEmpty: true,
+            },
+            {
+              key: PRINCIPALS_KEY,
+              title: "Applications",
+              glyph: { char: "⚙", tone: "neutral" },
+              hideWhenEmpty: true,
+            },
           ],
         },
       ],
@@ -121,16 +149,29 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
       rows: [
         {
           zoneTitle: "Records",
-          columns: [{ key: RECORDS_KEY, title: "Records", glyph: { char: "⌕", tone: "info" } }],
+          columns: [
+            {
+              key: RECORDS_KEY,
+              title: "Records",
+              glyph: { char: "⌕", tone: "info" },
+              hideWhenEmpty: true,
+            },
+          ],
         },
         {
           zoneTitle: "Governance",
           columns: [
-            { key: LEGAL_KEY, title: "Legal tags", glyph: { char: "§", tone: "caution" } },
+            {
+              key: LEGAL_KEY,
+              title: "Legal tags",
+              glyph: { char: "§", tone: "caution" },
+              hideWhenEmpty: true,
+            },
             {
               key: SERVICES_KEY,
               title: "Services",
               glyph: { char: "⇄", tone: "neutral" },
+              hideWhenEmpty: true,
               collapsible: true,
             },
           ],
@@ -159,22 +200,30 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
               key: SEIS_SUBPROJECTS_KEY,
               title: "Subprojects",
               glyph: { char: "▦", tone: "info" },
+              hideWhenEmpty: true,
             },
           ],
         },
         {
           columns: [
-            { key: SEIS_SELECTED_KEY, title: "Selected subproject", glyph: { char: "◎" } },
+            {
+              key: SEIS_SELECTED_KEY,
+              title: "Selected subproject",
+              glyph: { char: "◎" },
+              hideWhenEmpty: true,
+            },
             [
               {
                 key: SEIS_CHANGE_KEY,
                 title: "Grant or revoke",
                 glyph: { char: "+", tone: "brand" },
+                hideWhenEmpty: true,
               },
               {
                 key: SEIS_REACH_KEY,
                 title: "What a partner can reach",
                 glyph: { char: "→", tone: "info" },
+                hideWhenEmpty: true,
               },
             ],
           ],

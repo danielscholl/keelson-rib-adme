@@ -7,6 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import {
+  type CanvasBoardView,
   expectView,
   type Rib,
   type RibAction,
@@ -17,20 +18,16 @@ import {
   ribSurfaceBadgeSchema,
   type SnapshotManager,
 } from "@keelson/shared";
-import { composeConnection, RETEST_ACTION, SAVE_PROFILE_ACTION } from "./boards/connection.ts";
-import {
-  BADGE_KEYS,
-  BOARD_KEYS,
-  CONNECTION_KEY,
-  DATA_PULSE_KEY,
-  PULSE_KEY,
-  RIB_ID,
-  SEIS_PULSE_KEY,
-} from "./keys.ts";
-import { composeRestingHeader, EMPTY_BOARD } from "./resting.ts";
+import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
+import { connectionModule } from "./modules/connection.ts";
+import type { ActionHandler, RegionModule } from "./region.ts";
+import { EMPTY_BOARD } from "./resting.ts";
 import { Runtime, TICK_MS } from "./runtime.ts";
 import { Store } from "./store.ts";
-import { REFRESH_ACTION, SURFACES } from "./surfaces.ts";
+import { SURFACES } from "./surfaces.ts";
+
+// Later modules override earlier ones for the same key.
+const MODULES: readonly RegionModule[] = [connectionModule];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
 
@@ -43,19 +40,21 @@ function recompose(keys: readonly string[]): void {
   for (const key of keys) snapshots?.recompose(key).catch(() => undefined);
 }
 
-function composers(rt: Runtime): Map<string, () => unknown> {
-  const map = new Map<string, () => unknown>();
-  map.set(CONNECTION_KEY, () => composeConnection(rt.status));
-  map.set(PULSE_KEY, () =>
-    composeRestingHeader(rt.status, {
-      firstRunHere: true,
-      connectedText: `Connected${rt.status.test?.signedInAs ? ` as ${rt.status.test.signedInAs}` : ""}.`,
-    }),
-  );
-  map.set(DATA_PULSE_KEY, () => composeRestingHeader(rt.status, { connectedText: "Connected." }));
-  map.set(SEIS_PULSE_KEY, () => composeRestingHeader(rt.status, { connectedText: "Connected." }));
+function boardComposers(): Map<string, (rt: Runtime) => CanvasBoardView> {
+  const map = new Map<string, (rt: Runtime) => CanvasBoardView>();
+  for (const m of MODULES) for (const [k, f] of Object.entries(m.composers ?? {})) map.set(k, f);
   return map;
 }
+
+function badgeCount(rt: Runtime, key: string): number {
+  let n = 0;
+  for (const m of MODULES) n += m.badges?.[key]?.(rt) ?? 0;
+  return n;
+}
+
+const ACTIONS = new Map<string, ActionHandler>(
+  MODULES.flatMap((m) => Object.entries(m.actions ?? {})),
+);
 
 function bind(ctx: RibContext): void {
   unbind();
@@ -67,20 +66,27 @@ function bind(ctx: RibContext): void {
     recompose,
     allKeys: ALL_KEYS,
   });
+  for (const m of MODULES) for (const area of m.areas ?? []) rt.addArea(area);
   runtime = rt;
   if (!sm) return;
-  const byKey = composers(rt);
+  const byKey = boardComposers();
   for (const key of BOARD_KEYS) {
-    const compose = byKey.get(key) ?? (() => EMPTY_BOARD);
+    const compose = byKey.get(key);
     unregisters.push(
-      sm.register(key, async () => compose(), { validate: expectView(key, "board") }),
+      sm.register(key, async () => (compose ? compose(rt) : EMPTY_BOARD), {
+        validate: expectView(key, "board"),
+      }),
     );
   }
   for (const key of BADGE_KEYS) {
     unregisters.push(
-      sm.register(key, async (): Promise<RibSurfaceBadge> => ({ count: 0 }), {
-        validate: (data) => ribSurfaceBadgeSchema.parse(data),
-      }),
+      sm.register(
+        key,
+        async (): Promise<RibSurfaceBadge> => ({
+          count: rt.status.phase === "connected" ? badgeCount(rt, key) : 0,
+        }),
+        { validate: (data) => ribSurfaceBadgeSchema.parse(data) },
+      ),
     );
   }
   recompose(ALL_KEYS);
@@ -90,7 +96,6 @@ function bind(ctx: RibContext): void {
   }, TICK_MS);
   ticker.unref?.();
 }
-
 function unbind(): void {
   for (const un of unregisters) un();
   unregisters = [];
@@ -124,24 +129,9 @@ const rib: Rib = {
     const rt = runtime;
     if (!rt) return { ok: false, error: "adme is not bound yet" };
     rt.touch();
-    switch (action.type) {
-      case SAVE_PROFILE_ACTION: {
-        const res = await rt.saveProfile(action.payload ?? {});
-        if (!res.ok) return res;
-        return {
-          ok: true,
-          data: { message: `Connection ${rt.status.phase === "connected" ? "works" : "tested"}` },
-        };
-      }
-      case RETEST_ACTION:
-        await rt.testConnection();
-        return { ok: true };
-      case REFRESH_ACTION:
-        await rt.sweep();
-        return { ok: true };
-      default:
-        return { ok: false, error: `adme does not handle '${action.type}'` };
-    }
+    const handle = ACTIONS.get(action.type);
+    if (!handle) return { ok: false, error: `adme does not handle '${action.type}'` };
+    return handle(rt, action.payload);
   },
 
   dispose: () => {

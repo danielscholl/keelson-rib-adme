@@ -148,7 +148,7 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
 
   const result: TestResult = {
     testedAt: now().toISOString(),
-    ...(me.ok ? { signedInAs: me.data.userPrincipalName ?? me.data.mail } : {}),
+    ...(me.ok ? { signedInAs: me.data.mail ?? me.data.userPrincipalName } : {}),
     capabilities: [
       fromCall("own-groups", ownGroups),
       allGroupsCap,
