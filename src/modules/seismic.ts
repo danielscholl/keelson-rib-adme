@@ -19,7 +19,7 @@ import {
   SEIS_SELECT_ACTION,
   seismicState,
 } from "../boards/seismic.ts";
-import { SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../keys.ts";
+import { PEOPLE_KEY, SEIS_PULSE_KEY, SEIS_SELECTED_KEY, SEIS_SUBPROJECTS_KEY } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
 import { readSeismic, SEISMIC_AREA, SEISMIC_KEYS } from "../seismic/read.ts";
@@ -45,14 +45,14 @@ export function measureSeismic(rt: Runtime): Promise<RibActionResult> {
     const res = await rt.run((b) => readSeismic(b, known));
     if (res.ok) {
       rt.cache.succeed(SEISMIC_AREA, res.data, rt.now());
-      rt.recompose(SEISMIC_KEYS);
+      rt.recompose([...SEISMIC_KEYS, PEOPLE_KEY]);
       return { ok: true };
     }
     if (res.failure.kind === "signin" && res.failure.status === null) {
       return { ok: false, error: SIGNIN_REASON };
     }
     rt.cache.fail(SEISMIC_AREA, res.failure.message, rt.now());
-    rt.recompose(SEISMIC_KEYS);
+    rt.recompose([...SEISMIC_KEYS, PEOPLE_KEY]);
     return { ok: false, error: res.failure.message };
   })().finally(() => inflight.delete(rt));
   inflight.set(rt, work);

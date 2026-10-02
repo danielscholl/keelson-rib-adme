@@ -19,6 +19,7 @@ export const PREVIEW_REMOVE_ACTION = "preview-remove-person";
 export const PREVIEW_FIX_ACTION = "preview-fix-users";
 export const PREVIEW_CLEANUP_ACTION = "preview-cleanup-duplicate";
 export const EXPLAIN_ACTION = "explain-access";
+export const PREVIEW_RESEND_ACTION = "preview-resend-invite";
 
 const ROLE_OPTIONS = ["Viewer", "Editor", "Admin"].map((r) => ({ value: r, label: r }));
 
