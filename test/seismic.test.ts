@@ -484,3 +484,10 @@ describe("every frame passes its validator", () => {
     });
   }
 });
+
+describe("members open the person inspector", () => {
+  test("a person or application row in the selected subproject dispatches select-person", async () => {
+    const text = JSON.stringify(selected(seededRuntime(SEED, { now: NOW })));
+    expect(text).toContain('"type":"select-person"');
+  });
+});

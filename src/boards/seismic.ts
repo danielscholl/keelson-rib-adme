@@ -24,7 +24,7 @@ import {
   type SubprojectView,
 } from "../seismic/model.ts";
 import { SEISMIC_AREA, type SeismicRead } from "../seismic/read.ts";
-import { measuredAccess } from "./access.ts";
+import { measuredAccess, SELECT_PERSON_ACTION } from "./access.ts";
 import { phasePill, signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -367,6 +367,9 @@ function memberRow(m: Member): Row {
     glyph: toneOf(m),
     text: m.you ? `${m.name} (you)` : m.name,
     trailing,
+    ...(m.kind === "person" || m.kind === "app"
+      ? { action: { type: SELECT_PERSON_ACTION, payload: { id: m.id } } }
+      : {}),
   };
 }
 
