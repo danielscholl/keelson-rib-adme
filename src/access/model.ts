@@ -26,6 +26,7 @@ export interface Identity {
   kind: "person" | "app" | "unknown";
   name: string;
   email?: string;
+  cohort?: string;
   role?: Role;
   memberships: Partial<Record<GroupKey, "M" | "O">>;
   state: State;
@@ -50,6 +51,7 @@ export interface AccessModel {
 export interface ModelContext {
   signedInAs?: string | undefined;
   admeAppId?: string | undefined;
+  cohortOf?: ((email: string | undefined) => string | undefined) | undefined;
 }
 
 function addresses(entry: DirectoryEntry): string[] {
@@ -113,6 +115,9 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
       continue;
     }
     const email = entry.mail ?? entry.upn;
+    const cohort = addresses(entry)
+      .map((a) => ctx.cohortOf?.(a))
+      .find((c) => c !== undefined);
     const duplicateIn = duplicates.get(id);
     const pending = entry.inviteState === "PendingAcceptance";
     const cause: Cause | undefined =
@@ -122,6 +127,7 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
       kind: "person",
       name: entry.name,
       ...(email ? { email } : {}),
+      ...(cohort ? { cohort } : {}),
       state: cause ? "broken" : pending ? "pending" : "healthy",
       ...(cause ? { cause } : {}),
       ...(duplicateIn ? { duplicateIn } : {}),

@@ -6,8 +6,8 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { z } from "zod";
 
 // JSON files in the rib's data dir. Without a data dir the store keeps state in
@@ -28,6 +28,19 @@ export class Store {
     }
     const parsed = schema.safeParse(raw);
     return parsed.success ? parsed.data : undefined;
+  }
+
+  exists(name: string): boolean {
+    return this.memory.has(name) || (this.dir !== undefined && existsSync(join(this.dir, name)));
+  }
+
+  // Returns the path written, or undefined when there is no data dir.
+  writeText(name: string, text: string): string | undefined {
+    if (!this.dir) return undefined;
+    const path = join(this.dir, name);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, text);
+    return path;
   }
 
   write(name: string, data: unknown): void {
