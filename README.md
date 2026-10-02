@@ -5,9 +5,10 @@ A [keelson](https://github.com/danielscholl/keelson) rib for administering an
 (ADME) instance: who has access, what data is in it, and who can reach each
 seismic subproject.
 
-**Status: first slice.** The connection and the read-only ADME Data tab work.
-ADME Access and ADME Seismic show the connection state only; their boards
-follow in the next slices.
+**Status: first take built.** All three tabs work against a live instance:
+ADME Data read-only, and ADME Access and ADME Seismic with every change made
+through a previewed plan. Applying plans to a real instance is the part still
+being proven.
 
 ## What the first take covers
 
