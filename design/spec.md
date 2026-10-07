@@ -208,7 +208,7 @@ Right: region `rib:adme:activity`, title "Activity", byline "data calls from the
 
 - `rib:adme:orgs`, title "Organizations", byline "one card per email domain · select one to filter People". A grid of cards, one per registrable email domain, most people first. Each card has the organization name (from the domain: halden-geo.example is "Halden Geo", xyz.example is "XYZ"), a pill for a gap or open invitations, a usage bar labelled "Usage" and captioned "N of M active", a People field naming everyone in their usage tone, and the domain as footnote. Clicking a card filters People to it in place; clicking it again clears the filter.
 
-Then the region `rib:adme:people`, title "People", chip "32 of 32 · all". Head menu: "Export who has access", which writes the access guide's "Who has access" table (Name, Email, Status, Granted, Last active) as Markdown to the data directory's `exports/`.
+Then the region `rib:adme:people`, title "People", chip "32 of 32 · all", collapsed by default. Head menu: "Export who has access", which writes the access guide's "Who has access" table (Name, Email, Status, Granted, Last active) as Markdown to the data directory's `exports/`.
 
 1. View chips: **Roster** (selected), Roles matrix, Seismic grants.
 2. Filter chips: All (selected), Pilot 29, Vendor 1, Permanent 2, Applications 4, Invited 3, Gaps 2, and the selected organization when one is picked.
