@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.1.1...v1.2.0) (2026-10-07)
+
+
+### Added
+
+* **access:** collapse People by default ([#26](https://github.com/danielscholl/keelson-rib-adme/issues/26)) ([ac0512f](https://github.com/danielscholl/keelson-rib-adme/commit/ac0512f3cf3cc57dc749d811bb70769337bfccec))
+
 ## [1.1.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.1.0...v1.1.1) (2026-10-07)
 
 
