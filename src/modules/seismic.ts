@@ -30,6 +30,7 @@ import {
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
   SEISMIC_SURFACE_ID,
+  surfaceTab,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
@@ -77,7 +78,10 @@ function used(rt: Runtime): boolean {
 
 // A handled effect suppresses the success toast a plain selection would raise.
 function focus(regionKey: string): RibActionResult {
-  return { ok: true, data: { effect: "open-surface", surfaceId: SEISMIC_SURFACE_ID, regionKey } };
+  return {
+    ok: true,
+    data: { effect: "open-surface", surfaceId: surfaceTab(SEISMIC_SURFACE_ID), regionKey },
+  };
 }
 
 const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;

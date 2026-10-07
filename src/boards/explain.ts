@@ -6,7 +6,7 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { CanvasActionItem, CanvasBoardView, CanvasTone } from "@keelson/shared";
+import type { CanvasBoardView, CanvasTone } from "@keelson/shared";
 import { type Check, type CheckStatus, type Explanation, explanations } from "../access/explain.ts";
 import { bindingOf } from "../plan/model.ts";
 import type { Profile } from "../profile.ts";
@@ -14,8 +14,7 @@ import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { SELECT_PERSON_ACTION } from "./access.ts";
-import { EXPLAIN_ACTION, PREVIEW_CLEANUP_ACTION, PREVIEW_FIX_ACTION } from "./change.ts";
-import { SIGNIN_REASON } from "./connection.ts";
+import { EXPLAIN_ACTION } from "./change.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
@@ -56,17 +55,8 @@ function segments(e: Explanation, title: string): Section {
   };
 }
 
-function fixSection(rt: Runtime, e: Explanation, profile: Profile): Section | undefined {
+function fixSection(e: Explanation): Section | undefined {
   if (e.fix) {
-    const signedOut = rt.status.phase !== "connected";
-    const plan: CanvasActionItem = {
-      type: e.fix.kind === "fix-users" ? PREVIEW_FIX_ACTION : PREVIEW_CLEANUP_ACTION,
-      label: e.fix.kind === "fix-users" ? "Plan the fix" : "Plan the cleanup",
-      tone: "brand",
-      pendingLabel: "Planning…",
-      binding: { ...bindingOf(profile), id: e.id },
-      ...(signedOut ? { disabled: true, reason: SIGNIN_REASON } : {}),
-    };
     return {
       kind: "cards",
       title: "Fix",
@@ -80,12 +70,8 @@ function fixSection(rt: Runtime, e: Explanation, profile: Profile): Section | un
           },
           stacked: true,
           fields: e.fix.lines.map((line, i) => ({ label: String(i + 1), value: line })),
-          footnote: "Nothing changes until you apply the plan.",
           reason: { label: "why", text: e.fix.reason },
-          actions: [
-            plan,
-            { type: SELECT_PERSON_ACTION, label: "Open person", payload: { id: e.id } },
-          ],
+          actions: [{ type: SELECT_PERSON_ACTION, label: "Open person", payload: { id: e.id } }],
         },
       ],
     };
@@ -174,7 +160,7 @@ export function composeExplain(rt: Runtime): CanvasBoardView {
     title: "Checks, in the order the platform applies them",
     items: e.checks.map(checkRow),
   });
-  const fix = fixSection(rt, e, profile);
+  const fix = fixSection(e);
   if (fix) sections.push(fix);
   sections.push(noteSection(e));
   if (earlier.length > 0) sections.push(recentSection(rt, earlier, profile));

@@ -149,7 +149,7 @@ function orgCard(m: Measured, domain: string, name: string, people: Identity[], 
       ? {
           bar: {
             segments,
-            label: measured ? "In use" : "Accepted",
+            label: measured ? "Usage" : "Accepted",
             trailing: measured ? `${active} of ${people.length} active` : `${people.length}`,
           },
         }

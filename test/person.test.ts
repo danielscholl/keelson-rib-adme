@@ -137,25 +137,14 @@ describe("person inspector", () => {
       { label: "Entra state", value: "Accepted 2026-09-29", tone: "ok" },
       { label: "Created", value: "2026-09-28" },
       { label: "Roster group", value: "in 9d3a…5e42" },
-      { label: "Cohort", value: "Untracked" },
-      { label: "Pass ends", value: "?" },
     ]);
     expect(JSON.stringify(find(left, "Same home identity"))).toContain(
       "rkim@pacrim-energy.example resolves to this account",
     );
     const planned = left.find((s) => s.kind === "actions");
     if (planned?.kind !== "actions") throw new Error("actions expected");
-    expect(planned.items.map((a) => a.label)).toEqual([
-      "Plan the fix",
-      "Grant seismic…",
-      "Why 401/403",
-      "Remove person…",
-    ]);
-    const [fix, , , remove] = planned.items;
-    expect(fix).toMatchObject({ type: "preview-fix-users", payload: { id: rachel } });
-    expect(fix?.disabled).toBeUndefined();
-    expect(remove).toMatchObject({ type: "preview-remove-person", payload: { id: rachel } });
-    expect(remove?.destructive).toBeUndefined();
+    // The inspector reads only: no verb plans a change.
+    expect(planned.items.map((a) => a.type)).toEqual(["explain-access"]);
     expect(JSON.stringify(find(right, "History"))).toContain("Accepted the invitation");
   });
 

@@ -112,7 +112,7 @@ describe("access boards", () => {
     expect(text).toContain("contoso-adme · opendes · measured 14:05Z");
     expect(text).toContain('{"label":"In use: not measured","n":null}');
     expect(text).toContain('{"label":"Active this week","value":null');
-    expect(text).toContain('{"label":"Accepted, never used","value":null');
+    expect(text).toContain('{"label":"Accepted, not used","value":null');
     expect(text).toContain("32 people from 12 organizations. 3 not accepted yet.");
     expect(text).toContain("1 missing users@ · 1 duplicate entry");
     expect(text).not.toContain("Next pass ends");
@@ -130,7 +130,7 @@ describe("access boards", () => {
     const text = JSON.stringify(view);
     expect(text).toContain("Pacrim Energy · not in users@, every call returns 401");
     expect(text).toContain("Northfield · invited 4 d ago");
-    expect(text).toContain("Who accepted but never made a call is not measured");
+    expect(text).toContain("Who accepted but has not used it is not measured");
     const invited = view.view === "board" ? view.sections[1] : undefined;
     const names = invited?.kind === "rows" ? invited.items.map((i) => i.text) : [];
     expect(names.at(-1)).toBe("Jonas Lindqvist");
@@ -200,11 +200,11 @@ describe("follow up actions", () => {
     expect(rachel?.action?.payload).toEqual({ id: "00000000-0000-4000-8000-000000000011" });
   });
 
-  test("the inspector carries the resend verb, bound, and it opens a dry run", async () => {
+  test("the inspector offers no resend; the plan module still dry-runs one", async () => {
     const runtime = rt();
     selectPerson(runtime, "00000000-0000-4000-8000-000000000008");
     const text = JSON.stringify(composePerson(runtime));
-    expect(text).toContain('"type":"preview-resend-invite","label":"Resend invitation"');
+    expect(text).not.toContain('"type":"preview-resend-invite"');
     const binding = {
       host: SAMPLE_PROFILE.host,
       partition: SAMPLE_PROFILE.partition,

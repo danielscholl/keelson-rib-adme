@@ -69,6 +69,8 @@ export interface ActivityModel {
   byId: Map<string, PersonActivity>;
   // The recent window, oldest day first, as YYYY-MM-DD.
   recent: string[];
+  // The oldest day the log returned: "never" only reaches back this far.
+  since?: string;
 }
 
 function kqlString(s: string): string {
@@ -162,7 +164,20 @@ export function buildActivity(read: ActivityRead, now: Date): ActivityModel {
     if (r.day > a.last) a.last = r.day;
     byId.set(r.id, a);
   }
-  return { windowDays: read.windowDays, byId, recent: recentDays(now) };
+  const since = read.rows.reduce<string | undefined>(
+    (m, r) => (!m || r.day < m ? r.day : m),
+    undefined,
+  );
+  return {
+    windowDays: read.windowDays,
+    byId,
+    recent: recentDays(now),
+    ...(since ? { since } : {}),
+  };
+}
+
+export function noCall(model: ActivityModel): string {
+  return model.since ? `no data call since ${model.since}` : "no data call in the audit log";
 }
 
 export function usageOf(

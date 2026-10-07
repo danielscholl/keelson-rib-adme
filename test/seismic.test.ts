@@ -437,7 +437,10 @@ describe("subprojects and the selected subproject", () => {
       recompose: (keys) => recomposed.push([...keys]),
     });
     const res = await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" });
-    expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
+    expect(res).toMatchObject({
+      ok: true,
+      data: { effect: "open-surface", surfaceId: "surface:adme:adme-seismic" },
+    });
     expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]]);
     const view = selected(rt);
     expect(view.header?.status?.label).toBe("1 admin · 3 viewers");

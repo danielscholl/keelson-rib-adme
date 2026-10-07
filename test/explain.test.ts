@@ -6,9 +6,7 @@ import { composeChange } from "../src/boards/change";
 import { composeExplain } from "../src/boards/explain";
 import { CHANGE_KEY, EXPLAIN_KEY } from "../src/keys";
 import { explainModule } from "../src/modules/explain";
-import { planModule } from "../src/modules/plan";
 import { bindingOf } from "../src/plan/model";
-import { planState } from "../src/plan/state";
 import type { Runtime } from "../src/runtime";
 import { SAMPLE_CLOSURES, sampleAccess } from "./fixtures/access";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
@@ -103,16 +101,8 @@ describe("why 401/403", () => {
       "POST entitlements /groups/users@…/members {email: 0000…0011, role: MEMBER}",
       "GET entitlements /members/0000…0011/groups, expect 33",
     ]);
-    const plan = fix?.actions?.[0];
-    expect(plan).toMatchObject({ type: "preview-fix-users", label: "Plan the fix", tone: "brand" });
-    expect(plan?.disabled).toBeUndefined();
-
-    // The fix hands off to the existing plan preview, the only write path.
-    const handed = await planModule.actions?.[plan?.type ?? ""]?.(rt, plan?.binding);
-    await planState(rt).pending;
-    expect(handed).toMatchObject({ ok: true, data: { effect: "open-canvas" } });
-    expect(planState(rt).plan?.kind).toBe("fix-users");
-    expect(planState(rt).plan?.subjects[0]?.oid).toBe(RACHEL);
+    // The access tab is a viewer: the fix is described, never planned from here.
+    expect(fix?.actions?.map((a) => a.type)).toEqual(["select-person"]);
   });
 
   test("a pending invitation fails the sign-in check first", async () => {
@@ -162,9 +152,7 @@ describe("why 401/403", () => {
       chip: { label: "warn" },
       trailing: "duplicate entry, not the cause",
     });
-    expect(section(view, "cards", "Fix")?.items[0]?.actions?.[0]?.type).toBe(
-      "preview-cleanup-duplicate",
-    );
+    expect(section(view, "cards", "Fix")?.items[0]?.title).toBeDefined();
   });
 
   test("the note is plain text, copy only, and never mentions tokens or minutes", async () => {
@@ -199,7 +187,7 @@ describe("why 401/403", () => {
     expect(recent.items.some((r) => r.text.startsWith("Rachel Kim"))).toBe(false);
   });
 
-  test("while sign-in is needed it answers from the sweep and cannot plan the fix", async () => {
+  test("while sign-in is needed it answers from the sweep", async () => {
     const { rt, sent } = runtime("signin");
     const tab = (
       composeChange(rt).sections[0] as { items: { type: string; disabled?: boolean }[] }
@@ -211,10 +199,6 @@ describe("why 401/403", () => {
     expect(view.header?.status?.label).toBe("401: not a member of users@");
     expect(view.header?.chip).toBe("cached from 14:05Z · 7 checks");
     expect(JSON.stringify(view)).toContain("The last sweep gives 32 effective groups");
-    expect(section(view, "cards", "Fix")?.items[0]?.actions?.[0]).toMatchObject({
-      disabled: true,
-      reason: "sign-in needed: run az login, then Re-test",
-    });
   });
 
   test("a board drawn for another instance or an unknown person is refused", async () => {

@@ -76,3 +76,8 @@ export const BADGE_KEYS = [ACCESS_BADGE_KEY, DATA_BADGE_KEY] as const;
 export const ACCESS_SURFACE_ID = "adme-access";
 export const DATA_SURFACE_ID = "adme-data";
 export const SEISMIC_SURFACE_ID = "adme-seismic";
+
+// The host names a surface tab "surface:<rib id>:<surface id>"; open-surface takes that form.
+export function surfaceTab(surfaceId: string): string {
+  return `surface:${RIB_ID}:${surfaceId}`;
+}

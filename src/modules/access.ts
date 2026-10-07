@@ -6,6 +6,7 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
+import type { RibActionResult } from "@keelson/shared";
 import { ACTIVITY_AREAS } from "../access/activity.ts";
 import type { Identity } from "../access/model.ts";
 import { groupByOrg, ORG_FILTER } from "../access/orgs.ts";
@@ -25,6 +26,7 @@ import {
   composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
+  followUpCount,
   IMPORT_COHORTS_ACTION,
   measuredAccess,
   SELECT_PERSON_ACTION,
@@ -59,6 +61,7 @@ import {
   PERSON_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
+  surfaceTab,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
@@ -128,10 +131,14 @@ function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
 }
 
 // A handled effect suppresses the success toast a plain view switch would raise.
-function stayOnPeople() {
+function stayOnPeople(): RibActionResult {
   return {
-    ok: true as const,
-    data: { effect: "open-surface" as const, surfaceId: ACCESS_SURFACE_ID, regionKey: PEOPLE_KEY },
+    ok: true,
+    data: {
+      effect: "open-surface",
+      surfaceId: surfaceTab(ACCESS_SURFACE_ID),
+      regionKey: PEOPLE_KEY,
+    },
   };
 }
 
@@ -241,6 +248,9 @@ export const accessModule: RegionModule = {
     },
   },
   badges: {
-    [ACCESS_BADGE_KEY]: (rt) => measuredAccess(rt)?.counts.needsYou ?? 0,
+    [ACCESS_BADGE_KEY]: (rt) => {
+      const m = measuredAccess(rt);
+      return m ? followUpCount(m) : 0;
+    },
   },
 };

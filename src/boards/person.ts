@@ -31,15 +31,8 @@ import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
-import {
-  EXPLAIN_ACTION,
-  PREVIEW_CLEANUP_ACTION,
-  PREVIEW_FIX_ACTION,
-  PREVIEW_REMOVE_ACTION,
-  PREVIEW_RESEND_ACTION,
-} from "./change.ts";
+import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
-import { grantableSubprojects, PREVIEW_SEIS_GRANT_ACTION, SEIS_ROLE_OPTIONS } from "./seismic.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Exclude<Section, { kind: "columns" }>;
@@ -277,8 +270,13 @@ function identityFields(rt: Runtime, who: Identity, entry: DirectoryEntry | unde
     entra,
     { label: "Created", value: day(entry?.createdAt) ?? "?" },
     roster,
-    { label: "Cohort", value: unreadable ? "?" : (who.cohort ?? UNTRACKED) },
-    { label: "Pass ends", value: unreadable || !cohort ? "?" : passText(cohort, rt.now()) },
+    // Cohorts are hidden until one is tracked.
+    ...(unreadable || rt.tracker.cohorts.length > 0
+      ? [
+          { label: "Cohort", value: unreadable ? "?" : (who.cohort ?? UNTRACKED) },
+          { label: "Pass ends", value: unreadable || !cohort ? "?" : passText(cohort, rt.now()) },
+        ]
+      : []),
   ];
 }
 
@@ -341,7 +339,14 @@ function useCard(rt: Runtime, m: Measured, who: Identity): Card {
   ];
   if (m.activity.kind === "measured") {
     fields.push(
-      { label: "Last data call", value: a ? `${a.last} · ${daysAgo(a.last, now)}` : "none" },
+      {
+        label: "Last data call",
+        value: a
+          ? `${a.last} · ${daysAgo(a.last, now)}`
+          : m.activity.model.since
+            ? `none since ${m.activity.model.since}`
+            : "none in the audit log",
+      },
       {
         label: `Calls, last ${m.activity.model.recent.length} days`,
         value: callsIn(a, m.activity.model.recent),
@@ -357,6 +362,7 @@ function useCard(rt: Runtime, m: Measured, who: Identity): Card {
 function callsChart(m: Measured, who: Identity): Leaf | undefined {
   if (m.activity.kind !== "measured") return undefined;
   const a = m.activity.model.byId.get(who.id);
+  if (callsIn(a, m.activity.model.recent) === 0) return undefined;
   return {
     kind: "chart",
     title: "Data calls per day",
@@ -388,82 +394,12 @@ function history(rt: Runtime, who: Identity, entry: DirectoryEntry | undefined):
 }
 
 function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
-  const profile = rt.profile;
-  const binding = profile ? { ...bindingOf(profile) } : {};
-  const gate = rt.status.phase === "connected" ? {} : { disabled: true, reason: SIGNIN_REASON };
-  const preview = (type: string, label: string, extra: Partial<CanvasActionItem> = {}) => ({
-    type,
-    label,
-    payload: { id: who.id },
-    binding,
-    pendingLabel: "Planning…",
-    ...gate,
-    ...extra,
-  });
-  const subprojects = grantableSubprojects(rt);
-  const fix =
-    who.cause === "missing-users"
-      ? PREVIEW_FIX_ACTION
-      : who.cause === "duplicate"
-        ? PREVIEW_CLEANUP_ACTION
-        : undefined;
-  return [
-    ...(fix
-      ? [
-          preview(fix, who.cause === "duplicate" ? "Plan the cleanup" : "Plan the fix", {
-            tone: "brand",
-          }),
-        ]
-      : []),
-    ...(who.state === "pending" ? [preview(PREVIEW_RESEND_ACTION, "Resend invitation")] : []),
-    ...(who.kind === "person"
-      ? [
-          {
-            type: PREVIEW_SEIS_GRANT_ACTION,
-            label: "Grant seismic…",
-            submitLabel: "Preview plan",
-            submitTone: "brand" as const,
-            payload: { id: who.id },
-            binding,
-            ...gate,
-            ...(subprojects.length === 0
-              ? { disabled: true, reason: "read the subprojects on the ADME Seismic tab first" }
-              : {}),
-            fields: [
-              subprojects.length > 0
-                ? { name: "subproject", label: "Subproject", options: subprojects, required: true }
-                : { name: "subproject", label: "Subproject", placeholder: "not read yet" },
-              {
-                name: "role",
-                label: "Role",
-                options: SEIS_ROLE_OPTIONS,
-                segmented: true,
-                required: true,
-                defaultValue: "viewer",
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(who.kind === "person"
-      ? [{ type: EXPLAIN_ACTION, label: "Why 401/403", payload: { id: who.id }, binding }]
-      : []),
-    who.kind === "person"
-      ? preview(PREVIEW_REMOVE_ACTION, "Remove person…")
-      : {
-          type: "remove-application",
-          label: "Remove application…",
-          disabled: true,
-          reason: "removing an application is not planned yet",
-        },
-  ];
+  if (who.kind !== "person") return [];
+  const binding = rt.profile ? { ...bindingOf(rt.profile) } : {};
+  return [{ type: EXPLAIN_ACTION, label: "Why 401/403", payload: { id: who.id }, binding }];
 }
 
-function groupActions(
-  rt: Runtime,
-  who: Identity,
-  audit: GroupAudit | undefined,
-): CanvasActionItem[] {
+function groupActions(rt: Runtime, who: Identity): CanvasActionItem[] {
   const signin = rt.status.phase === "signin";
   const items: CanvasActionItem[] = [
     {
@@ -473,17 +409,6 @@ function groupActions(
       ...(signin ? { disabled: true, reason: SIGNIN_REASON } : {}),
     },
   ];
-  if (audit && audit.extras.length > 0) {
-    items.push({
-      type: ACCEPT_EXTRAS_ACTION,
-      label: `Accept ${plural(audit.extras.length, "extra group", "extra groups")} as baseline`,
-      hint: "Records them for this person only, so they stop counting as an access gap.",
-      payload: { id: who.id },
-      ...(rt.tracker.unreadable
-        ? { disabled: true, reason: "the tracker in the data directory could not be read" }
-        : {}),
-    });
-  }
   return items;
 }
 
@@ -546,7 +471,8 @@ export function composePerson(rt: Runtime): CanvasBoardView {
       })),
     });
   }
-  left.push({ kind: "actions", items: plannedActions(rt, who) });
+  const planned = plannedActions(rt, who);
+  if (planned.length > 0) left.push({ kind: "actions", items: planned });
 
   const chart = who.kind === "person" ? callsChart(measured, who) : undefined;
   const right: Leaf[] = [
@@ -575,7 +501,7 @@ export function composePerson(rt: Runtime): CanvasBoardView {
     });
   }
   if (audit) right.push(...groupSections(audit));
-  right.push({ kind: "actions", wrap: true, items: groupActions(rt, who, audit) });
+  right.push({ kind: "actions", wrap: true, items: groupActions(rt, who) });
   const past = history(rt, who, entry);
   if (past.length > 0) right.push({ kind: "rows", title: "History", items: past });
 
