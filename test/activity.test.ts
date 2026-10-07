@@ -219,8 +219,15 @@ describe("boards with the audit log read", () => {
       ],
     });
     const act = accessModule.actions?.[PEOPLE_FILTER_ACTION];
-    // Already on the tab, so the filter returns no navigation effect.
-    expect(await act?.(runtime, { filter: "org:northfield.example" })).toEqual({ ok: true });
+    // The host matches tabs by "surface:<rib>:<surface>"; a bare id toasts "Surface not available".
+    expect(await act?.(runtime, { filter: "org:northfield.example" })).toEqual({
+      ok: true,
+      data: {
+        effect: "open-surface",
+        surfaceId: "surface:adme:adme-access",
+        regionKey: PEOPLE_KEY,
+      },
+    });
     const people = JSON.stringify(expectView(PEOPLE_KEY, "board")(composePeople(runtime)));
     expect(people).toContain("Marcus Oyelaran");
     expect(people).not.toContain("Ingrid Halvorsen");

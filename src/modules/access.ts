@@ -6,6 +6,7 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
+import type { RibActionResult } from "@keelson/shared";
 import { ACTIVITY_AREAS } from "../access/activity.ts";
 import type { Identity } from "../access/model.ts";
 import { groupByOrg, ORG_FILTER } from "../access/orgs.ts";
@@ -51,6 +52,7 @@ import {
 } from "../boards/person.ts";
 import {
   ACCESS_BADGE_KEY,
+  ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
   ATTENTION_KEY,
   COHORTS_KEY,
@@ -59,6 +61,7 @@ import {
   PERSON_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
+  surfaceTab,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
@@ -128,6 +131,17 @@ function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
 }
 
 // A handled effect suppresses the success toast a plain view switch would raise.
+function stayOnPeople(): RibActionResult {
+  return {
+    ok: true,
+    data: {
+      effect: "open-surface",
+      surfaceId: surfaceTab(ACCESS_SURFACE_ID),
+      regionKey: PEOPLE_KEY,
+    },
+  };
+}
+
 export const accessModule: RegionModule = {
   areas: [...ACCESS_AREAS, ...ACTIVITY_AREAS],
   composers: {
@@ -179,7 +193,7 @@ export const accessModule: RegionModule = {
         return { ok: false, error: "Pick Roster, Roles matrix or Seismic grants." };
       peopleState(rt).view = view;
       rt.recompose([PEOPLE_KEY]);
-      return { ok: true };
+      return stayOnPeople();
     },
     [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
       const filter = (payload as { filter?: unknown } | undefined)?.filter;
@@ -195,7 +209,7 @@ export const accessModule: RegionModule = {
       const s = peopleState(rt);
       s.filter = filter.startsWith(ORG_FILTER) && s.filter === filter ? "all" : filter;
       rt.recompose([PEOPLE_KEY, ORGS_KEY]);
-      return { ok: true };
+      return stayOnPeople();
     },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
       const csv = (payload as { csv?: unknown } | undefined)?.csv;

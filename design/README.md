@@ -83,8 +83,8 @@ The canvas drawer holds one document and has no back stack, so each inspector re
 | Inspector | Key | Opened from | What it holds |
 |---|---|---|---|
 | Person | `rib:adme:person` | Follow up rows, Roster rows, subproject member rows, the "Open person" form | Identity card with copyable fields, access checks in order, seismic reach, effective groups, usage, history. Reads only: Why 401/403 and Re-read groups. |
-| Plan sheet | `rib:adme:plan` | Any "Preview plan", "Plan the fix" or "Plan the cleanup" | What Apply does in order (5 steps), 4 stats (Will change, Already true, Blocked, People), protected or excluded rows, one card of exact calls per person, the dry run as CSV. Actions: Apply N changes, Recheck, Discard plan. |
-| Why 401/403 | `rib:adme:explain` | Change access tabs, person inspector | 7 checks in the order the platform applies them, the verdict, the fix described (not planned), a plain-text note to copy for the person, and recent answers. Read-only. The rib does not send mail. |
+| Plan sheet | `rib:adme:plan` | A "Preview plan" on ADME Seismic | What Apply does in order (5 steps), 4 stats (Will change, Already true, Blocked, People), protected or excluded rows, one card of exact calls per person, the dry run as CSV. Actions: Apply N changes, Recheck, Discard plan. |
+| Why 401/403 | `rib:adme:explain` | Person inspector | 7 checks in the order the platform applies them, the verdict, the fix described (not planned), a plain-text note to copy for the person, and recent answers. Read-only. The rib does not send mail. |
 
 Person inspector, for a person missing from `users@`:
 
