@@ -42,6 +42,7 @@ export interface Identity {
   guest: boolean;
   invitedAt?: string;
   acceptedAt?: string;
+  createdAt?: string;
   you: boolean;
   appId?: string;
   // The app the instance itself runs as; entitlements treats it as root.
@@ -200,6 +201,7 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
       ...(entry.inviteState === "Accepted" && entry.inviteChangedAt
         ? { acceptedAt: entry.inviteChangedAt }
         : {}),
+      ...(entry.createdAt ? { createdAt: entry.createdAt } : {}),
       you: you !== undefined && addresses(entry).includes(you),
       ...(roster ? { inRoster: roster.has(id) } : {}),
     });

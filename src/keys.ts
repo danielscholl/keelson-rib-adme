@@ -11,6 +11,8 @@ export const RIB_ID = "adme";
 // ADME Access
 export const PULSE_KEY = "rib:adme:pulse";
 export const ATTENTION_KEY = "rib:adme:attention";
+export const ACTIVITY_KEY = "rib:adme:activity";
+export const ORGS_KEY = "rib:adme:orgs";
 export const CHANGE_KEY = "rib:adme:change";
 export const OPERATION_KEY = "rib:adme:operation";
 export const RECENT_KEY = "rib:adme:recent";
@@ -46,6 +48,8 @@ export const DATA_BADGE_KEY = "rib:adme:data-badge";
 export const BOARD_KEYS = [
   PULSE_KEY,
   ATTENTION_KEY,
+  ACTIVITY_KEY,
+  ORGS_KEY,
   CHANGE_KEY,
   OPERATION_KEY,
   RECENT_KEY,

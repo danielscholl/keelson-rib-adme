@@ -24,6 +24,16 @@ export const RETEST_ACTION = "retest-connection";
 export const DISCOVER_ACTION = "discover-instances";
 export const CONNECT_ACTION = "connect-instance";
 export const USE_ROSTER_ACTION = "use-roster-group";
+export const FIND_AUDIT_ACTION = "find-audit-log";
+
+export function findAuditAction(brand: boolean): CanvasActionItem {
+  return {
+    type: FIND_AUDIT_ACTION,
+    label: "Find the audit log",
+    pendingLabel: "Looking…",
+    ...(brand ? { tone: "brand" } : {}),
+  };
+}
 
 export const SIGNIN_REASON = "sign-in needed: run az login, then Re-test";
 
@@ -86,6 +96,12 @@ const PROFILE_FIELDS: {
     name: "rosterGroupId",
     label: "Roster group id",
     placeholder: "Entra group GUID, optional",
+    unset: "not set",
+  },
+  {
+    name: "logWorkspaceId",
+    label: "Audit log workspace id",
+    placeholder: "Log Analytics workspace GUID, optional",
     unset: "not set",
   },
 ];
@@ -253,7 +269,11 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
   sections.push({
     kind: "actions",
     wrap: true,
-    items: [retestAction(status.phase !== "connected"), profileForm(status.profile, false)],
+    items: [
+      retestAction(status.phase !== "connected"),
+      ...(status.profile.logWorkspaceId ? [] : [findAuditAction(false)]),
+      profileForm(status.profile, false),
+    ],
   });
   sections.push(profileCard(status.profile));
   const roster = rosterSuggestion(status);

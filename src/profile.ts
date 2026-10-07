@@ -29,6 +29,11 @@ export const profileSchema = z
       blank,
       z.string().trim().regex(GUID, "roster group id is a GUID").optional(),
     ),
+    // The Log Analytics workspace (its customer id) that receives OEPAuditLogs.
+    logWorkspaceId: z.preprocess(
+      blank,
+      z.string().trim().regex(GUID, "audit log workspace id is a GUID").optional(),
+    ),
   })
   .strict();
 

@@ -10,6 +10,7 @@ import {
   CONNECT_ACTION,
   composeConnection,
   DISCOVER_ACTION,
+  FIND_AUDIT_ACTION,
   RETEST_ACTION,
   SAVE_PROFILE_ACTION,
   USE_ROSTER_ACTION,
@@ -53,6 +54,10 @@ export const connectionModule: RegionModule = {
     },
     [USE_ROSTER_ACTION]: async (rt, payload) =>
       rt.useSuggestedRosterGroup((payload as { id?: unknown } | undefined)?.id),
+    [FIND_AUDIT_ACTION]: async (rt) => {
+      const res = await rt.findAuditLog();
+      return res.ok ? { ok: true, data: { message: res.message } } : res;
+    },
     [RETEST_ACTION]: async (rt) => {
       await rt.testConnection();
       return { ok: true };

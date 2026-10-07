@@ -109,13 +109,21 @@ describe("person inspector", () => {
       ["warn", "Effective groups", "32 of 33 expected for Editor"],
     ]);
 
+    const odd = find(right, "Beyond or short of the role");
+    if (odd?.kind !== "rows") throw new Error("rows expected");
+    expect(odd.items).toEqual([
+      {
+        chip: { label: "gap", tone: "error" },
+        text: "users",
+        trailing: "expected for the role, not held",
+      },
+    ]);
     const grid = find(right, "Effective groups");
     if (grid?.kind !== "grid") throw new Error("grid expected");
     expect(grid.title).toBe("Effective groups · 32");
-    expect(grid.cells[0]).toEqual({ label: "users", badge: { text: "gap", tone: "error" } });
-    expect(grid.cells[1]).toEqual({ label: "editors" });
+    expect(grid.cells[0]).toEqual({ label: "editors" });
     expect(grid.cells.at(-1)).toEqual({ label: "19 more" });
-    expect(grid.cells).toHaveLength(15);
+    expect(grid.cells).toHaveLength(14);
 
     const identity = find(left, "Identity");
     if (identity?.kind !== "cards") throw new Error("identity expected");
@@ -225,11 +233,12 @@ describe("person inspector", () => {
 
     let view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "1 extra group", tone: "warn" });
-    let grid = view.find(view.right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells[0]).toEqual({
-      label: "sdms.golf.viewer",
-      badge: { text: "extra", tone: "info" },
+    const odd = view.find(view.right, "Beyond or short of the role");
+    if (odd?.kind !== "rows") throw new Error("rows expected");
+    expect(odd.items[0]).toEqual({
+      chip: { label: "extra", tone: "info" },
+      text: "sdms.golf.viewer",
+      trailing: "held beyond the role",
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 extra");
 
@@ -242,7 +251,8 @@ describe("person inspector", () => {
 
     view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
-    grid = view.find(view.right, "Effective groups");
+    expect(view.find(view.right, "Beyond or short of the role")).toBeUndefined();
+    const grid = view.find(view.right, "Effective groups");
     if (grid?.kind !== "grid") throw new Error("grid expected");
     expect(grid.cells[0]).toEqual({
       label: "sdms.golf.viewer",
@@ -267,12 +277,14 @@ describe("person inspector", () => {
     expect(await act(REFRESH_PERSON_ACTION, { id: lena })).toEqual({ ok: true });
     const view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "1 extra group", tone: "warn" });
+    const odd = view.find(view.right, "Beyond or short of the role");
+    expect(JSON.stringify(odd)).toContain('"text":"sdms.echo.admin"');
     const grid = view.find(view.right, "Effective groups");
     if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells.slice(0, 2)).toEqual([
-      { label: "sdms.echo.admin", badge: { text: "extra", tone: "info" } },
-      { label: "sdms.golf.viewer", badge: { text: "baseline", tone: "neutral" } },
-    ]);
+    expect(grid.cells[0]).toEqual({
+      label: "sdms.golf.viewer",
+      badge: { text: "baseline", tone: "neutral" },
+    });
   });
 
   test("a tracker file written before baselines still parses", () => {

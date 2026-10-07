@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
 import { z } from "zod";
 import { buildAccess, countAccess } from "../src/access/model";
+import { selectPerson } from "../src/access/person";
 import { ACCESS_AREA, readAccess } from "../src/access/read";
 import {
   composeAccessPulse,
@@ -12,8 +13,8 @@ import {
   exportRoster,
   IMPORT_COHORTS_ACTION,
 } from "../src/boards/access";
-import { SIGNIN_REASON } from "../src/boards/connection";
 import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
+import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
 import {
   ACCESS_BADGE_KEY,
@@ -104,27 +105,35 @@ function rt(phase?: "connected" | "signin" | "firstrun") {
 }
 
 describe("access boards", () => {
-  test("the pulse says 5 need you and never draws an untracked pass as a number", () => {
+  test("the pulse says 5 to follow up and draws unmeasured use as unmeasured, not 0", () => {
     const view = expectView(PULSE_KEY, "board")(composeAccessPulse(rt()));
     const text = JSON.stringify(view);
-    expect(text).toContain('"label":"5 need you"');
+    expect(text).toContain('"label":"5 to follow up"');
     expect(text).toContain("contoso-adme · opendes · measured 14:05Z");
-    expect(text).toContain('{"label":"Next pass ends","value":null');
+    expect(text).toContain('{"label":"In use: not measured","n":null}');
+    expect(text).toContain('{"label":"Active this week","value":null');
+    expect(text).toContain('{"label":"Accepted, never used","value":null');
+    expect(text).toContain("32 people from 12 organizations. 3 not accepted yet.");
     expect(text).toContain("1 missing users@ · 1 duplicate entry");
+    expect(text).not.toContain("Next pass ends");
   });
 
-  test("needs you groups cards by cause, worst first", () => {
+  test("follow up lists who cannot use it, then invitations oldest first", () => {
     const view = expectView(ATTENTION_KEY, "board")(composeAttention(rt()));
     const titles = view.view === "board" ? view.sections.map((s) => s.title) : [];
     expect(titles).toEqual([
-      "Not in users@, every call returns 401 · 1",
-      "Invited, not accepted · 3",
-      "Duplicate member entry · 1",
+      "Cannot use it · 2",
+      "Has not accepted the invitation · 3",
+      undefined,
       "Checks that found nothing",
     ]);
     const text = JSON.stringify(view);
-    expect(text).toContain("member of users.datalake.editors but not users@");
-    expect(text).toContain('"value":"4 d ago"');
+    expect(text).toContain("Pacrim Energy · not in users@, every call returns 401");
+    expect(text).toContain("Northfield · invited 4 d ago");
+    expect(text).toContain("Who accepted but never made a call is not measured");
+    const invited = view.view === "board" ? view.sections[1] : undefined;
+    const names = invited?.kind === "rows" ? invited.items.map((i) => i.text) : [];
+    expect(names.at(-1)).toBe("Jonas Lindqvist");
   });
 
   test("the roster lists attention first and caps the healthy rows", () => {
@@ -176,59 +185,33 @@ describe("access boards", () => {
   });
 });
 
-describe("needs you actions", () => {
-  type Card = { title?: string; actions?: Record<string, unknown>[] };
-  const cards = (runtime: ReturnType<typeof rt>): Card[] => {
+describe("follow up actions", () => {
+  const rows = (runtime: ReturnType<typeof rt>) => {
     const view = expectView(ATTENTION_KEY, "board")(composeAttention(runtime));
     if (view.view !== "board") return [];
-    return view.sections.flatMap((s) => (s.kind === "cards" ? (s.items as Card[]) : []));
+    return view.sections.flatMap((s) => (s.kind === "rows" ? s.items : []));
   };
-  const verbs = (list: Card[], name: string) =>
-    list.find((c) => c.title === name)?.actions?.map((a) => [a.type, a.label, a.tone ?? null]);
 
-  test("each card carries its verbs, bound to this instance and the person", () => {
-    const list = cards(rt());
-    expect(verbs(list, "Rachel Kim")).toEqual([
-      ["preview-fix-users", "Plan the fix", "brand"],
-      ["explain-access", "Why 401/403", null],
-    ]);
-    for (const name of ["Ben Whitaker", "Amara Diallo", "Jonas Lindqvist"]) {
-      expect(verbs(list, name)).toEqual([["preview-resend-invite", "Resend invitation", null]]);
+  test("rows change nothing: each one opens the person", () => {
+    for (const row of rows(rt()).filter((r) => r.action)) {
+      expect(row.action?.type).toBe("select-person");
     }
-    expect(verbs(list, "Dmitri Volkov")).toEqual([
-      ["preview-cleanup-duplicate", "Plan the cleanup", "brand"],
-    ]);
+    const rachel = rows(rt()).find((r) => r.text === "Rachel Kim");
+    expect(rachel?.action?.payload).toEqual({ id: "00000000-0000-4000-8000-000000000011" });
+  });
+
+  test("the inspector carries the resend verb, bound, and it opens a dry run", async () => {
+    const runtime = rt();
+    selectPerson(runtime, "00000000-0000-4000-8000-000000000008");
+    const text = JSON.stringify(composePerson(runtime));
+    expect(text).toContain('"type":"preview-resend-invite","label":"Resend invitation"');
     const binding = {
       host: SAMPLE_PROFILE.host,
       partition: SAMPLE_PROFILE.partition,
       tenantId: SAMPLE_PROFILE.tenantId,
     };
-    for (const card of list) {
-      for (const a of card.actions ?? []) {
-        expect(a.binding).toEqual(binding);
-        expect(a.payload).toEqual({ id: expect.any(String) });
-        expect(a.disabled).toBeUndefined();
-      }
-    }
-    const rachel = list.find((c) => c.title === "Rachel Kim");
-    expect(rachel?.actions?.[0]?.payload).toEqual({ id: "00000000-0000-4000-8000-000000000011" });
-    expect(JSON.stringify(rachel)).toContain('"type":"select-person"');
-  });
-
-  test("sign-in needed disables every card verb with the reason", () => {
-    const actions = cards(rt("signin")).flatMap((c) => c.actions ?? []);
-    expect(actions).toHaveLength(6);
-    for (const a of actions) {
-      expect(a).toMatchObject({ disabled: true, reason: SIGNIN_REASON });
-    }
-  });
-
-  test("a card verb opens its dry run through the plan module", async () => {
-    const runtime = rt();
-    const ben = cards(runtime).find((c) => c.title === "Ben Whitaker")?.actions?.[0];
-    if (!ben) throw new Error("no resend verb");
-    const payload = { ...(ben.binding as object), ...(ben.payload as object) };
-    const res = await planModule.actions?.[ben.type as string]?.(runtime, payload);
+    const payload = { ...binding, id: "00000000-0000-4000-8000-000000000008" };
+    const res = await planModule.actions?.["preview-resend-invite"]?.(runtime, payload);
     await planState(runtime).pending;
     expect(res).toMatchObject({ ok: true, data: { effect: "open-canvas" } });
     expect(planState(runtime).plan?.kind).toBe("resend-invite");
@@ -533,10 +516,10 @@ describe("people views", () => {
   const act = (runtime: ReturnType<typeof rt>, type: string, payload: unknown) =>
     accessModule.actions?.[type]?.(runtime, payload);
 
-  test("the roster shows each person's groups against what the role needs", () => {
+  test("the roster shows a group count only where it differs from the role", () => {
     const text = JSON.stringify(people(composePeople(rt())));
     expect(text).toContain("rachel.kim@pacrim-energy.example · 32 of 33");
-    expect(text).toContain("ingrid.halvorsen@contoso.example · 46 of 46");
+    expect(text).toContain('"trailing":"ingrid.halvorsen@contoso.example · member"');
   });
 
   test("the roles matrix chunks rows, flags gaps and duplicates, and says what it shows", async () => {
