@@ -10,6 +10,7 @@ import type { RibExec } from "@keelson/shared";
 import type { Profile } from "./profile.ts";
 
 export const GRAPH_RESOURCE = "https://graph.microsoft.com";
+export const LOGS_RESOURCE = "https://api.loganalytics.io";
 
 export type TokenFailure =
   | { kind: "signin"; message: string }

@@ -7,7 +7,9 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
+import { grantedAt, USAGE_LABEL, USAGE_TONE, type Usage } from "../access/activity.ts";
 import type { GroupCount, Identity } from "../access/model.ts";
+import { groupByOrg, ORG_FILTER, orgOf } from "../access/orgs.ts";
 import { selectedId } from "../access/person.ts";
 import type { GroupKey } from "../access/read.ts";
 import { EMPTY_BOARD } from "../resting.ts";
@@ -18,9 +20,12 @@ import { UNTRACKED } from "../tracker.ts";
 import {
   cohortNames,
   day,
+  daysAgo,
   inCohort,
+  type Measured,
   measuredAccess,
   openAction,
+  ROLE_TONE,
   SELECT_PERSON_ACTION,
 } from "./access.ts";
 import { SIGNIN_REASON } from "./connection.ts";
@@ -33,6 +38,7 @@ type Cell = Table["rows"][number][string];
 
 export const PEOPLE_VIEW_ACTION = "people-view";
 export const PEOPLE_FILTER_ACTION = "people-filter";
+export const EXPORT_GUIDE_ACTION = "export-access-guide";
 
 export type PeopleView = "roster" | "matrix" | "grants";
 const VIEWS: readonly { id: PeopleView; label: string }[] = [
@@ -41,7 +47,7 @@ const VIEWS: readonly { id: PeopleView; label: string }[] = [
   { id: "grants", label: "Seismic grants" },
 ];
 
-// "all", "apps", "pending", "gaps", or "cohort:<name>".
+// "all", "apps", "pending", "gaps", "cohort:<name>" or "org:<domain>".
 export type PeopleFilter = string;
 
 export interface PeopleState {
@@ -65,6 +71,7 @@ export function isPeopleView(v: unknown): v is PeopleView {
 }
 
 const ROSTER_LIMIT = 25;
+const UNCAPPED = new Set(["Needs attention", "Cannot use it", "Invited", "Not used"]);
 const MATRIX_CHUNK = 15;
 const ROLE_RANK: Record<string, number> = { Ops: 0, Admin: 1, Editor: 2, Viewer: 3 };
 
@@ -91,6 +98,11 @@ function applyFilter(filter: PeopleFilter, people: Identity[], apps: Identity[])
   if (filter === "pending")
     return { label: "pending", people: people.filter((p) => p.state === "pending"), apps: [] };
   if (filter === "gaps") return { label: "gaps", people: people.filter(isGap), apps: [] };
+  if (filter.startsWith(ORG_FILTER)) {
+    const domain = filter.slice(ORG_FILTER.length);
+    const list = people.filter((p) => orgOf(p).domain === domain);
+    return { label: list[0] ? orgOf(list[0]).name : domain, people: list, apps: [] };
+  }
   if (filter.startsWith("cohort:")) {
     const name = filter.slice("cohort:".length);
     return { label: name, people: inCohort(people, name), apps: [] };
@@ -120,28 +132,59 @@ function chips(rt: Runtime, s: PeopleState, people: Identity[], apps: Identity[]
   filters.push(filter("apps", `Applications ${apps.length}`));
   const pending = people.filter((p) => p.state === "pending").length;
   const gaps = people.filter(isGap).length;
-  if (pending > 0) filters.push(filter("pending", `Pending ${pending}`));
+  if (pending > 0) filters.push(filter("pending", `Invited ${pending}`));
   if (gaps > 0) filters.push(filter("gaps", `Gaps ${gaps}`));
+  if (s.filter.startsWith(ORG_FILTER)) {
+    const org = groupByOrg(people).find((g) => `${ORG_FILTER}${g.org.domain}` === s.filter);
+    if (org) filters.push(filter(s.filter, `${org.org.name} ${org.people.length}`));
+  }
   return [
     { kind: "actions", wrap: true, items: view },
     { kind: "actions", wrap: true, items: filters },
   ];
 }
 
-function rosterRow(p: Identity, selected: string | undefined): Row {
-  const tone = p.state === "broken" ? "error" : p.state === "pending" ? "warn" : "ok";
-  const when = p.acceptedAt
-    ? `accepted ${day(p.acceptedAt)}`
-    : p.invitedAt
-      ? `invited ${day(p.invitedAt)}`
-      : p.guest
-        ? ""
-        : "member";
+function usageText(m: Measured | undefined, p: Identity, now: Date): string {
+  const u = m?.usage.get(p.id);
+  const since = (iso: string | undefined) => (iso ? daysAgo(iso, now) : "?");
+  if (u === "invited") return `invited ${since(p.invitedAt)}`;
+  if (u === "not-used") return `not used · granted ${since(grantedAt(p))}`;
+  if (u === "active" || u === "idle") {
+    const last =
+      m?.activity.kind === "measured" ? m.activity.model.byId.get(p.id)?.last : undefined;
+    return `${u === "idle" ? "idle · " : ""}last call ${since(last)}`;
+  }
+  if (p.acceptedAt) return `accepted ${day(p.acceptedAt)}`;
+  if (p.invitedAt) return `invited ${day(p.invitedAt)}`;
+  return p.guest ? "" : "member";
+}
+
+function groupsOff(g: GroupCount | undefined): string | undefined {
+  return g && g.held !== g.expected ? `${g.held} of ${g.expected}` : undefined;
+}
+
+function rosterRow(
+  m: Measured | undefined,
+  p: Identity,
+  selected: string | undefined,
+  now: Date,
+): Row {
+  const u = m?.usage.get(p.id);
+  const tone =
+    p.state === "broken"
+      ? "error"
+      : u
+        ? USAGE_TONE[u]
+        : p.state === "pending"
+          ? USAGE_TONE.invited
+          : "ok";
   return {
     glyph: tone,
-    chip: { label: p.role ?? "No role" },
+    chip: { label: p.role ?? "No role", ...(p.role ? { tone: ROLE_TONE[p.role] } : {}) },
     text: p.you ? `${p.name} (you)` : p.name,
-    trailing: [p.email, groupsText(p.groups), when].filter(Boolean).join(" · "),
+    trailing: [p.email ?? orgOf(p).name, groupsOff(p.groups), usageText(m, p, now)]
+      .filter(Boolean)
+      .join(" · "),
     ...openAction(p, selected),
   };
 }
@@ -158,11 +201,22 @@ function appRow(a: Identity, selected: string | undefined): Row {
   };
 }
 
-// Attention first, then each cohort (or one healthy group when none is tracked).
+const USAGE_GROUPS: readonly Usage[] = ["active", "idle", "not-used", "invited"];
+
+// Gaps first; then by usage when the audit log is read, else each cohort.
 function groupsOf(rt: Runtime, people: Identity[]): [string, Identity[]][] {
+  const m = measuredAccess(rt);
+  const out: [string, Identity[]][] = [];
+  if (m?.activity.kind === "measured") {
+    out.push(["Cannot use it", people.filter((p) => p.state === "broken")]);
+    const rest = people.filter((p) => p.state !== "broken");
+    for (const u of USAGE_GROUPS) {
+      out.push([USAGE_LABEL[u], rest.filter((p) => m.usage.get(p.id) === u).sort(byRole)]);
+    }
+    return out.filter(([, list]) => list.length > 0);
+  }
   const attention = people.filter((p) => p.state !== "healthy");
   const healthy = people.filter((p) => p.state === "healthy").sort(byRole);
-  const out: [string, Identity[]][] = [];
   if (attention.length > 0) out.push(["Needs attention", attention]);
   if (rt.tracker.cohorts.length === 0) out.push(["Healthy", healthy]);
   else for (const name of cohortNames(rt, healthy)) out.push([name, inCohort(healthy, name)]);
@@ -180,16 +234,20 @@ function rosterSections(rt: Runtime, f: Filtered, filter: PeopleFilter): Section
       },
     ];
   }
+  const m = measuredAccess(rt);
+  const now = rt.now();
   return groupsOf(rt, f.people).map(([title, list]) => {
-    const capped = filter === "all" && title !== "Needs attention";
+    const capped = filter === "all" && !UNCAPPED.has(title);
     const shown = capped ? list.slice(0, ROSTER_LIMIT) : list;
     const rest = list.length - shown.length;
-    const more = `… ${rest} more · all healthy${title === UNTRACKED || title === "Healthy" ? "" : ` · filter ${title} to list them`}`;
+    const cohort = rt.tracker.cohorts.some((c) => c.name === title);
+    const healthy = cohort || title === "Healthy" || title === UNTRACKED;
+    const more = `… ${rest} more${healthy ? " · all healthy" : ""}${cohort ? ` · filter ${title} to list them` : ""}`;
     return {
       kind: "rows",
       title: `${title} · ${list.length}`,
       items: [
-        ...shown.map((p) => rosterRow(p, selected)),
+        ...shown.map((p) => rosterRow(m, p, selected, now)),
         ...(rest > 0 ? [{ glyph: "neutral" as const, text: more }] : []),
       ],
     };
@@ -533,4 +591,42 @@ export function composePeople(rt: Runtime): CanvasBoardView {
     },
     sections: [...chips(rt, s, model.people, model.apps), ...body],
   };
+}
+
+function guideDate(iso: string | undefined): string {
+  if (!iso) return "–";
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+const mdCell = (s: string) => s.replace(/\|/g, "\\|");
+
+// The "Who has access" table of the access guide, in the guide's own words.
+export function accessGuideMarkdown(m: Measured): string {
+  const measured = m.activity.kind === "measured" ? m.activity.model : undefined;
+  const rows = [...m.model.people]
+    .sort(
+      (a, b) =>
+        (grantedAt(a) ?? "").localeCompare(grantedAt(b) ?? "") || a.name.localeCompare(b.name),
+    )
+    .map((p) => {
+      const u = m.usage.get(p.id);
+      const status = u ? USAGE_LABEL[u] : p.state === "pending" ? "Invited" : "Accepted";
+      const role = p.role === "Admin" || p.role === "Ops" ? ` (${p.role.toLowerCase()})` : "";
+      const last = measured?.byId.get(p.id)?.last;
+      return `| ${[
+        `${p.name}${role}`,
+        p.email ?? "",
+        status,
+        guideDate(grantedAt(p)),
+        measured ? guideDate(last) : "?",
+      ]
+        .map(mdCell)
+        .join(" | ")} |`;
+    });
+  return `${["| Name | Email | Status | Granted | Last active |", "|---|---|---|---|---|", ...rows].join("\n")}\n`;
 }

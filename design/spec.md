@@ -171,33 +171,58 @@ Conventions on every tab:
 
 Screens: [access.png](screens/access.png), [matrix.png](screens/matrix.png).
 
-Heading "ADME access", subtitle "Who can reach contoso-adme, and what each person can touch."
+Heading "ADME access", subtitle "Who has access to the instance, and are they using it?" The tab is read first: it answers who has access, who is stuck, and how each organization is doing. Changes sit lower down in a collapsed zone.
 
-**Header region `rib:adme:pulse`**, title "Access", byline "sample data · 36 identities: 32 people, 4 applications".
+Usage uses the access guide's four words. **Invited** has not accepted the invitation. **Not used** has made no data call since access was granted. **Active** made a data call in the last 7 days. **Idle** has made calls, but none in the last 7 days. Every word except Invited needs the audit log (see [Audit log](#audit-log)). Until the audit log is read, those values are drawn as unmeasured, never as 0.
 
-- Status "5 need you" (caution). Chip `contoso-adme · opendes · measured 14:05Z`. Live dot.
-- Head segments: 27 healthy (ok), 3 pending (warn), 2 broken (error).
-- Head menu (⋯): Refresh now, Re-test connection, Verify all, Open roster document. The roster document itself is later work.
+**Header region `rib:adme:pulse`**, title "Access".
+
+- Status "N to follow up" (caution), or "all in use" (ok). N counts people who cannot use their access, have not accepted, or never made a call, plus unknown principals. Chip `contoso-adme · opendes · measured 14:05Z`. Live dot.
+- Head segments, the adoption strip: Invited (info), Not used (warn), Idle (caution), Active (ok). Without the audit log the strip is Invited, Accepted, and a hatched "In use: not measured".
+- One sentence: "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted but never made a call. 2 people cannot use it." Without the audit log it ends "Who uses it is not measured: set the audit log workspace in Connection."
+- Head menu (⋯): Refresh now, Re-test connection.
 - Stats, 5 tiles:
-  1. People 32, delta up 1 this week, sub "29 Pilot · 1 Vendor · 2 permanent", spark.
-  2. Pending acceptance 3 (warn), sub "oldest invited 2026-09-28".
-  3. Access gaps 2 (error), sub "1 missing users@ · 1 duplicate entry".
-  4. Next pass ends "26 d", sub "Pilot · 2026-10-28".
-  5. Applications 4, sub "1 legacy root app", no tone.
-- Segments "Role mix": 29 Editor, 1 Admin, 2 Ops.
+  1. People 32, sub "12 organizations · 2 Ops, 1 Admin, 29 Editor" (the cohort mix instead when cohorts are tracked), delta "+N this week" by grant date, spark of people with access over 14 days.
+  2. Active this week, sub "made a data call in 7 days", spark of people calling per day over 14 days, delta against the week before. "?" without the audit log.
+  3. Not accepted 3 (warn), sub "oldest invited 4 d ago".
+  4. Accepted, never used (warn), sub "oldest granted N d ago". "?" without the audit log.
+  5. Access gaps 2 (error), sub "1 missing users@ · 1 duplicate entry".
+  6. Next pass ends, only when cohorts are tracked.
 
 **Zone "Now"**, two columns.
 
-Left: region `rib:adme:attention`, title "Needs you", byline "grouped by cause, worst first", status "5 need you", head segments 2 broken and 3 pending. Cards in sections by cause:
+Left: region `rib:adme:attention`, title "Follow up", byline "people who have access but cannot or do not use it yet". Status as the header, chip "oldest first". Rows only, and no row changes anything: clicking one opens the person inspector, which holds the verbs (Plan the fix, Plan the cleanup, Resend invitation).
 
-- "Not in users@, every call returns 401 · 1": Rachel Kim, error edge, pill `401`. Fields: email (copyable), role Editor, groups "32 of 33" (warn), cohort Pilot. Why: "member of users.datalake.editors but not users@". Actions: "Plan the fix" (brand, opens the plan sheet) and "Why 401/403" (opens the explainer).
-- "Invited, not accepted · 3": Ben Whitaker, Amara Diallo, Jonas Lindqvist, warn edge, pill `pending`. Fields: email, invited "4 d ago", "4 d ago", "2 d ago". Action: "Resend invitation".
-- "Duplicate member entry · 1": Dmitri Volkov, warn edge, pill `duplicate`. Fields: email, role Editor, groups "34 of 33" (warn). Why: "email form and object id form are both in users.datalake.editors". Action: "Plan the cleanup" (brand).
-- "Checks that found nothing", quiet rows, each "0 found": "Roster drift (Entra roster vs entitlements)", "Deleted in Entra, still in entitlements", "Unknown principals".
+- "Cannot use it · 2": Rachel Kim, chip `401`, "Pacrim Energy · not in users@, every call returns 401"; Dmitri Volkov, chip `duplicate`, "Baltica · listed twice in users.datalake.editors".
+- "Has not accepted the invitation · 3", oldest first: Ben Whitaker and Amara Diallo "invited 4 d ago", Jonas Lindqvist "invited 2 d ago". At most 12, then "… N more, all listed in People under Invited".
+- "Accepted, never made a call · N", oldest grant first, at most 8. Without the audit log, one row says this is not measured and why.
+- Deleted in Entra, Unknown principals and Roster drift, when found; then "Checks that found nothing".
 
-Clicking a card selects the person and opens the person inspector.
+Right: region `rib:adme:activity`, title "Activity", byline "data calls from the instance audit log", chip "last 14 days · measured 14:05Z".
 
-Right: a stack of three regions.
+- Chart (bars) "People who made a data call, per day", 14 days.
+- Bars "Calls by organization, last 14 days", at most 10, each trailing "calls · N of M active".
+- Without a workspace: one row naming OEPAuditLogs and the action "Find the audit log" (brand).
+
+**Zone "Who has access"**, full width.
+
+- `rib:adme:orgs`, title "Organizations", byline "one card per email domain · select one to filter People". A grid of cards, one per registrable email domain, most people first. Each card has the organization name (from the domain: halden-geo.example is "Halden Geo", xyz.example is "XYZ"), a pill for a gap or open invitations, a usage bar captioned "N of M active", a People field naming everyone in their usage tone, and the domain as footnote. Clicking a card filters People to it; clicking it again clears the filter.
+
+Then the region `rib:adme:people`, title "People", chip "32 of 32 · all". Head menu: "Export who has access", which writes the access guide's "Who has access" table (Name, Email, Status, Granted, Last active) as Markdown to the data directory's `exports/`.
+
+1. View chips: **Roster** (selected), Roles matrix, Seismic grants.
+2. Filter chips: All (selected), Pilot 29, Vendor 1, Permanent 2, Applications 4, Invited 3, Gaps 2, and the selected organization when one is picked.
+3. One view body at a time:
+   - **Roster**: rows in sections. Each row has a tone dot (usage, or error for a gap), a role chip toned by role, the name, and a trailing string `email · usage`, for example "last call 2 d ago", "idle · last call 12 d ago", "not used · granted 9 d ago" or "invited 4 d ago". The group count appears only when it differs from the role ("32 of 33"). Rows open the person inspector. With the audit log read, sections are "Cannot use it", Active, Idle, Not used and Invited. Without it, sections are:
+     - "Needs attention · 5": Rachel Kim (selected), Dmitri Volkov, Ben Whitaker, Amara Diallo, Jonas Lindqvist
+     - "Permanent · 2": Ingrid Halvorsen (you), Tomas Reyes
+     - "Pilot · 24 more": Priya Nair, Marcus Oyelaran, Lena Fischer, Hiro Tanaka, Sofia Marchetti, then a last row "… 19 more · all healthy · filter Pilot to list them"
+     - "Vendor · 1": Elena Petrova
+   - **Roles matrix**: one table per chunk, at most 15 rows each. Drawn: "Needs attention · 5" and "Pilot · 5 of 24", with the caption "Showing 10 of 32 · filter: all. M is member, O is owner." Columns: Person, Kind (guest or member), Entra (Accepted ok, Pending warn), Roster group, users@ (a check, or "✕ missing" in error tone for Rachel Kim), Viewers, Editors, Admins, Ops (badge M or O; an empty cell shows the table's null placeholder), Groups (for example 33/33; warn tone when off: Rachel Kim 32/33, Dmitri Volkov 34/33), Pass (2026-10-28). Dmitri Volkov's Editors cell carries M and a `duplicate` badge.
+   - **Seismic grants**: one table, section "Subproject grants · 9 of 9 people" (at most 25 rows under the All filter). Rows: Marcus Oyelaran, Hiro Tanaka, Sofia Marchetti, Dmitri Volkov, Elena Petrova and one more Pilot member, then the tenant admins (anyone in `users.datalake.admins` or `users.datalake.ops`) marked "tenant admin": Priya Nair, Ingrid Halvorsen and Tomas Reyes. Columns: default (volve, drogon), alpha, bravo, charlie, delta, sleipner, echo, foxtrot, golf, golf2, golf3, at most 12 own-ACL columns. Cells are badge A (brand), V (info) or the null placeholder; every row shows its explicit ACL entries, tenant admins included. Caption: "9 of 32 people hold a subproject grant. Editors reach volve and drogon through data.default. A is admin, V is viewer." Two rows follow: "Tenant admins can list and manage every subproject; reading one still needs its ACL group" and "Not shown: subproject-legacy (no members)", which also names any people or subprojects left out by the caps.
+   - Both table views end with a one-line "Open person" form (a select and an Open button), because table rows cannot be clicked.
+
+**Zone "Changes"**: Change access on the left, collapsed by default; Operation and Recent changes (collapsed) stacked on the right.
 
 - `rib:adme:change`, title "Change access", byline "Nothing changes until you apply the plan." Tabbed actions: **Add people** (open), Grant seismic, Remove person, Add application, Why 401/403. The open "Add people" form has:
   - Emails, one per line (textarea, prefilled with the two worked-example addresses)
@@ -226,21 +251,7 @@ Right: a stack of three regions.
 
 Because an inspector replaces whatever the drawer showed, a running plan stays visible in the Operation region, and Recent changes lists every plan that is staged, paused or applied.
 
-**Zone "People"**, one full-width region `rib:adme:people`, title "People", byline "roster, roles and seismic grants", chip "32 of 32 · all cohorts".
-
-1. View chips: **Roster** (selected), Roles matrix, Seismic grants.
-2. Filter chips: All (selected), Pilot 29, Vendor 1, Permanent 2, Applications 4, Pending 3, Gaps 2, and a closed "Find…" disclosure.
-3. One view body at a time:
-   - **Roster**: rows in sections. Each row has a tone dot, a role chip (Editor, Admin or Ops; the chip is identity, not state), the name, and a trailing string of the form `email · 33 of 33 · alpha V, delta V · accepted 2026-09-29`. Rows are selectable and open the person inspector. Sections:
-     - "Needs attention · 5": Rachel Kim (selected), Dmitri Volkov, Ben Whitaker, Amara Diallo, Jonas Lindqvist
-     - "Permanent · 2": Ingrid Halvorsen (you), Tomas Reyes
-     - "Pilot · 24 more": Priya Nair, Marcus Oyelaran, Lena Fischer, Hiro Tanaka, Sofia Marchetti, then a last row "… 19 more · all healthy · filter Pilot to list them"
-     - "Vendor · 1": Elena Petrova
-   - **Roles matrix**: one table per chunk, at most 15 rows each. Drawn: "Needs attention · 5" and "Pilot · 5 of 24", with the caption "Showing 10 of 32 · filter: all. M is member, O is owner." Columns: Person, Kind (guest or member), Entra (Accepted ok, Pending warn), Roster group, users@ (a check, or "✕ missing" in error tone for Rachel Kim), Viewers, Editors, Admins, Ops (badge M or O; an empty cell shows the table's null placeholder), Groups (for example 33/33; warn tone when off: Rachel Kim 32/33, Dmitri Volkov 34/33), Pass (2026-10-28). Dmitri Volkov's Editors cell carries M and a `duplicate` badge.
-   - **Seismic grants**: one table, section "Subproject grants · 9 of 9 people" (at most 25 rows under the All filter). Rows: Marcus Oyelaran, Hiro Tanaka, Sofia Marchetti, Dmitri Volkov, Elena Petrova and one more Pilot member, then the tenant admins (anyone in `users.datalake.admins` or `users.datalake.ops`) marked "tenant admin": Priya Nair, Ingrid Halvorsen and Tomas Reyes. Columns: default (volve, drogon), alpha, bravo, charlie, delta, sleipner, echo, foxtrot, golf, golf2, golf3, at most 12 own-ACL columns. Cells are badge A (brand), V (info) or the null placeholder; every row shows its explicit ACL entries, tenant admins included. Caption: "9 of 32 people hold a subproject grant. Editors reach volve and drogon through data.default. A is admin, V is viewer." Two rows follow: "Tenant admins can list and manage every subproject; reading one still needs its ACL group" and "Not shown: subproject-legacy (no members)", which also names any people or subprojects left out by the caps.
-   - Both table views end with a one-line "Open person" form (a select and an Open button), because table rows cannot be clicked.
-
-**Zone "Cohorts"**, two columns.
+**Zone "Cohorts and applications"**, two columns, both collapsible.
 
 - `rib:adme:cohorts`, title "Cohorts", byline "32 people in 3 cohorts". A grid of 3 cards:
   - Pilot: pill "29 people", composition bar 2 broken, 3 pending, 24 healthy; pass ends "26 d"; created 2026-09-28; action "Export roster".
@@ -343,11 +354,13 @@ Header: status "401 on every call" (error), chip `rachel.kim@pacrim-energy.examp
 Left:
 
 - Card "Identity" (error edge, pill `401`) with fields: Object id `7c2e…41ab`, Mail, Other mails `rkim@pacrim-energy.example` (these three copyable), Kind guest, Entra state "Accepted 2026-09-29", Created 2026-09-28, Roster group "in contoso-adme", Cohort Pilot, Pass ends "26 d".
+- Card "Use": Status (Active, Idle, Not used or Invited, in its tone; "?" without the audit log), Organization, Access granted, Last data call, Calls in the last 14 days, and "Role allows", a plain sentence of what the role can do.
 - Rows "Same home identity": chip `otherMails`, "r.kim@pacrim.example resolves to this account".
-- Actions: "Plan the fix" (brand), "Grant seismic…", "Why 401/403", then the destructive "Remove person…", which opens the typed confirm.
+- Actions: "Plan the fix" (brand), "Resend invitation" for someone who has not accepted, "Grant seismic…", "Why 401/403", then the destructive "Remove person…", which opens the typed confirm.
 
 Right:
 
+- Chart (bars) "Data calls per day", 14 days, when the audit log is read.
 - "Access checks", rows in order:
   1. `pass` Entra account exists and is enabled
   2. `pass` Invitation accepted
@@ -356,7 +369,8 @@ Right:
   5. `pass` Member of users.datalake.editors, trailing "MEMBER, by object id"
   6. `warn` Effective groups, trailing "32 of 33 expected for Editor"
 - "Seismic": chip `viewer`, "volve, drogon via data.default", trailing "blocked until users@ is fixed".
-- "Effective groups · 32": a grid of short group names with badge M. The first cell is `users` with badge `gap` (error) for the missing group. Then 13 member cells (editors, storage, stor.vw, search, legal, legal.usr, schema, schm.vw, file, wrkflow, entitle, data.vw, data.ow) and a last cell "19 more", which makes 32.
+- "Beyond or short of the role": one full-width row per group that is missing (chip `gap`, error) or held beyond the role (chip `extra`, info), so a long seismic group name is never cut short. For Rachel Kim: `users`, "expected for the role, not held".
+- "Effective groups · 32": a grid of short group names. 13 member cells (editors, storage, stor.vw, search, legal, legal.usr, schema, schm.vw, file, wrkflow, entitle, data.vw, data.ow) and a last cell "19 more", which makes 32. Groups accepted as baseline lead the grid with badge `baseline`.
 - "History", rows in order:
   - "Invited by you", 2026-09-28
   - "Added to users.datalake.editors", 2026-09-28
@@ -529,6 +543,25 @@ Limits:
 - One Connection key on three surfaces is assumed to work. If it does not, three keys share one composer.
 - Names, emails and object ids are plain text in snapshot frames and the data dir. Selection is rib-held and global, so two browser windows share one drawer target and one view. Both are acceptable for a single operator on a local workbench and should be stated in the rib's docs.
 
+### Audit log
+
+Active, Idle and Not used come from the instance's audit log: the `OEPAuditLogs` table in the Log Analytics workspace the instance's diagnostic setting sends to. The profile gains a seventh, optional, non-secret value, the workspace id (its customer id GUID).
+
+- **Finding it.** "Find the audit log" (on the Activity region and in the Connection footer) asks Resource Graph for the instance by host, reads its diagnostic settings, and reads the workspace's customer id, all through `az rest`. It can also be entered by hand in the profile form.
+- **Reading it.** One tier-1 read per sweep, with a token for `https://api.loganalytics.io`:
+
+  ```
+  OEPAuditLogs
+  | where TimeGenerated > ago(90d)
+  | where DataPartitionId =~ "opendes"
+  | where isnotempty(Puid)
+  | summarize calls = count() by id = tolower(Puid), day = format_datetime(startofday(TimeGenerated), 'yyyy-MM-dd')
+  ```
+
+  `Puid` is read as the caller's object id, the id entitlements lists people by.
+- **Fail closed.** The rib's own sweep calls as the operator, so a log with no call from the operator is not trusted, and usage stays unmeasured with that reason. A workspace the sign-in cannot read fails this read only; the rest of the rib stays connected.
+- **Limits.** The window is 90 days, so someone whose last call is older reads as Not used. Whether `Puid` holds the object id for every caller is unverified against a live workspace; the trust check above catches the case where it does not.
+
 ## Performance plan
 
 Calls are tiered so that opening a tab never triggers the expensive reads.
@@ -554,7 +587,7 @@ The first take is built in three slices, in this order. Each slice is usable wit
 | Slice | Scope | What it proves |
 |---|---|---|
 | 1. Connection and ADME Data, read-only | Services reachable and their versions, record counts by kind, legal tags with expiry, record search. | The `az` sign-in path, with nothing that can change the instance. |
-| 2. ADME Access | People and applications, Needs you, the three people views, the person inspector, the plan engine for add, remove and fix, Why 401/403, tracker export. | The plan engine on real writes: dry run, Apply, verify, tracker. |
+| 2. ADME Access | People and applications, Follow up, the three people views, the person inspector, the plan engine for add, remove and fix, Why 401/403, tracker export. | The plan engine on real writes: dry run, Apply, verify, tracker. |
 | 3. ADME Seismic | Subprojects with members by name, grant and revoke through the same plan engine, what a partner can reach. | The same plan engine on the UUID-named seismic groups. |
 
 Later:

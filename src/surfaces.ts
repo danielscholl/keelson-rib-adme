@@ -8,10 +8,12 @@
 
 import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
 import { RETEST_ACTION } from "./boards/connection.ts";
+import { EXPORT_GUIDE_ACTION } from "./boards/people.ts";
 import { SEIS_REFRESH_ACTION } from "./boards/seismic.ts";
 import {
   ACCESS_BADGE_KEY,
   ACCESS_SURFACE_ID,
+  ACTIVITY_KEY,
   ATTENTION_KEY,
   CHANGE_KEY,
   COHORTS_KEY,
@@ -21,6 +23,7 @@ import {
   DATA_SURFACE_ID,
   LEGAL_KEY,
   OPERATION_KEY,
+  ORGS_KEY,
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
@@ -63,7 +66,7 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
     id: ACCESS_SURFACE_ID,
     title: "ADME Access",
     heading: "ADME access",
-    subtitle: "Who can reach the instance, and what each person can touch.",
+    subtitle: "Who has access to the instance, and are they using it?",
     badgeKey: ACCESS_BADGE_KEY,
     layout: {
       header: {
@@ -79,17 +82,56 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
           columns: [
             {
               key: ATTENTION_KEY,
-              title: "Needs you",
+              title: "Follow up",
+              byline: "people who have access but cannot or do not use it yet",
               glyph: { char: "!", tone: "caution" },
               hideWhenEmpty: true,
             },
+            {
+              key: ACTIVITY_KEY,
+              title: "Activity",
+              byline: "data calls from the instance audit log",
+              glyph: { char: "≋", tone: "info" },
+              hideWhenEmpty: true,
+            },
+          ],
+        },
+        {
+          zoneTitle: "Who has access",
+          columns: [
+            {
+              key: ORGS_KEY,
+              title: "Organizations",
+              byline: "one card per email domain · select one to filter People",
+              glyph: { char: "▦", tone: "info" },
+              hideWhenEmpty: true,
+            },
+          ],
+        },
+        {
+          columns: [
+            {
+              key: PEOPLE_KEY,
+              title: "People",
+              glyph: { char: "☰", tone: "info" },
+              hideWhenEmpty: true,
+              headActions: [{ type: EXPORT_GUIDE_ACTION, label: "Export who has access" }],
+            },
+          ],
+        },
+        {
+          zoneTitle: "Changes",
+          columns: [
+            {
+              key: CHANGE_KEY,
+              title: "Change access",
+              byline: "nothing changes until you apply the plan",
+              glyph: { char: "+", tone: "brand" },
+              hideWhenEmpty: true,
+              collapsible: true,
+              collapsed: true,
+            },
             [
-              {
-                key: CHANGE_KEY,
-                title: "Change access",
-                glyph: { char: "+", tone: "brand" },
-                hideWhenEmpty: true,
-              },
               {
                 key: OPERATION_KEY,
                 title: "Operation",
@@ -102,35 +144,27 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
                 glyph: { char: "↺", tone: "neutral" },
                 hideWhenEmpty: true,
                 collapsible: true,
+                collapsed: true,
               },
             ],
           ],
         },
         {
-          zoneTitle: "People",
-          columns: [
-            {
-              key: PEOPLE_KEY,
-              title: "People",
-              glyph: { char: "☰", tone: "info" },
-              hideWhenEmpty: true,
-            },
-          ],
-        },
-        {
-          zoneTitle: "Cohorts",
+          zoneTitle: "Cohorts and applications",
           columns: [
             {
               key: COHORTS_KEY,
               title: "Cohorts",
-              glyph: { char: "▦", tone: "info" },
+              glyph: { char: "▦", tone: "neutral" },
               hideWhenEmpty: true,
+              collapsible: true,
             },
             {
               key: PRINCIPALS_KEY,
               title: "Applications",
               glyph: { char: "⚙", tone: "neutral" },
               hideWhenEmpty: true,
+              collapsible: true,
             },
           ],
         },

@@ -6,7 +6,9 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
+import { ACTIVITY_AREAS } from "../access/activity.ts";
 import type { Identity } from "../access/model.ts";
+import { groupByOrg, ORG_FILTER } from "../access/orgs.ts";
 import {
   personRead,
   readPersonGroups,
@@ -27,9 +29,12 @@ import {
   measuredAccess,
   SELECT_PERSON_ACTION,
 } from "../boards/access.ts";
+import { composeActivity, composeOrgs } from "../boards/activity.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
+  accessGuideMarkdown,
   composePeople,
+  EXPORT_GUIDE_ACTION,
   isPeopleView,
   PEOPLE_FILTER_ACTION,
   PEOPLE_VIEW_ACTION,
@@ -46,8 +51,10 @@ import {
 import {
   ACCESS_BADGE_KEY,
   ACCESS_SURFACE_ID,
+  ACTIVITY_KEY,
   ATTENTION_KEY,
   COHORTS_KEY,
+  ORGS_KEY,
   PEOPLE_KEY,
   PERSON_KEY,
   PRINCIPALS_KEY,
@@ -129,10 +136,12 @@ function stayOnPeople() {
 }
 
 export const accessModule: RegionModule = {
-  areas: ACCESS_AREAS,
+  areas: [...ACCESS_AREAS, ...ACTIVITY_AREAS],
   composers: {
     [PULSE_KEY]: composeAccessPulse,
     [ATTENTION_KEY]: composeAttention,
+    [ACTIVITY_KEY]: composeActivity,
+    [ORGS_KEY]: composeOrgs,
     [PEOPLE_KEY]: composePeople,
     [PRINCIPALS_KEY]: composePrincipals,
     [COHORTS_KEY]: composeCohorts,
@@ -182,12 +191,17 @@ export const accessModule: RegionModule = {
     [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
       const filter = (payload as { filter?: unknown } | undefined)?.filter;
       const cohorts = rt.tracker.cohorts.map((c) => `cohort:${c.name}`);
-      const known = ["all", "apps", "pending", "gaps", "cohort:Untracked", ...cohorts];
+      const orgs = groupByOrg(measuredAccess(rt)?.model.people ?? []).map(
+        (g) => `${ORG_FILTER}${g.org.domain}`,
+      );
+      const known = ["all", "apps", "pending", "gaps", "cohort:Untracked", ...cohorts, ...orgs];
       if (typeof filter !== "string" || !known.includes(filter)) {
         return { ok: false, error: "That filter is no longer available." };
       }
-      peopleState(rt).filter = filter;
-      rt.recompose([PEOPLE_KEY]);
+      // Picking the selected organization again clears it.
+      const s = peopleState(rt);
+      s.filter = filter.startsWith(ORG_FILTER) && s.filter === filter ? "all" : filter;
+      rt.recompose([PEOPLE_KEY, ORGS_KEY]);
       return stayOnPeople();
     },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
@@ -205,6 +219,14 @@ export const accessModule: RegionModule = {
           message: `Imported ${res.emails.length} into ${res.cohorts} cohort(s)${note}`,
         },
       };
+    },
+    [EXPORT_GUIDE_ACTION]: async (rt) => {
+      const measured = measuredAccess(rt);
+      if (!measured) return { ok: false, error: "People are not measured yet." };
+      const day = rt.now().toISOString().slice(0, 10);
+      const path = rt.writeExport(`who-has-access-${day}.md`, accessGuideMarkdown(measured));
+      if (!path) return { ok: false, error: "The rib has no data directory to write to." };
+      return { ok: true, data: { message: `Wrote ${path}` } };
     },
     [EXPORT_ROSTER_ACTION]: async (rt, payload) => {
       const cohort = (payload as { cohort?: unknown } | undefined)?.cohort;

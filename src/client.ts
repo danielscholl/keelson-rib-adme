@@ -7,7 +7,13 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { RibExec } from "@keelson/shared";
-import { fetchToken, GRAPH_RESOURCE, type TokenFailure, type TokenResult } from "./az.ts";
+import {
+  fetchToken,
+  GRAPH_RESOURCE,
+  LOGS_RESOURCE,
+  type TokenFailure,
+  type TokenResult,
+} from "./az.ts";
 import type { Profile } from "./profile.ts";
 
 export const SERVICE_PATHS = {
@@ -157,6 +163,11 @@ export class Batch {
 
   graph<T = unknown>(path: string, opts: CallOptions = {}): Promise<CallResult<T>> {
     return this.send<T>(GRAPH_RESOURCE, `https://graph.microsoft.com${path}`, opts, {});
+  }
+
+  logs<T = unknown>(workspaceId: string, query: string, timespan: string): Promise<CallResult<T>> {
+    const url = `https://api.loganalytics.io/v1/workspaces/${encodeURIComponent(workspaceId)}/query`;
+    return this.send<T>(LOGS_RESOURCE, url, { method: "POST", body: { query, timespan } }, {});
   }
 
   async graphBatch(

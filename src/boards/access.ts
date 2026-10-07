@@ -6,7 +6,18 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
+import type { CanvasBoardView } from "@keelson/shared";
+import {
+  type ActivityState,
+  activityState,
+  callsIn,
+  grantedAt,
+  recentDays,
+  USAGE_LABEL,
+  USAGE_TONE,
+  type Usage,
+  usageOf,
+} from "../access/activity.ts";
 import {
   type AccessCounts,
   type AccessModel,
@@ -15,21 +26,15 @@ import {
   type Identity,
   ROLES,
 } from "../access/model.ts";
+import { groupByOrg, orgOf } from "../access/orgs.ts";
 import { selectedId } from "../access/person.ts";
 import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
-import { bindingOf } from "../plan/model.ts";
 import { instanceName, shortId } from "../profile.ts";
 import { composeRestingHeader, EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { type Cohort, csvCell, daysUntil, UNTRACKED } from "../tracker.ts";
-import {
-  EXPLAIN_ACTION,
-  PREVIEW_CLEANUP_ACTION,
-  PREVIEW_FIX_ACTION,
-  PREVIEW_RESEND_ACTION,
-} from "./change.ts";
-import { SIGNIN_REASON, signinCard } from "./connection.ts";
+import { signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
@@ -73,12 +78,23 @@ function nextPass(rt: Runtime, people: Identity[]): Stat {
     ...(days < 0 ? { tone: "error" as const } : {}),
   };
 }
-const ROLE_TONE = { Ops: "info", Admin: "brand", Editor: "accent", Viewer: "neutral" } as const;
+
+export const ROLE_TONE = {
+  Ops: "info",
+  Admin: "brand",
+  Editor: "accent",
+  Viewer: "neutral",
+} as const;
 const DAY_MS = 86_400_000;
+const INVITED_LIMIT = 12;
+const NOT_USED_LIMIT = 8;
 
 export interface Measured {
   model: AccessModel;
   counts: AccessCounts;
+  activity: ActivityState;
+  // Each person's usage; undefined while the audit log is not measured.
+  usage: Map<string, Usage | undefined>;
 }
 
 export function measuredAccess(rt: Runtime): Measured | undefined {
@@ -91,7 +107,11 @@ export function measuredAccess(rt: Runtime): Measured | undefined {
     admeAppId: rt.profile?.admeAppId,
     cohortOf: (email) => rt.tracker.cohortOf(email),
   });
-  return { model, counts: countAccess(model) };
+  const activity = activityState(rt, model);
+  const known = activity.kind === "measured" ? activity.model : undefined;
+  const now = rt.now();
+  const usage = new Map(model.people.map((p) => [p.id, usageOf(p, known, now)] as const));
+  return { model, counts: countAccess(model), activity, usage };
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -102,26 +122,175 @@ export function day(iso: string | undefined): string | undefined {
   return iso?.slice(0, 10);
 }
 
-function daysAgo(iso: string, now: Date): string {
+export function daysAgo(iso: string, now: Date): string {
   const days = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY_MS));
-  return days === 0 ? "today" : `${days} d ago`;
+  return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} d ago`;
 }
 
-function needsPill(counts: AccessCounts) {
-  return counts.needsYou > 0
-    ? { label: `${counts.needsYou} need you`, tone: "caution" as const }
-    : { label: "all healthy", tone: "ok" as const };
+export function usageCount(m: Measured, u: Usage): number | null {
+  if (u !== "invited" && m.activity.kind !== "measured") return null;
+  return m.model.people.filter((p) => m.usage.get(p.id) === u).length;
 }
 
-function stateSegments(counts: AccessCounts) {
+// Who to chase: anyone who cannot use their access, has not accepted, or never called.
+export function followUpCount(m: Measured): number {
+  const unused = m.model.people.filter(
+    (p) => p.state !== "broken" && m.usage.get(p.id) === "not-used",
+  ).length;
+  return m.counts.broken + m.counts.pending + unused + m.counts.unknown;
+}
+
+export function activityReason(state: ActivityState): string {
+  if (state.kind === "unset") return "set the audit log workspace in Connection";
+  if (state.kind === "unread") return state.error ?? "the audit log is not read yet";
+  return "";
+}
+
+export function adoptionSegments(m: Measured) {
+  const invited = usageCount(m, "invited") ?? 0;
+  if (m.activity.kind !== "measured") {
+    return [
+      { label: "Invited", n: invited, tone: USAGE_TONE.invited },
+      { label: "Accepted", n: m.model.people.length - invited, tone: "neutral" as const },
+      { label: "In use: not measured", n: null },
+    ];
+  }
+  return (["invited", "not-used", "idle", "active"] as const).map((u) => ({
+    label: USAGE_LABEL[u],
+    n: usageCount(m, u),
+    tone: USAGE_TONE[u],
+  }));
+}
+
+function stateLine(m: Measured, orgs: number): string {
+  const { counts } = m;
+  const head = `${plural(counts.people, "person", "people")} from ${plural(orgs, "organization", "organizations")}.`;
+  const gaps =
+    counts.broken > 0 ? ` ${plural(counts.broken, "person cannot", "people cannot")} use it.` : "";
+  const active = usageCount(m, "active");
+  const notUsed = usageCount(m, "not-used");
+  if (active === null || notUsed === null) {
+    return `${head} ${counts.pending} not accepted yet.${gaps} Who uses it is not measured: ${activityReason(m.activity)}.`;
+  }
+  return `${head} ${active} used it this week; ${counts.pending} not accepted yet and ${notUsed} accepted but never made a call.${gaps}`;
+}
+
+// People present on each of the last 14 days, by when their access began.
+function joinedSpark(people: Identity[], days: readonly string[]): number[] | undefined {
+  const dated = people.map(grantedAt).filter((d): d is string => Boolean(d));
+  if (dated.length === 0) return undefined;
+  const undated = people.length - dated.length;
+  return days.map((d) => undated + dated.filter((g) => g.slice(0, 10) <= d).length);
+}
+
+function activeIn(m: Measured, days: readonly string[]): number {
+  if (m.activity.kind !== "measured") return 0;
+  const a = m.activity.model;
+  return m.model.people.filter((p) => callsIn(a.byId.get(p.id), days) > 0).length;
+}
+
+function delta(n: number, unit: string) {
+  return n === 0
+    ? { text: `no change ${unit}`, direction: "flat" as const, tone: "neutral" as const }
+    : {
+        text: `${n > 0 ? "+" : ""}${n} ${unit}`,
+        direction: n > 0 ? ("up" as const) : ("down" as const),
+        tone: n > 0 ? ("ok" as const) : ("warn" as const),
+      };
+}
+
+function oldest(people: Identity[], at: (p: Identity) => string | undefined): string | undefined {
+  return people
+    .map(at)
+    .filter((d): d is string => Boolean(d))
+    .sort()[0];
+}
+
+function pulseStats(rt: Runtime, m: Measured, orgs: number): Stat[] {
+  const { counts, model } = m;
+  const now = rt.now();
+  const days = recentDays(now);
+  const week = days.slice(-7);
+  const prior = days.slice(0, 7);
+  const mix = ROLES.filter((r) => counts.roles[r] > 0)
+    .map((r) => `${counts.roles[r]} ${r}`)
+    .join(", ");
+  const joined = model.people.filter((p) => {
+    const g = grantedAt(p);
+    return g !== undefined && g.slice(0, 10) >= (week[0] as string);
+  }).length;
+  const people: Stat = {
+    label: "People",
+    value: counts.people,
+    sub:
+      rt.tracker.cohorts.length > 0
+        ? cohortNames(rt, model.people)
+            .map((name) => `${inCohort(model.people, name).length} ${name}`)
+            .join(" · ")
+        : [plural(orgs, "organization", "organizations"), mix].filter(Boolean).join(" · "),
+    ...(joined > 0 ? { delta: delta(joined, "this week") } : {}),
+  };
+  const spark = joinedSpark(model.people, days);
+  if (spark?.some((n) => n !== spark[0])) people.spark = spark;
+
+  const measured = m.activity.kind === "measured";
+  const active = usageCount(m, "active");
+  const activeTile: Stat = {
+    label: "Active this week",
+    value: active,
+    sub: measured ? "made a data call in 7 days" : activityReason(m.activity),
+  };
+  if (measured) {
+    activeTile.spark = days.map((d) => activeIn(m, [d]));
+    activeTile.delta = delta(activeIn(m, week) - activeIn(m, prior), "vs last week");
+  }
+
+  const pendingPeople = model.people.filter((p) => p.state === "pending");
+  const oldestInvite = oldest(pendingPeople, (p) => p.invitedAt);
+  const notUsed = usageCount(m, "not-used");
+  const oldestGrant = oldest(
+    model.people.filter((p) => m.usage.get(p.id) === "not-used"),
+    grantedAt,
+  );
+  const gaps = [
+    counts.missingUsers > 0 ? `${counts.missingUsers} missing users@` : "",
+    counts.duplicates > 0 ? plural(counts.duplicates, "duplicate entry", "duplicate entries") : "",
+  ].filter(Boolean);
   return [
-    { label: "healthy", n: counts.healthy, tone: "ok" as const },
-    { label: "pending", n: counts.pending, tone: "warn" as const },
-    { label: "broken", n: counts.broken, tone: "error" as const },
-    ...(counts.unknown > 0
-      ? [{ label: "unknown", n: counts.unknown, tone: "caution" as const }]
-      : []),
+    people,
+    activeTile,
+    {
+      label: "Not accepted",
+      value: counts.pending,
+      sub: oldestInvite ? `oldest invited ${daysAgo(oldestInvite, now)}` : "none waiting",
+      ...(counts.pending > 0 ? { tone: "warn" as const } : {}),
+    },
+    {
+      label: "Accepted, never used",
+      value: notUsed,
+      sub:
+        notUsed === null
+          ? "needs the audit log"
+          : oldestGrant
+            ? `oldest granted ${daysAgo(oldestGrant, now)}`
+            : "everyone has made a call",
+      ...(notUsed ? { tone: "warn" as const } : {}),
+    },
+    {
+      label: "Access gaps",
+      value: counts.broken,
+      sub: gaps.join(" · ") || "none found",
+      ...(counts.broken > 0 ? { tone: "error" as const } : {}),
+    },
+    ...(rt.tracker.cohorts.length > 0 || rt.tracker.unreadable ? [nextPass(rt, model.people)] : []),
   ];
+}
+
+function followPill(m: Measured) {
+  const n = followUpCount(m);
+  return n > 0
+    ? { label: `${n} to follow up`, tone: "caution" as const }
+    : { label: "all in use", tone: "ok" as const };
 }
 
 export function composeAccessPulse(rt: Runtime): CanvasBoardView {
@@ -154,52 +323,11 @@ export function composeAccessPulse(rt: Runtime): CanvasBoardView {
       ],
     };
   }
-  const { counts } = measured;
-  const gaps = [
-    counts.missingUsers > 0 ? `${counts.missingUsers} missing users@` : "",
-    counts.duplicates > 0 ? plural(counts.duplicates, "duplicate entry", "duplicate entries") : "",
-  ].filter(Boolean);
-  const stats: Stat[] = [
-    {
-      label: "People",
-      value: counts.people,
-      sub:
-        rt.tracker.cohorts.length > 0
-          ? cohortNames(rt, measured.model.people)
-              .map((name) => `${inCohort(measured.model.people, name).length} ${name}`)
-              .join(" · ")
-          : `${plural(counts.guests, "guest", "guests")} · ${plural(counts.people - counts.guests, "member", "members")}`,
-    },
-    {
-      label: "Pending acceptance",
-      value: counts.pending,
-      sub: counts.oldestInvite ? `oldest invited ${day(counts.oldestInvite)}` : "none waiting",
-      ...(counts.pending > 0 ? { tone: "warn" as const } : {}),
-    },
-    {
-      label: "Access gaps",
-      value: counts.broken,
-      sub: gaps.join(" · ") || "none found",
-      ...(counts.broken > 0 ? { tone: "error" as const } : {}),
-    },
-    nextPass(rt, measured.model.people),
-    {
-      label: "Applications",
-      value: counts.apps,
-      sub: counts.rootApps > 0 ? `${counts.rootApps} legacy root app` : "with entitlements",
-    },
-  ];
+  const orgs = groupByOrg(measured.model.people).length;
   const sections: Section[] = [];
   if (rt.status.phase === "signin") sections.push(signinCard(rt.status));
-  sections.push({ kind: "stats", items: stats });
-  const mix: { label: string; n: number; tone?: "info" | "brand" | "accent" | "neutral" }[] =
-    ROLES.filter((r) => counts.roles[r] > 0).map((r) => ({
-      label: r,
-      n: counts.roles[r],
-      tone: ROLE_TONE[r],
-    }));
-  if (counts.noRole > 0) mix.push({ label: "No role", n: counts.noRole });
-  if (mix.length > 0) sections.push({ kind: "segments", title: "Role mix", items: mix });
+  sections.push({ kind: "rows", items: [{ text: stateLine(measured, orgs) }] });
+  sections.push({ kind: "stats", items: pulseStats(rt, measured, orgs) });
   const fresh = rt.freshness(ACCESS_AREA);
   const last = rt.cache.get(ACCESS_AREA);
   if (last.error) {
@@ -220,19 +348,12 @@ export function composeAccessPulse(rt: Runtime): CanvasBoardView {
       status:
         rt.status.phase === "signin"
           ? { label: "sign-in needed", tone: "error" }
-          : needsPill(counts),
+          : followPill(measured),
       chip: [instanceName(profile), profile.partition, fresh].filter(Boolean).join(" · "),
-      segments: stateSegments(counts),
+      segments: adoptionSegments(measured),
     },
     sections,
   };
-}
-
-function personFields(p: Identity): NonNullable<Card["fields"]> {
-  return [
-    ...(p.email ? [{ label: "Email", value: p.email, copyable: true }] : []),
-    { label: "Role", value: p.role ?? "none" },
-  ];
 }
 
 // Clicking a person or application opens the inspector in the drawer.
@@ -243,87 +364,90 @@ export function openAction(who: Identity, selected: string | undefined) {
   };
 }
 
-type Verb = (
-  type: string,
-  label: string,
-  p: Identity,
-  extra?: Partial<CanvasActionItem>,
-) => CanvasActionItem;
-
-const BRAND = { tone: "brand" } as const;
-
-function cardVerb(rt: Runtime): Verb {
-  const binding = rt.profile ? { ...bindingOf(rt.profile) } : {};
-  const gate = rt.status.phase === "connected" ? {} : { disabled: true, reason: SIGNIN_REASON };
-  return (type, label, p, extra = {}) => ({
-    type,
-    label,
-    payload: { id: p.id },
-    binding,
-    pendingLabel: "Planning…",
-    ...extra,
-    ...gate,
-  });
+function capped(rows: Row[], limit: number, rest: (n: number) => string): Row[] {
+  if (rows.length <= limit) return rows;
+  return [...rows.slice(0, limit), { glyph: "neutral", text: rest(rows.length - limit) }];
 }
 
-function attentionCards(
-  people: Identity[],
-  now: Date,
-  selected: string | undefined,
-  verb: Verb,
-): Section[] {
-  const missing = people.filter((p) => p.cause === "missing-users");
-  const pending = people.filter((p) => p.state === "pending");
-  const duplicate = people.filter((p) => p.duplicateIn !== undefined);
+function followRows(m: Measured, now: Date, selected: string | undefined): Section[] {
+  const people = m.model.people;
+  const org = (p: Identity) => orgOf(p).name;
   const sections: Section[] = [];
-  if (missing.length > 0) {
+  const cannot = people.filter((p) => p.state === "broken");
+  if (cannot.length > 0) {
     sections.push({
-      kind: "cards",
-      title: `Not in users@, every call returns 401 · ${missing.length}`,
-      items: missing.map((p) => ({
-        title: p.name,
-        edge: "error" as const,
-        pill: { label: "401", tone: "error" as const },
-        fields: personFields(p),
-        footnote: `member of ${GROUP_NAMES[roleGroup(p)]} but not users@`,
-        actions: [
-          verb(PREVIEW_FIX_ACTION, "Plan the fix", p, BRAND),
-          verb(EXPLAIN_ACTION, "Why 401/403", p, { pendingLabel: "Opening…" }),
-        ],
-        ...openAction(p, selected),
-      })),
+      kind: "rows",
+      title: `Cannot use it · ${cannot.length}`,
+      items: cannot.map((p) =>
+        p.cause === "missing-users"
+          ? {
+              glyph: "error" as const,
+              chip: { label: "401", tone: "error" as const },
+              text: p.name,
+              trailing: `${org(p)} · not in users@, every call returns 401`,
+              ...openAction(p, selected),
+            }
+          : {
+              glyph: "warn" as const,
+              chip: { label: "duplicate", tone: "warn" as const },
+              text: p.name,
+              trailing: `${org(p)} · listed twice in ${GROUP_NAMES[p.duplicateIn ?? roleGroup(p)]}`,
+              ...openAction(p, selected),
+            },
+      ),
     });
   }
-  if (pending.length > 0) {
+  const byOldest = (at: (p: Identity) => string | undefined) => (a: Identity, b: Identity) =>
+    (at(a) ?? "").localeCompare(at(b) ?? "");
+  const invited = people.filter((p) => p.state === "pending").sort(byOldest((p) => p.invitedAt));
+  if (invited.length > 0) {
     sections.push({
-      kind: "cards",
-      title: `Invited, not accepted · ${pending.length}`,
-      items: pending.map((p) => ({
-        title: p.name,
-        edge: "warn" as const,
-        pill: { label: "pending", tone: "warn" as const },
-        fields: [
-          ...(p.email ? [{ label: "Email", value: p.email, copyable: true }] : []),
-          { label: "Invited", value: p.invitedAt ? daysAgo(p.invitedAt, now) : "?" },
-        ],
-        actions: [verb(PREVIEW_RESEND_ACTION, "Resend invitation", p)],
-        ...openAction(p, selected),
-      })),
+      kind: "rows",
+      title: `Has not accepted the invitation · ${invited.length}`,
+      items: capped(
+        invited.map((p) => ({
+          glyph: USAGE_TONE.invited,
+          text: p.name,
+          trailing: `${org(p)} · invited ${p.invitedAt ? daysAgo(p.invitedAt, now) : "?"}`,
+          ...openAction(p, selected),
+        })),
+        INVITED_LIMIT,
+        (n) => `… ${n} more, all listed in People under Invited`,
+      ),
     });
   }
-  if (duplicate.length > 0) {
+  if (m.activity.kind === "measured") {
+    const unused = people
+      .filter((p) => p.state !== "broken" && m.usage.get(p.id) === "not-used")
+      .sort(byOldest(grantedAt));
+    if (unused.length > 0) {
+      sections.push({
+        kind: "rows",
+        title: `Accepted, never made a call · ${unused.length}`,
+        items: capped(
+          unused.map((p) => {
+            const g = grantedAt(p);
+            return {
+              glyph: USAGE_TONE["not-used"],
+              text: p.name,
+              trailing: `${org(p)} · access granted ${g ? daysAgo(g, now) : "?"}`,
+              ...openAction(p, selected),
+            };
+          }),
+          NOT_USED_LIMIT,
+          (n) => `… ${n} more, all listed in People under Not used`,
+        ),
+      });
+    }
+  } else {
     sections.push({
-      kind: "cards",
-      title: `Duplicate member entry · ${duplicate.length}`,
-      items: duplicate.map((p) => ({
-        title: p.name,
-        edge: "warn" as const,
-        pill: { label: "duplicate", tone: "warn" as const },
-        fields: personFields(p),
-        footnote: `email form and object id form are both in ${GROUP_NAMES[p.duplicateIn ?? "users"]}`,
-        actions: [verb(PREVIEW_CLEANUP_ACTION, "Plan the cleanup", p, BRAND)],
-        ...openAction(p, selected),
-      })),
+      kind: "rows",
+      items: [
+        {
+          glyph: "neutral",
+          text: `Who accepted but never made a call is not measured: ${activityReason(m.activity)}.`,
+        },
+      ],
     });
   }
   return sections;
@@ -357,10 +481,7 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   if (!measured) return EMPTY_BOARD;
   const { model, counts } = measured;
-  const sections = attentionCards(model.people, rt.now(), selectedId(rt), cardVerb(rt));
-  if (sections.length === 0 && model.unknown.length === 0) {
-    sections.push({ kind: "rows", items: [{ glyph: "ok", text: "Nothing needs you." }] });
-  }
+  const sections = followRows(measured, rt.now(), selectedId(rt));
   const deleted = model.unknown.filter((u) => u.deleted);
   const unknown = model.unknown.filter((u) => !u.deleted);
   if (deleted.length > 0) {
@@ -408,16 +529,7 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   if (checks?.kind === "rows" && checks.items.length === 0) sections.pop();
   return {
     view: "board",
-    header: {
-      status: needsPill(counts),
-      segments: [
-        { label: "broken", n: counts.broken, tone: "error" },
-        { label: "pending", n: counts.pending, tone: "warn" },
-        ...(counts.unknown > 0
-          ? [{ label: "unknown", n: counts.unknown, tone: "caution" as const }]
-          : []),
-      ],
-    },
+    header: { status: followPill(measured), chip: "oldest first" },
     sections,
   };
 }

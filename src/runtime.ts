@@ -21,7 +21,7 @@ import {
   type TestResult,
   testResultSchema,
 } from "./connection.ts";
-import { type Discovery, discoverInstances } from "./discover.ts";
+import { type Discovery, discoverInstances, findAuditWorkspace } from "./discover.ts";
 import { type Profile, profileSchema } from "./profile.ts";
 import type { Store } from "./store.ts";
 import { clock, SweepCache } from "./sweep.ts";
@@ -199,6 +199,21 @@ export class Runtime {
     this.status = { ...this.status, profile: next };
     this.opts.recompose(this.opts.allKeys);
     return { ok: true };
+  }
+
+  async findAuditLog(): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+    const profile = this.profile;
+    if (!profile) return { ok: false, error: "Connect to an instance first." };
+    const found = await findAuditWorkspace(this.opts.exec, profile.host);
+    if (!found.ok) return found;
+    const parsed = profileSchema.safeParse({ ...this.profile, logWorkspaceId: found.workspaceId });
+    if (!parsed.success) return { ok: false, error: "The workspace id is not a GUID." };
+    this.opts.store.write("profile.json", parsed.data);
+    this.client = this.clientFor(parsed.data);
+    this.status = { ...this.status, profile: parsed.data };
+    this.opts.recompose(this.opts.allKeys);
+    await this.sweep();
+    return { ok: true, message: `Reading the audit log in ${found.name}` };
   }
 
   async testConnection(): Promise<void> {

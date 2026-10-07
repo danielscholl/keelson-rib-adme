@@ -7,7 +7,9 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
-import type { AccessModel, Identity } from "../access/model.ts";
+import { callsIn, grantedAt, USAGE_LABEL, USAGE_TONE } from "../access/activity.ts";
+import type { AccessModel, Identity, Role } from "../access/model.ts";
+import { orgOf } from "../access/orgs.ts";
 import {
   auditGroups,
   type GroupAudit,
@@ -28,12 +30,13 @@ import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
-import { day, measuredAccess, passText } from "./access.ts";
+import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
 import {
   EXPLAIN_ACTION,
   PREVIEW_CLEANUP_ACTION,
   PREVIEW_FIX_ACTION,
   PREVIEW_REMOVE_ACTION,
+  PREVIEW_RESEND_ACTION,
 } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 import { grantableSubprojects, PREVIEW_SEIS_GRANT_ACTION, SEIS_ROLE_OPTIONS } from "./seismic.ts";
@@ -281,21 +284,28 @@ function identityFields(rt: Runtime, who: Identity, entry: DirectoryEntry | unde
 
 const PLAIN_RANK = (g: string) => (g.startsWith("users@") ? 0 : g.startsWith("users.") ? 1 : 2);
 
-function groupGrid(audit: GroupAudit): Leaf {
+// Gaps and extras as full-width rows, so a long group name is never cut short.
+function groupSections(audit: GroupAudit): Leaf[] {
   const flagged = new Set([...audit.gaps, ...audit.extras, ...audit.baseline]);
   const plain = audit.held
     .filter((g) => !flagged.has(g))
     .sort((a, b) => PLAIN_RANK(a) - PLAIN_RANK(b) || a.localeCompare(b));
   const shown = plain.slice(0, PLAIN_LIMIT);
-  const cells: Cell[] = [
+  const out: Leaf[] = [];
+  const odd = [
     ...audit.gaps.map((g) => ({
-      label: shortGroup(g),
-      badge: { text: "gap", tone: "error" as const },
+      chip: { label: "gap", tone: "error" as const },
+      text: shortGroup(g),
+      trailing: "expected for the role, not held",
     })),
     ...audit.extras.map((g) => ({
-      label: shortGroup(g),
-      badge: { text: "extra", tone: "info" as const },
+      chip: { label: "extra", tone: "info" as const },
+      text: shortGroup(g),
+      trailing: "held beyond the role",
     })),
+  ];
+  if (odd.length > 0) out.push({ kind: "rows", title: "Beyond or short of the role", items: odd });
+  const cells: Cell[] = [
     ...audit.baseline.map((g) => ({
       label: shortGroup(g),
       badge: { text: "baseline", tone: "neutral" as const },
@@ -304,7 +314,60 @@ function groupGrid(audit: GroupAudit): Leaf {
     ...(plain.length > shown.length ? [{ label: `${plain.length - shown.length} more` }] : []),
   ];
   const computed = audit.source === "computed" ? " · computed from role groups" : "";
-  return { kind: "grid", title: `Effective groups · ${audit.held.length}${computed}`, cells };
+  out.push({ kind: "grid", title: `Effective groups · ${audit.held.length}${computed}`, cells });
+  return out;
+}
+
+const ROLE_CAN: Record<Role, string> = {
+  Viewer: "search and read records, schemas, legal tags, datasets and files",
+  Editor:
+    "read, create and update records, schemas, legal tags, datasets and files, and run workflows",
+  Admin: "everything an Editor can, and manage entitlement groups",
+  Ops: "everything an Admin can, and operate the instance",
+};
+
+function useCard(rt: Runtime, m: Measured, who: Identity): Card {
+  const u = m.usage.get(who.id);
+  const now = rt.now();
+  const a = m.activity.kind === "measured" ? m.activity.model.byId.get(who.id) : undefined;
+  const status: Field = u
+    ? { label: "Status", value: USAGE_LABEL[u], tone: USAGE_TONE[u] }
+    : { label: "Status", value: "?", tone: "neutral" };
+  const g = grantedAt(who);
+  const fields: Field[] = [
+    status,
+    { label: "Organization", value: orgOf(who).name },
+    { label: "Access granted", value: g ? `${day(g)} · ${daysAgo(g, now)}` : "?" },
+  ];
+  if (m.activity.kind === "measured") {
+    fields.push(
+      { label: "Last data call", value: a ? `${a.last} · ${daysAgo(a.last, now)}` : "none" },
+      {
+        label: `Calls, last ${m.activity.model.recent.length} days`,
+        value: callsIn(a, m.activity.model.recent),
+      },
+    );
+  } else {
+    fields.push({ label: "Last data call", value: `? · ${activityReason(m.activity)}` });
+  }
+  if (who.role) fields.push({ label: "Role allows", value: ROLE_CAN[who.role] });
+  return { title: "Use", stacked: true, fields };
+}
+
+function callsChart(m: Measured, who: Identity): Leaf | undefined {
+  if (m.activity.kind !== "measured") return undefined;
+  const a = m.activity.model.byId.get(who.id);
+  return {
+    kind: "chart",
+    title: "Data calls per day",
+    mark: "bar",
+    series: [
+      {
+        label: "Calls",
+        points: m.activity.model.recent.map((d) => ({ x: d.slice(5), y: a?.perDay[d] ?? 0 })),
+      },
+    ],
+  };
 }
 
 function history(rt: Runtime, who: Identity, entry: DirectoryEntry | undefined): Row[] {
@@ -352,6 +415,7 @@ function plannedActions(rt: Runtime, who: Identity): CanvasActionItem[] {
           }),
         ]
       : []),
+    ...(who.state === "pending" ? [preview(PREVIEW_RESEND_ACTION, "Resend invitation")] : []),
     ...(who.kind === "person"
       ? [
           {
@@ -466,6 +530,7 @@ export function composePerson(rt: Runtime): CanvasBoardView {
           stacked: true,
           fields: identityFields(rt, who, entry),
         },
+        ...(who.kind === "person" ? [useCard(rt, measured, who)] : []),
       ],
     },
   ];
@@ -483,7 +548,9 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   }
   left.push({ kind: "actions", items: plannedActions(rt, who) });
 
+  const chart = who.kind === "person" ? callsChart(measured, who) : undefined;
   const right: Leaf[] = [
+    ...(chart ? [chart] : []),
     {
       kind: "rows",
       title: "Access checks",
@@ -507,7 +574,7 @@ export function composePerson(rt: Runtime): CanvasBoardView {
       ],
     });
   }
-  if (audit) right.push(groupGrid(audit));
+  if (audit) right.push(...groupSections(audit));
   right.push({ kind: "actions", wrap: true, items: groupActions(rt, who, audit) });
   const past = history(rt, who, entry);
   if (past.length > 0) right.push({ kind: "rows", title: "History", items: past });
