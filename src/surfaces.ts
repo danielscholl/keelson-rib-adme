@@ -113,6 +113,8 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
               title: "People",
               glyph: { char: "☰", tone: "info" },
               hideWhenEmpty: true,
+              collapsible: true,
+              collapsed: true,
               headActions: [{ type: EXPORT_GUIDE_ACTION, label: "Export who has access" }],
             },
           ],

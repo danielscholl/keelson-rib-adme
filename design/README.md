@@ -36,7 +36,7 @@ Question it answers: who has access, are they using it, and who do I need to fol
 | Follow up | `rib:adme:attention` | Rows, oldest first: who cannot use it (401, duplicate entry), who has not accepted, who accepted but made no data call in the log. Rows open the person; nothing here changes the instance. Then the checks that found nothing. |
 | Activity | `rib:adme:activity` | People who made a data call per day, and calls by organization, over 14 days, from the audit log. Offers "Find the audit log" when no workspace is set. |
 | Organizations | `rib:adme:orgs` | One card per email domain with everyone named in their usage tone and a usage bar. Selecting one filters People. |
-| People | `rib:adme:people` | Three views (Roster, Roles matrix, Seismic grants) and filter chips (All, cohorts, Applications, Invited, Gaps, the picked organization). The roster groups by usage. Head menu: "Export who has access" as Markdown. |
+| People | `rib:adme:people` | Three views (Roster, Roles matrix, Seismic grants) and filter chips (All, cohorts, Applications, Invited, Gaps, the picked organization). The roster groups by usage. Head menu: "Export who has access" as Markdown. Collapsed. |
 | Applications | `rib:adme:principals` | 4 cards keyed by app id; the legacy root app is flagged. Collapsed. |
 
 Change access and Cohorts still compose but are not on the tab while it is a viewer. Operation and Recent changes sit on ADME Seismic, the one tab that still plans a change.

@@ -348,6 +348,10 @@ describe("the access tab is a viewer", () => {
     for (const key of [CHANGE_KEY, COHORTS_KEY, OPERATION_KEY, RECENT_KEY]) {
       expect(keys).not.toContain(`"${key}"`);
     }
+    const people = access?.layout.rows
+      .flatMap((r) => r.columns.flat())
+      .find((c) => c.key === PEOPLE_KEY);
+    expect(people).toMatchObject({ collapsible: true, collapsed: true });
     const seismic = JSON.stringify(SURFACES.find((s) => s.id === SEISMIC_SURFACE_ID)?.layout);
     expect(seismic).toContain(`"${OPERATION_KEY}"`);
   });
