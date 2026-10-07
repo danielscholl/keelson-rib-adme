@@ -347,3 +347,19 @@ describe("the access tab is a viewer", () => {
     expect(seismic).toContain(`"${OPERATION_KEY}"`);
   });
 });
+
+describe("freshness", () => {
+  test("a reading from an earlier day carries its date", () => {
+    const runtime = rt();
+    runtime.cache.succeed("probe", {}, new Date("2026-09-27T22:13:00Z"));
+    expect(runtime.freshness("probe")).toBe("measured 2026-09-27 22:13Z");
+    runtime.cache.succeed("probe", {}, new Date("2026-10-02T13:50:00Z"));
+    expect(runtime.freshness("probe")).toBe("measured 13:50Z");
+  });
+
+  test("the Invited filter is named as its chip", async () => {
+    const runtime = rt();
+    await accessModule.actions?.[PEOPLE_FILTER_ACTION]?.(runtime, { filter: "pending" });
+    expect(JSON.stringify(composePeople(runtime))).toContain("· invited");
+  });
+});

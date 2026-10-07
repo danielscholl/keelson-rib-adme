@@ -78,9 +78,13 @@ export class Runtime {
   }
 
   // "measured 14:05Z" while connected; "cached from 13:02Z" once sign-in is needed.
+  // A reading from an earlier day carries its date, so a stale one never reads as today's.
   freshness(area: string): string | undefined {
-    const at = clock(this.cache.get(area).at);
-    if (!at) return undefined;
+    const iso = this.cache.get(area).at;
+    const time = clock(iso);
+    if (!iso || !time) return undefined;
+    const day = iso.slice(0, 10);
+    const at = day === this.now().toISOString().slice(0, 10) ? time : `${day} ${time}`;
     return this.status.phase === "connected" ? `measured ${at}` : `cached from ${at}`;
   }
 

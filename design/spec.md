@@ -450,6 +450,8 @@ Three states are drawn. In the mockup they are selected by the buttons above the
 
 The default. Everything above describes this state. The Connection footer is collapsed and shows only the status pill "connected" (ok) and the chip `contoso-adme · opendes`.
 
+A "measured 14:05Z" chip names the time of the reading. A reading from an earlier day also names the day, "measured 2026-09-27 22:13Z". This matters for seismic, which is read on first use rather than on every sweep, so a reading cached before a restart never passes as today's.
+
 ### Sign-in needed
 
 Screen: [expired.png](screens/expired.png).

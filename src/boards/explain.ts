@@ -135,7 +135,7 @@ export function composeExplain(rt: Runtime): CanvasBoardView {
           items: [
             {
               glyph: "neutral",
-              text: "No answer yet. Pick a person under Change access, Why 401/403.",
+              text: "No answer yet. Open a person and choose Why 401/403.",
             },
           ],
         },
