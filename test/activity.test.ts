@@ -17,7 +17,12 @@ import {
   measuredAccess,
 } from "../src/boards/access";
 import { composeActivity, composeOrgs } from "../src/boards/activity";
-import { accessGuideMarkdown, composePeople, PEOPLE_FILTER_ACTION } from "../src/boards/people";
+import {
+  accessGuideMarkdown,
+  composePeople,
+  PEOPLE_FILTER_ACTION,
+  PEOPLE_VIEW_ACTION,
+} from "../src/boards/people";
 import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
 import { findAuditWorkspace } from "../src/discover";
@@ -360,6 +365,16 @@ describe("freshness", () => {
   test("the Invited filter is named as its chip", async () => {
     const runtime = rt();
     await accessModule.actions?.[PEOPLE_FILTER_ACTION]?.(runtime, { filter: "pending" });
-    expect(JSON.stringify(composePeople(runtime))).toContain("· invited");
+    const view = expectView(PEOPLE_KEY, "board")(composePeople(runtime));
+    expect(view.view === "board" && view.header?.chip).toBe("3 of 32 · invited");
+  });
+
+  test("the roles matrix drops Roster group when no roster is read", async () => {
+    const { roster: _, ...read } = sampleAccess();
+    const runtime = seededRuntime({ [ACCESS_AREA]: read });
+    await accessModule.actions?.[PEOPLE_VIEW_ACTION]?.(runtime, { view: "matrix" });
+    const view = expectView(PEOPLE_KEY, "board")(composePeople(runtime));
+    const table = view.view === "board" ? view.sections.find((s) => s.kind === "table") : undefined;
+    expect(table?.kind === "table" && table.columns.map((c) => c.key)).not.toContain("roster");
   });
 });
