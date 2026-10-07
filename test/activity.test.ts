@@ -10,14 +10,32 @@ import {
 import { orgOf, registrableDomain } from "../src/access/orgs";
 import { selectPerson } from "../src/access/person";
 import { ACCESS_AREA } from "../src/access/read";
-import { composeAccessPulse, composeAttention, measuredAccess } from "../src/boards/access";
+import {
+  composeAccessPulse,
+  composeAttention,
+  daysAgo,
+  measuredAccess,
+} from "../src/boards/access";
 import { composeActivity, composeOrgs } from "../src/boards/activity";
 import { accessGuideMarkdown, composePeople, PEOPLE_FILTER_ACTION } from "../src/boards/people";
 import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
 import { findAuditWorkspace } from "../src/discover";
-import { ACTIVITY_KEY, ORGS_KEY, PEOPLE_KEY, PULSE_KEY } from "../src/keys";
+import {
+  ACCESS_BADGE_KEY,
+  ACCESS_SURFACE_ID,
+  ACTIVITY_KEY,
+  CHANGE_KEY,
+  COHORTS_KEY,
+  OPERATION_KEY,
+  ORGS_KEY,
+  PEOPLE_KEY,
+  PULSE_KEY,
+  RECENT_KEY,
+  SEISMIC_SURFACE_ID,
+} from "../src/keys";
 import { accessModule } from "../src/modules/access";
+import { SURFACES } from "../src/surfaces";
 import { sampleAccess } from "./fixtures/access";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { azExec, routeTransport, seededRuntime } from "./harness";
@@ -157,14 +175,14 @@ describe("boards with the audit log read", () => {
     expect(view.header?.status).toEqual({ label: "29 to follow up", tone: "caution" });
     const text = JSON.stringify(view);
     expect(text).toContain(
-      "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted but never made a call. 2 people cannot use it.",
+      "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted with no data call since 2026-09-20. 2 people cannot use it.",
     );
     expect(text).toContain('"label":"Active this week","value":3');
   });
 
   test("follow up lists who never made a call, oldest grant first, capped", () => {
     const text = JSON.stringify(composeAttention(rt()));
-    expect(text).toContain("Accepted, never made a call · 24");
+    expect(text).toContain("Accepted, no data call since 2026-09-20 · 24");
     expect(text).toContain("… 16 more, all listed in People under Not used");
   });
 
@@ -201,13 +219,26 @@ describe("boards with the audit log read", () => {
       ],
     });
     const act = accessModule.actions?.[PEOPLE_FILTER_ACTION];
-    expect(await act?.(runtime, { filter: "org:northfield.example" })).toMatchObject({ ok: true });
+    // Already on the tab, so the filter returns no navigation effect.
+    expect(await act?.(runtime, { filter: "org:northfield.example" })).toEqual({ ok: true });
     const people = JSON.stringify(expectView(PEOPLE_KEY, "board")(composePeople(runtime)));
     expect(people).toContain("Marcus Oyelaran");
     expect(people).not.toContain("Ingrid Halvorsen");
     expect(people).toContain('"label":"Northfield 2"');
     await act?.(runtime, { filter: "org:northfield.example" });
     expect(JSON.stringify(composePeople(runtime))).toContain("Ingrid Halvorsen");
+  });
+
+  test("the tab badge counts the same people as the follow up pill", () => {
+    const runtime = rt();
+    expect(accessModule.badges?.[ACCESS_BADGE_KEY]?.(runtime)).toBe(29);
+    expect(JSON.stringify(composeAccessPulse(runtime))).toContain('"label":"29 to follow up"');
+  });
+
+  test("ages past a year read in years", () => {
+    const now = new Date("2026-10-02T00:00:00Z");
+    expect(daysAgo("2019-12-01T00:00:00Z", now)).toBe("6.8 y ago");
+    expect(daysAgo("2026-09-20T00:00:00Z", now)).toBe("12 d ago");
   });
 
   test("People groups by usage once the audit log is read", () => {
@@ -295,5 +326,17 @@ describe("finding the audit log", () => {
       ok: false,
       error: "The instance sends no diagnostic logs to a Log Analytics workspace.",
     });
+  });
+});
+
+describe("the access tab is a viewer", () => {
+  test("no region on ADME Access plans or applies a change", () => {
+    const access = SURFACES.find((s) => s.id === ACCESS_SURFACE_ID);
+    const keys = JSON.stringify(access?.layout);
+    for (const key of [CHANGE_KEY, COHORTS_KEY, OPERATION_KEY, RECENT_KEY]) {
+      expect(keys).not.toContain(`"${key}"`);
+    }
+    const seismic = JSON.stringify(SURFACES.find((s) => s.id === SEISMIC_SURFACE_ID)?.layout);
+    expect(seismic).toContain(`"${OPERATION_KEY}"`);
   });
 });

@@ -12,6 +12,7 @@ import {
   activityState,
   callsIn,
   grantedAt,
+  noCall,
   recentDays,
   USAGE_LABEL,
   USAGE_TONE,
@@ -124,6 +125,7 @@ export function day(iso: string | undefined): string | undefined {
 
 export function daysAgo(iso: string, now: Date): string {
   const days = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY_MS));
+  if (days >= 365) return `${(days / 365).toFixed(1)} y ago`;
   return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} d ago`;
 }
 
@@ -172,7 +174,8 @@ function stateLine(m: Measured, orgs: number): string {
   if (active === null || notUsed === null) {
     return `${head} ${counts.pending} not accepted yet.${gaps} Who uses it is not measured: ${activityReason(m.activity)}.`;
   }
-  return `${head} ${active} used it this week; ${counts.pending} not accepted yet and ${notUsed} accepted but never made a call.${gaps}`;
+  const none = m.activity.kind === "measured" ? noCall(m.activity.model) : "no data call";
+  return `${head} ${active} used it this week; ${counts.pending} not accepted yet and ${notUsed} accepted with ${none}.${gaps}`;
 }
 
 // People present on each of the last 14 days, by when their access began.
@@ -266,7 +269,7 @@ function pulseStats(rt: Runtime, m: Measured, orgs: number): Stat[] {
       ...(counts.pending > 0 ? { tone: "warn" as const } : {}),
     },
     {
-      label: "Accepted, never used",
+      label: "Accepted, not used",
       value: notUsed,
       sub:
         notUsed === null
@@ -423,7 +426,7 @@ function followRows(m: Measured, now: Date, selected: string | undefined): Secti
     if (unused.length > 0) {
       sections.push({
         kind: "rows",
-        title: `Accepted, never made a call · ${unused.length}`,
+        title: `Accepted, ${noCall(m.activity.model)} · ${unused.length}`,
         items: capped(
           unused.map((p) => {
             const g = grantedAt(p);
@@ -445,7 +448,7 @@ function followRows(m: Measured, now: Date, selected: string | undefined): Secti
       items: [
         {
           glyph: "neutral",
-          text: `Who accepted but never made a call is not measured: ${activityReason(m.activity)}.`,
+          text: `Who accepted but has not used it is not measured: ${activityReason(m.activity)}.`,
         },
       ],
     });

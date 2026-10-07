@@ -498,7 +498,7 @@ describe("every seismic change frame passes its validator", () => {
 });
 
 describe("grant seismic from the access tab", () => {
-  test("the inspector and Change access offer own-ACL subprojects once the store is read", async () => {
+  test("Change access offers own-ACL subprojects once the store is read", async () => {
     const { composeChange } = await import("../src/boards/change");
     const { composePerson } = await import("../src/boards/person");
     const { selectPerson } = await import("../src/access/person");
@@ -508,8 +508,7 @@ describe("grant seismic from the access tab", () => {
     expect(change).toContain('"value":"alpha"');
     expect(change).not.toContain('"value":"volve"');
     selectPerson(rt, LENA);
-    const person = JSON.stringify(composePerson(rt));
-    expect(person).toContain('"type":"preview-seismic-grant"');
+    expect(JSON.stringify(composePerson(rt))).not.toContain('"type":"preview-seismic-grant"');
     const unread = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW });
     expect(JSON.stringify(composeChange(unread))).toContain(
       "read the subprojects on the ADME Seismic tab first",

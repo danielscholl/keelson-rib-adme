@@ -28,20 +28,18 @@ Out of the first take: creating, extending or deleting legal tags, removing a wh
 
 ![ADME Access tab](screens/access.png)
 
-Question it answers: who has access, are they using it, and who do I need to follow up with?
+Question it answers: who has access, are they using it, and who do I need to follow up with? The tab is a viewer: nothing on it changes access.
 
 | Region | Key | What it holds |
 |---|---|---|
-| Access | `rib:adme:pulse` | Status "N to follow up"; an adoption strip in the access guide's words (Invited, Not used, Idle, Active); one sentence that says it all; 5 tiles (People with organizations and role mix, Active this week with a spark, Not accepted, Accepted never used, Access gaps). |
-| Follow up | `rib:adme:attention` | Rows, oldest first: who cannot use it (401, duplicate entry), who has not accepted, who accepted but never made a call. Rows open the person; nothing here changes the instance. Then the checks that found nothing. |
+| Access | `rib:adme:pulse` | Status "N to follow up"; an adoption strip in the access guide's words (Invited, Not used, Idle, Active); one sentence that says it all; 5 tiles (People with organizations and role mix, Active this week with a spark, Not accepted, Accepted not used, Access gaps). The tab badge counts the same N. |
+| Follow up | `rib:adme:attention` | Rows, oldest first: who cannot use it (401, duplicate entry), who has not accepted, who accepted but made no data call in the log. Rows open the person; nothing here changes the instance. Then the checks that found nothing. |
 | Activity | `rib:adme:activity` | People who made a data call per day, and calls by organization, over 14 days, from the audit log. Offers "Find the audit log" when no workspace is set. |
 | Organizations | `rib:adme:orgs` | One card per email domain with everyone named in their usage tone and a usage bar. Selecting one filters People. |
 | People | `rib:adme:people` | Three views (Roster, Roles matrix, Seismic grants) and filter chips (All, cohorts, Applications, Invited, Gaps, the picked organization). The roster groups by usage. Head menu: "Export who has access" as Markdown. |
-| Change access | `rib:adme:change` | In the collapsed Changes zone. Tabbed forms: Add people, Grant seismic, Remove person, Add application, Why 401/403. Every form submits "Preview plan". |
-| Operation | `rib:adme:operation` | The plan being applied, one call at a time ("running 4 of 7"). Hidden when empty. |
-| Recent changes | `rib:adme:recent` | Plans that are staged, paused or applied, and events such as an accepted invitation. Collapsed. |
-| Cohorts | `rib:adme:cohorts` | 3 cards: Pilot 29, Vendor 1, Permanent 2, each with a composition bar, pass end date and "Export roster". Collapsible. |
-| Applications | `rib:adme:principals` | 4 cards keyed by app id; the legacy root app is flagged. Collapsible. |
+| Applications | `rib:adme:principals` | 4 cards keyed by app id; the legacy root app is flagged. Collapsed. |
+
+Change access and Cohorts still compose but are not on the tab while it is a viewer. Operation and Recent changes sit on ADME Seismic, the one tab that still plans a change.
 
 The Roster view is a list of rows; clicking a row opens the person inspector. The Roles matrix and Seismic grants views are read-only tables, so each ends with a one-line "Open person" form.
 
@@ -80,13 +78,13 @@ Question it answers: who is in each subproject, by name, and what can a given pa
 
 ## Inspectors
 
-The canvas drawer holds one document and has no back stack, so each inspector replaces the last. That is why a running plan also shows in the Operation region on the ADME Access tab, and why Recent changes lists every plan.
+The canvas drawer holds one document and has no back stack, so each inspector replaces the last. That is why a running plan also shows in the Operation region on the ADME Seismic tab, and why Recent changes lists every plan.
 
 | Inspector | Key | Opened from | What it holds |
 |---|---|---|---|
-| Person | `rib:adme:person` | Follow up rows, Roster rows, subproject member rows, the "Open person" form | Identity card with copyable fields, access checks in order, seismic reach, effective groups, history. Actions: Plan the fix, Grant seismic…, Why 401/403, Remove person…. |
+| Person | `rib:adme:person` | Follow up rows, Roster rows, subproject member rows, the "Open person" form | Identity card with copyable fields, access checks in order, seismic reach, effective groups, usage, history. Reads only: Why 401/403 and Re-read groups. |
 | Plan sheet | `rib:adme:plan` | Any "Preview plan", "Plan the fix" or "Plan the cleanup" | What Apply does in order (5 steps), 4 stats (Will change, Already true, Blocked, People), protected or excluded rows, one card of exact calls per person, the dry run as CSV. Actions: Apply N changes, Recheck, Discard plan. |
-| Why 401/403 | `rib:adme:explain` | Change access tabs, person inspector | 7 checks in the order the platform applies them, the verdict, the fix as a plan, a plain-text note to copy for the person, and recent answers. Read-only. The rib does not send mail. |
+| Why 401/403 | `rib:adme:explain` | Change access tabs, person inspector | 7 checks in the order the platform applies them, the verdict, the fix described (not planned), a plain-text note to copy for the person, and recent answers. Read-only. The rib does not send mail. |
 
 Person inspector, for a person missing from `users@`:
 

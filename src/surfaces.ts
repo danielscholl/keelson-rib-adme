@@ -15,8 +15,6 @@ import {
   ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
   ATTENTION_KEY,
-  CHANGE_KEY,
-  COHORTS_KEY,
   CONNECTION_KEY,
   DATA_BADGE_KEY,
   DATA_PULSE_KEY,
@@ -120,51 +118,14 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
           ],
         },
         {
-          zoneTitle: "Changes",
           columns: [
-            {
-              key: CHANGE_KEY,
-              title: "Change access",
-              byline: "nothing changes until you apply the plan",
-              glyph: { char: "+", tone: "brand" },
-              hideWhenEmpty: true,
-              collapsible: true,
-              collapsed: true,
-            },
-            [
-              {
-                key: OPERATION_KEY,
-                title: "Operation",
-                glyph: { char: "▶", tone: "info" },
-                hideWhenEmpty: true,
-              },
-              {
-                key: RECENT_KEY,
-                title: "Recent changes",
-                glyph: { char: "↺", tone: "neutral" },
-                hideWhenEmpty: true,
-                collapsible: true,
-                collapsed: true,
-              },
-            ],
-          ],
-        },
-        {
-          zoneTitle: "Cohorts and applications",
-          columns: [
-            {
-              key: COHORTS_KEY,
-              title: "Cohorts",
-              glyph: { char: "▦", tone: "neutral" },
-              hideWhenEmpty: true,
-              collapsible: true,
-            },
             {
               key: PRINCIPALS_KEY,
               title: "Applications",
               glyph: { char: "⚙", tone: "neutral" },
               hideWhenEmpty: true,
               collapsible: true,
+              collapsed: true,
             },
           ],
         },
@@ -273,6 +234,25 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
                 hideWhenEmpty: true,
               },
             ],
+          ],
+        },
+        // The only write path left, so a running plan and its history show here.
+        {
+          columns: [
+            {
+              key: OPERATION_KEY,
+              title: "Operation",
+              glyph: { char: "▶", tone: "info" },
+              hideWhenEmpty: true,
+            },
+            {
+              key: RECENT_KEY,
+              title: "Recent changes",
+              glyph: { char: "↺", tone: "neutral" },
+              hideWhenEmpty: true,
+              collapsible: true,
+              collapsed: true,
+            },
           ],
         },
       ],

@@ -25,6 +25,7 @@ import {
   composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
+  followUpCount,
   IMPORT_COHORTS_ACTION,
   measuredAccess,
   SELECT_PERSON_ACTION,
@@ -50,7 +51,6 @@ import {
 } from "../boards/person.ts";
 import {
   ACCESS_BADGE_KEY,
-  ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
   ATTENTION_KEY,
   COHORTS_KEY,
@@ -128,13 +128,6 @@ function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
 }
 
 // A handled effect suppresses the success toast a plain view switch would raise.
-function stayOnPeople() {
-  return {
-    ok: true as const,
-    data: { effect: "open-surface" as const, surfaceId: ACCESS_SURFACE_ID, regionKey: PEOPLE_KEY },
-  };
-}
-
 export const accessModule: RegionModule = {
   areas: [...ACCESS_AREAS, ...ACTIVITY_AREAS],
   composers: {
@@ -186,7 +179,7 @@ export const accessModule: RegionModule = {
         return { ok: false, error: "Pick Roster, Roles matrix or Seismic grants." };
       peopleState(rt).view = view;
       rt.recompose([PEOPLE_KEY]);
-      return stayOnPeople();
+      return { ok: true };
     },
     [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
       const filter = (payload as { filter?: unknown } | undefined)?.filter;
@@ -202,7 +195,7 @@ export const accessModule: RegionModule = {
       const s = peopleState(rt);
       s.filter = filter.startsWith(ORG_FILTER) && s.filter === filter ? "all" : filter;
       rt.recompose([PEOPLE_KEY, ORGS_KEY]);
-      return stayOnPeople();
+      return { ok: true };
     },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
       const csv = (payload as { csv?: unknown } | undefined)?.csv;
@@ -241,6 +234,9 @@ export const accessModule: RegionModule = {
     },
   },
   badges: {
-    [ACCESS_BADGE_KEY]: (rt) => measuredAccess(rt)?.counts.needsYou ?? 0,
+    [ACCESS_BADGE_KEY]: (rt) => {
+      const m = measuredAccess(rt);
+      return m ? followUpCount(m) : 0;
+    },
   },
 };
