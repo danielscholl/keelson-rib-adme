@@ -235,6 +235,15 @@ describe("boards with the audit log read", () => {
     expect(md).toContain("| Ingrid Halvorsen (ops) | ingrid.halvorsen@contoso.example | Active |");
     expect(md).toContain("| Ben Whitaker | ben.whitaker@northfield.example | Invited |");
   });
+
+  test("the guide table escapes cell text", () => {
+    const m = measuredAccess(rt());
+    if (!m) throw new Error("measured expected");
+    const p = m.model.people.find((x) => x.name === "Ben Whitaker");
+    if (!p) throw new Error("Ben expected");
+    p.name = "Ben\\|Whit\naker";
+    expect(accessGuideMarkdown(m)).toContain("| Ben\\\\\\|Whit aker | ben.whitaker@");
+  });
 });
 
 describe("organizations", () => {

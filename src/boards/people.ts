@@ -603,7 +603,11 @@ function guideDate(iso: string | undefined): string {
   });
 }
 
-const mdCell = (s: string) => s.replace(/\|/g, "\\|");
+const mdCell = (s: string) =>
+  s
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/[\r\n]+/g, " ");
 
 // The "Who has access" table of the access guide, in the guide's own words.
 export function accessGuideMarkdown(m: Measured): string {
