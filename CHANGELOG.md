@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.0.0...v1.1.0) (2026-10-07)
+
+
+### Added
+
+* **access:** make ADME Access a read-only viewer ([#22](https://github.com/danielscholl/keelson-rib-adme/issues/22)) ([8483849](https://github.com/danielscholl/keelson-rib-adme/commit/8483849ed1b70da63f7578c3cee190ceabb77d48))
+
 ## 1.0.0 (2026-10-07)
 
 
