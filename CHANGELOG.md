@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.1.0...v1.1.1) (2026-10-07)
+
+
+### Fixed
+
+* **access:** date stale readings and clear the viewer's leftovers ([#24](https://github.com/danielscholl/keelson-rib-adme/issues/24)) ([70f200d](https://github.com/danielscholl/keelson-rib-adme/commit/70f200d825d03d62a9caa9126d83922eb92b1d04))
+
 ## [1.1.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.0.0...v1.1.0) (2026-10-07)
 
 
