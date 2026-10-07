@@ -17,7 +17,12 @@ import {
   measuredAccess,
 } from "../src/boards/access";
 import { composeActivity, composeOrgs } from "../src/boards/activity";
-import { accessGuideMarkdown, composePeople, PEOPLE_FILTER_ACTION } from "../src/boards/people";
+import {
+  accessGuideMarkdown,
+  composePeople,
+  PEOPLE_FILTER_ACTION,
+  PEOPLE_VIEW_ACTION,
+} from "../src/boards/people";
 import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
 import { findAuditWorkspace } from "../src/discover";
@@ -345,5 +350,31 @@ describe("the access tab is a viewer", () => {
     }
     const seismic = JSON.stringify(SURFACES.find((s) => s.id === SEISMIC_SURFACE_ID)?.layout);
     expect(seismic).toContain(`"${OPERATION_KEY}"`);
+  });
+});
+
+describe("freshness", () => {
+  test("a reading from an earlier day carries its date", () => {
+    const runtime = rt();
+    runtime.cache.succeed("probe", {}, new Date("2026-09-27T22:13:00Z"));
+    expect(runtime.freshness("probe")).toBe("measured 2026-09-27 22:13Z");
+    runtime.cache.succeed("probe", {}, new Date("2026-10-02T13:50:00Z"));
+    expect(runtime.freshness("probe")).toBe("measured 13:50Z");
+  });
+
+  test("the Invited filter is named as its chip", async () => {
+    const runtime = rt();
+    await accessModule.actions?.[PEOPLE_FILTER_ACTION]?.(runtime, { filter: "pending" });
+    const view = expectView(PEOPLE_KEY, "board")(composePeople(runtime));
+    expect(view.view === "board" && view.header?.chip).toBe("3 of 32 · invited");
+  });
+
+  test("the roles matrix drops Roster group when no roster is read", async () => {
+    const { roster: _, ...read } = sampleAccess();
+    const runtime = seededRuntime({ [ACCESS_AREA]: read });
+    await accessModule.actions?.[PEOPLE_VIEW_ACTION]?.(runtime, { view: "matrix" });
+    const view = expectView(PEOPLE_KEY, "board")(composePeople(runtime));
+    const table = view.view === "board" ? view.sections.find((s) => s.kind === "table") : undefined;
+    expect(table?.kind === "table" && table.columns.map((c) => c.key)).not.toContain("roster");
   });
 });

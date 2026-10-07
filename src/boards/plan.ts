@@ -315,7 +315,12 @@ export function composePlan(rt: Runtime): CanvasBoardView {
         sections: [
           {
             kind: "rows",
-            items: [{ glyph: "neutral", text: "No plan is open. Preview one from Change access." }],
+            items: [
+              {
+                glyph: "neutral",
+                text: "No plan is open. Preview one from Grant or revoke on ADME Seismic.",
+              },
+            ],
           },
         ],
       };

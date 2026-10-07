@@ -96,7 +96,7 @@ interface Filtered {
 function applyFilter(filter: PeopleFilter, people: Identity[], apps: Identity[]): Filtered {
   if (filter === "apps") return { label: "applications", people: [], apps };
   if (filter === "pending")
-    return { label: "pending", people: people.filter((p) => p.state === "pending"), apps: [] };
+    return { label: "invited", people: people.filter((p) => p.state === "pending"), apps: [] };
   if (filter === "gaps") return { label: "gaps", people: people.filter(isGap), apps: [] };
   if (filter.startsWith(ORG_FILTER)) {
     const domain = filter.slice(ORG_FILTER.length);
@@ -320,6 +320,12 @@ const MATRIX_COLUMNS: Table["columns"] = [
 function matrixSections(rt: Runtime, f: Filtered, filter: PeopleFilter, total: number): Section[] {
   const groups: [string, Identity[]][] =
     f.apps.length > 0 ? [["Applications", f.apps]] : groupsOf(rt, f.people);
+  // Roster group and Pass stay hidden until the profile or a cohort gives them a value.
+  const columns = MATRIX_COLUMNS.filter(
+    (c) =>
+      (c.key !== "roster" || f.people.some((p) => p.inRoster !== undefined)) &&
+      (c.key !== "pass" || rt.tracker.cohorts.length > 0),
+  );
   const sections: Table[] = [];
   let shown = 0;
   for (const [title, list] of groups) {
@@ -335,14 +341,14 @@ function matrixSections(rt: Runtime, f: Filtered, filter: PeopleFilter, total: n
       sections.push({
         kind: "table",
         title: `${title} · ${range}`,
-        columns: MATRIX_COLUMNS,
+        columns,
         rows: chunk.map((p) => matrixRow(rt, p)),
       });
     }
   }
   const last = sections.at(-1);
   if (last) {
-    const hint = shown < total ? " Filter by cohort to list everyone." : "";
+    const hint = shown < total ? " Filter by organization or cohort to list everyone." : "";
     last.caption = `Showing ${shown} of ${total} · filter: ${f.label}. M is member, O is owner.${hint}`;
   }
   const open = openForm(f.apps.length > 0 ? f.apps : f.people, selectedId(rt));

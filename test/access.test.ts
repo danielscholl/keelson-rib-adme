@@ -539,8 +539,12 @@ describe("people views", () => {
     const dmitri = attention.find((r) => r.person === "Dmitri Volkov");
     expect(JSON.stringify(dmitri?.editors)).toContain("duplicate");
     expect(tables.at(-1)?.caption).toBe(
-      "Showing 20 of 32 · filter: all. M is member, O is owner. Filter by cohort to list everyone.",
+      "Showing 20 of 32 · filter: all. M is member, O is owner. Filter by organization or cohort to list everyone.",
     );
+    // Pass has no value until a cohort is tracked, so its column stays hidden.
+    const keys = tables[0]?.kind === "table" ? tables[0].columns.map((c) => c.key) : [];
+    expect(keys).toContain("roster");
+    expect(keys).not.toContain("pass");
   });
 
   test("a cohort filter lists everyone in it, 15 rows per table", async () => {
@@ -558,6 +562,8 @@ describe("people views", () => {
       "Pilot · 16 to 24 of 24",
     ]);
     expect(JSON.stringify(view)).toContain('"chip":"29 of 32 · Pilot"');
+    const table = view.view === "board" ? view.sections.find((s) => s.kind === "table") : undefined;
+    expect(table?.kind === "table" && table.columns.some((c) => c.key === "pass")).toBe(true);
   });
 
   test("gaps, pending and applications filter the roster", async () => {
