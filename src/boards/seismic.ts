@@ -8,7 +8,7 @@
 
 import type { CanvasBoardView } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
-import { SERVICES_AREA, type ServiceProbe } from "../data/areas.ts";
+import { HEALTH_AREA, type Health } from "../data/health.ts";
 import { bindingOf } from "../plan/model.ts";
 import { instanceName } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
@@ -108,11 +108,12 @@ function unmeasured(label: string, sub = "not measured"): Stat {
 const UNMEASURED_TILES = ["Subprojects", "People with grants", "On default ACL", "No members"];
 
 function serviceText(rt: Runtime): { text: string; ok: boolean } {
-  const probes = rt.cache.get<ServiceProbe[]>(SERVICES_AREA).data;
+  const probes = rt.cache.get<Health>(HEALTH_AREA).data?.services;
   const seismic = probes?.find((p) => p.service === "seismic");
-  if (!seismic || seismic.state === "unprobed") return { text: "service ?", ok: true };
-  if (seismic.state === "ok") return { text: "service ok", ok: true };
-  return { text: `service ${seismic.status ?? "error"}`, ok: false };
+  if (!seismic) return { text: "service ?", ok: true };
+  if (seismic.state === "up") return { text: "service ok", ok: true };
+  if (seismic.state === "off") return { text: "service not enabled", ok: false };
+  return { text: `service ${seismic.status ?? "not answering"}`, ok: false };
 }
 
 function chip(rt: Runtime): string | undefined {

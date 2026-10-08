@@ -10,7 +10,8 @@ import {
   SEIS_READ_ACTION,
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
-import { DATA_AREAS, SERVICES_AREA } from "../src/data/areas";
+import { DATA_AREAS } from "../src/data/areas";
+import { HEALTH_AREA } from "../src/data/health";
 import {
   PEOPLE_KEY,
   SEIS_CHANGE_KEY,
@@ -26,7 +27,7 @@ import { buildSeismic, countSeismic } from "../src/seismic/model";
 import { fromOwnGroups, SEISMIC_AREA, type SeismicRead } from "../src/seismic/read";
 import { REFRESH_ACTION } from "../src/surfaces";
 import { SIGNED_IN_AS, sampleAccess, sampleCohortCsv } from "./fixtures/access";
-import { NOW, SAMPLE_SERVICES } from "./fixtures/data";
+import { NOW, SAMPLE_HEALTH } from "./fixtures/data";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import {
   groupEmail,
@@ -66,7 +67,7 @@ const selected = (rt: Runtime) => selectedBoard(composeSeismicSelected(rt)) as C
 
 const SEED = {
   [ACCESS_AREA]: sampleAccess(),
-  [SERVICES_AREA]: SAMPLE_SERVICES,
+  [HEALTH_AREA]: SAMPLE_HEALTH,
   [SEISMIC_AREA]: sampleSeismic(),
 };
 
@@ -470,7 +471,7 @@ describe("subprojects and the selected subproject", () => {
   test("the first Seismic action reads the store when it was never measured", async () => {
     const { transport } = routeTransport(seismicRoutes());
     const rt = seededRuntime(
-      { [ACCESS_AREA]: sampleAccess(), [SERVICES_AREA]: SAMPLE_SERVICES },
+      { [ACCESS_AREA]: sampleAccess(), [HEALTH_AREA]: SAMPLE_HEALTH },
       { now: NOW, transport },
     );
     expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "golf" })).toMatchObject({ ok: true });

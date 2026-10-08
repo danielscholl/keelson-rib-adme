@@ -25,7 +25,6 @@ import {
   SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
-  SERVICES_KEY,
   SURFACE_ID,
 } from "./keys.ts";
 import type { SectionId } from "./section.ts";
@@ -119,19 +118,6 @@ const DATA_ROWS: Row[] = [
         byline: "search by kind, id, Lucene, ACL group or legal tag · open a row for its detail",
         glyph: { char: "⌕", tone: "info" },
         hideWhenEmpty: true,
-      },
-    ],
-  },
-  {
-    columns: [
-      {
-        key: SERVICES_KEY,
-        title: "Services",
-        byline: "probed at most hourly · Refresh now probes again",
-        glyph: { char: "⇄", tone: "neutral" },
-        hideWhenEmpty: true,
-        collapsible: true,
-        collapsed: true,
       },
     ],
   },

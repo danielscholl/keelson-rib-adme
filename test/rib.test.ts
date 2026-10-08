@@ -9,14 +9,7 @@ import {
   ribViewDescriptorSchema,
 } from "@keelson/shared";
 import rib from "../src/index";
-import {
-  BOARD_KEYS,
-  CONNECTION_KEY,
-  HEADER_KEY,
-  PERSON_KEY,
-  RECORDS_KEY,
-  SERVICES_KEY,
-} from "../src/keys";
+import { BOARD_KEYS, CONNECTION_KEY, HEADER_KEY, PERSON_KEY, RECORDS_KEY } from "../src/keys";
 import { SECTION_ACTION } from "../src/section";
 import { Store } from "../src/store";
 import { sectionOf } from "../src/surfaces";
@@ -109,7 +102,6 @@ describe("binding", () => {
       return (frame.data as { sections: unknown[] }).sections.length;
     };
     expect(await sections(RECORDS_KEY)).toBe(0);
-    expect(await sections(SERVICES_KEY)).toBe(0);
     const res = await rib.onAction?.(
       { type: SECTION_ACTION, payload: { section: "data" } },
       fakeContext().ctx,

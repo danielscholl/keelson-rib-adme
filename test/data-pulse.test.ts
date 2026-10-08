@@ -1,18 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { composeDataPulse } from "../src/boards/data-pulse";
-import { composeServices } from "../src/boards/services";
-import { KINDS_AREA, LEGAL_AREA, SERVICES_AREA } from "../src/data/areas";
-import { DATA_PULSE_KEY, SERVICES_KEY } from "../src/keys";
+import { KINDS_AREA, LEGAL_AREA } from "../src/data/areas";
+import { DATA_PULSE_KEY } from "../src/keys";
 import { dataPulseModule } from "../src/modules/data";
-import { NOW, SAMPLE_KINDS, SAMPLE_LEGAL, SAMPLE_SERVICES } from "./fixtures/data";
+import { NOW, SAMPLE_KINDS, SAMPLE_LEGAL } from "./fixtures/data";
 import { seededRuntime } from "./harness";
 
 const pulseBoard = expectView(DATA_PULSE_KEY, "board");
-const servicesBoard = expectView(SERVICES_KEY, "board");
 
 const SEED = {
-  [SERVICES_AREA]: SAMPLE_SERVICES,
   [LEGAL_AREA]: SAMPLE_LEGAL,
   [KINDS_AREA]: SAMPLE_KINDS,
 };
@@ -113,57 +110,6 @@ describe("data pulse, other phases", () => {
   });
 });
 
-describe("services", () => {
-  test("the sample cast draws the chip, grid and versions", () => {
-    const view = servicesBoard(
-      composeServices(seededRuntime(SEED, { now: NOW })),
-    ) as CanvasBoardView;
-    expect(view.header?.chip).toBe("5 answered · 1 not permitted · 4 not probed");
-    const grid = Object.fromEntries(
-      (section(view, "grid")?.cells ?? []).map((c) => [c.label, c.badge]),
-    );
-    expect(grid.entitlements).toEqual({ text: "ok", tone: "ok" });
-    expect(grid.partition).toEqual({ text: "403", tone: "caution" });
-    expect(grid.schema).toEqual({ text: "?", tone: "neutral" });
-    const rows = Object.fromEntries(
-      (section(view, "rows")?.items ?? []).map((r) => [r.text, r.trailing]),
-    );
-    expect(rows).toEqual({
-      entitlements: "0.28.2",
-      legal: "0.28.0",
-      storage: "0.28.1",
-      search: "0.28.1",
-      partition: "403, not permitted (service principal only)",
-    });
-  });
-
-  test("a version is shown as returned and a failure is named", () => {
-    const probes = [
-      { service: "legal", state: "ok", version: "0.29.0-SNAPSHOT" },
-      { service: "search", state: "error", status: 502, message: "bad gateway" },
-      { service: "partition", state: "forbidden", status: 403, message: "Forbidden" },
-    ];
-    const view = composeServices(seededRuntime({ [SERVICES_AREA]: probes }, { now: NOW }));
-    const text = JSON.stringify(servicesBoard(view));
-    expect(text).toContain("0.29.0-SNAPSHOT");
-    expect(text).toContain("502, bad gateway");
-    expect(text).toContain("403, not permitted (Forbidden)");
-    expect(text).toContain("1 failed");
-  });
-
-  test("sign-in needed keeps the last probe and says cached from", () => {
-    const view = composeServices(seededRuntime(SEED, { now: NOW, phase: "signin" }));
-    expect(view.header?.chip).toBe(
-      "5 answered · 1 not permitted · 4 not probed · cached from 14:05Z",
-    );
-  });
-
-  test("first run hides the region", () => {
-    const view = composeServices(seededRuntime({}, { now: NOW, phase: "firstrun" }));
-    expect(view.sections).toHaveLength(0);
-  });
-});
-
 describe("every frame passes its validator", () => {
   const cases = [
     ["connected", seededRuntime(SEED, { now: NOW })],
@@ -174,7 +120,6 @@ describe("every frame passes its validator", () => {
   for (const [name, rt] of cases) {
     test(name, () => {
       pulseBoard(composeDataPulse(rt));
-      servicesBoard(composeServices(rt));
     });
   }
 });

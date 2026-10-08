@@ -268,8 +268,12 @@ function yourAccess(status: ConnectionStatus): Section | undefined {
   };
 }
 
-// The header's one-line connection: which instance, as whom with what role, and a way into the details.
-export function connectionLine(status: ConnectionStatus): Section | undefined {
+// The header's one-line connection: which instance, as whom with what role, and its health,
+// which opens the details.
+export function connectionLine(
+  status: ConnectionStatus,
+  health?: { label: string; tone: "ok" | "caution" | "error" | "neutral" },
+): Section | undefined {
   const profile = status.profile;
   if (!profile || status.phase === "firstrun") return undefined;
   const where = `${instanceName(profile)} · ${profile.partition}`;
@@ -287,7 +291,7 @@ export function connectionLine(status: ConnectionStatus): Section | undefined {
         icon: "⌁",
         glyph: status.phase === "connected" ? "ok" : "error",
         text,
-        trailing: "details",
+        ...(status.phase === "connected" && health ? { chip: health } : { trailing: "details" }),
         action: { type: CONNECTION_DETAILS_ACTION },
       },
     ],
@@ -295,7 +299,10 @@ export function connectionLine(status: ConnectionStatus): Section | undefined {
 }
 
 // The connection inspector, opened from the header's connection line or menu.
-export function composeConnection(status: ConnectionStatus): CanvasBoardView {
+export function composeConnection(
+  status: ConnectionStatus,
+  platform: readonly Section[] = [],
+): CanvasBoardView {
   const chip = instanceChip(status.profile);
   const header = { status: phasePill(status), ...(chip ? { chip } : {}) };
   if (!status.profile) {
@@ -324,6 +331,7 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
       profileForm(status.profile, false),
     ],
   });
+  sections.push(...platform);
   const access = yourAccess(status);
   if (access) sections.push(access);
   sections.push(profileCard(status.profile));

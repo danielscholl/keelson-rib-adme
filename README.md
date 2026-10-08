@@ -13,14 +13,15 @@ being proven.
 ## What the first take covers
 
 One ADME tab. Its header picks one of three sections and carries the
-connection: the instance, who is signed in with their role, and Connection
-details.
+connection: the instance, who is signed in with their role, and a health chip
+(Azure Resource Health and one probe per ADME service) that opens Connection
+details with every service and its version.
 
 - **Access.** People and applications: who needs attention and why, every
   person against roles and seismic grants, and who uses the instance.
 - **Data.** Read-only: how many records each family, authority or schema
   version holds, which legal tags need a look and the records that carry them,
-  a record search with a detail drawer, and which services answer.
+  and a record search with a detail drawer.
 - **Seismic.** Seismic subprojects with their members by name, and granting
   or revoking a person's access.
 
@@ -56,9 +57,9 @@ what this sign-in can do. A missing capability disables the feature that needs i
 ## How it reaches the instance
 
 The rib runs inside the Keelson server. Before each batch of calls it asks
-`az account get-access-token` for a token for the ADME app id and for Microsoft
-Graph, scoped to the profile's tenant, and calls the ADME services and Graph
-directly. When the sign-in lapses, every section says "sign-in needed", keeps
+`az account get-access-token` for a token for the ADME app id, Microsoft Graph
+and Azure Resource Manager, scoped to the profile's tenant, and calls the ADME
+services, Graph and the instance's Resource Health directly. When the sign-in lapses, every section says "sign-in needed", keeps
 showing the last sweep, and pauses changes until `az login` and Re-test.
 
 Reads are tiered so that opening a section is cheap: the last sweep is cached in

@@ -28,7 +28,6 @@ export const DATA_PULSE_KEY = "rib:adme:data-pulse";
 export const INVENTORY_KEY = "rib:adme:inventory";
 export const RECORDS_KEY = "rib:adme:records";
 export const LEGAL_KEY = "rib:adme:legal";
-export const SERVICES_KEY = "rib:adme:services";
 
 // Seismic section
 export const SEIS_PULSE_KEY = "rib:adme:seis-pulse";
@@ -60,7 +59,6 @@ export const BOARD_KEYS = [
   INVENTORY_KEY,
   RECORDS_KEY,
   LEGAL_KEY,
-  SERVICES_KEY,
   SEIS_PULSE_KEY,
   SEIS_SUBPROJECTS_KEY,
   SEIS_SELECTED_KEY,

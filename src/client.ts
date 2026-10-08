@@ -8,6 +8,7 @@
 
 import type { RibExec } from "@keelson/shared";
 import {
+  ARM_RESOURCE,
   fetchToken,
   GRAPH_RESOURCE,
   LOGS_RESOURCE,
@@ -27,6 +28,15 @@ export const SERVICE_PATHS = {
   workflow: "/api/workflow/v1",
   file: "/api/file/v2",
   indexer: "/api/indexer/v2",
+  dataset: "/api/dataset/v1",
+  register: "/api/register/v1",
+  notification: "/api/notification/v1",
+  unit: "/api/unit/v3",
+  "crs-catalog": "/api/crs/catalog/v2",
+  "crs-conversion": "/api/crs/converter/v2",
+  policy: "/api/policy/v1",
+  wellbore: "/api/os-wellbore-ddms",
+  reservoir: "/api/reservoir-ddms/v2",
 } as const;
 
 export type Service = keyof typeof SERVICE_PATHS;
@@ -196,6 +206,10 @@ export class Batch {
 
   graph<T = unknown>(path: string, opts: CallOptions = {}): Promise<CallResult<T>> {
     return this.send<T>(GRAPH_RESOURCE, `https://graph.microsoft.com${path}`, opts, {});
+  }
+
+  arm<T = unknown>(path: string, opts: CallOptions = {}): Promise<CallResult<T>> {
+    return this.send<T>(ARM_RESOURCE, `${ARM_RESOURCE}${path}`, opts, {});
   }
 
   logs<T = unknown>(workspaceId: string, query: string, timespan: string): Promise<CallResult<T>> {
