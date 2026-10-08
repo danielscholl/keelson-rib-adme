@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.5.0...v1.6.0) (2026-10-08)
+
+
+### Added
+
+* **data:** partition map of records by legal tag, ACL group and kind ([#36](https://github.com/danielscholl/keelson-rib-adme/issues/36)) ([0f82230](https://github.com/danielscholl/keelson-rib-adme/commit/0f822304c0bb6707df5069dbfad68fb1de11f9f9))
+
 ## [1.5.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.4.0...v1.5.0) (2026-10-08)
 
 
