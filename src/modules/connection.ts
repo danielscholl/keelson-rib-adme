@@ -68,7 +68,7 @@ export const connectionModule: RegionModule = {
       data: { effect: "open-canvas", key: CONNECTION_KEY, title: "Connection", placement: "side" },
     }),
     [REFRESH_ACTION]: async (rt) => {
-      await rt.sweep();
+      await rt.sweep({ force: true });
       return { ok: true };
     },
   },

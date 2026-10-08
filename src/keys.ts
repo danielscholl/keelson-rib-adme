@@ -25,6 +25,7 @@ export const PRINCIPALS_KEY = "rib:adme:principals";
 
 // Data section
 export const DATA_PULSE_KEY = "rib:adme:data-pulse";
+export const INVENTORY_KEY = "rib:adme:inventory";
 export const RECORDS_KEY = "rib:adme:records";
 export const LEGAL_KEY = "rib:adme:legal";
 export const SERVICES_KEY = "rib:adme:services";
@@ -41,6 +42,7 @@ export const CONNECTION_KEY = "rib:adme:connection";
 export const PERSON_KEY = "rib:adme:person";
 export const PLAN_KEY = "rib:adme:plan";
 export const EXPLAIN_KEY = "rib:adme:explain";
+export const RECORD_KEY = "rib:adme:record";
 
 export const BOARD_KEYS = [
   HEADER_KEY,
@@ -55,6 +57,7 @@ export const BOARD_KEYS = [
   COHORTS_KEY,
   PRINCIPALS_KEY,
   DATA_PULSE_KEY,
+  INVENTORY_KEY,
   RECORDS_KEY,
   LEGAL_KEY,
   SERVICES_KEY,
@@ -67,6 +70,7 @@ export const BOARD_KEYS = [
   PERSON_KEY,
   PLAN_KEY,
   EXPLAIN_KEY,
+  RECORD_KEY,
 ] as const;
 
 export const SURFACE_ID = "adme";

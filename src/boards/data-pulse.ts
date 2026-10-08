@@ -8,12 +8,13 @@
 
 import type { CanvasBoardView } from "@keelson/shared";
 import {
+  KIND_BUCKET_LIMIT,
   KINDS_AREA,
   type KindCounts,
   LEGAL_AREA,
   type LegalTags,
-  SERVICES_AREA,
 } from "../data/areas.ts";
+import { groupKinds } from "../data/inventory.ts";
 import { classifyTags, EXPIRY_WINDOW_DAYS } from "../data/legal.ts";
 import type { Runtime } from "../runtime.ts";
 import { phasePill, signinCard } from "./connection.ts";
@@ -49,11 +50,22 @@ function stats(rt: Runtime): Section {
   const why = (m: { error?: string }) => (m.error ? "read failed" : "not measured");
   const items: Stat[] = [];
   if (kinds.data) {
-    items.push({ label: "Records", value: fmt(kinds.data.total), sub: "summed over kinds" });
+    const k = kinds.data;
+    const visible = k.visible ?? null;
+    items.push(
+      visible === null
+        ? { label: "Records", value: fmt(k.total), sub: "summed over kinds, may be incomplete" }
+        : { label: "Records", value: fmt(visible), sub: "indexed, visible to this sign-in" },
+    );
+    const families = groupKinds(k.kinds, "family").length;
+    const authorities = groupKinds(k.kinds, "authority").length;
+    const truncated = k.kinds.length >= KIND_BUCKET_LIMIT;
     items.push({
       label: "Kinds",
-      value: fmt(kinds.data.kinds.length),
-      sub: "from search aggregateBy kind",
+      value: fmt(k.kinds.length),
+      sub: truncated
+        ? `search's ${fmt(KIND_BUCKET_LIMIT)} limit, may be more`
+        : `${fmt(families)} ${plural(families, "family", "families")} · ${fmt(authorities)} ${plural(authorities, "authority", "authorities")}`,
     });
   } else {
     items.push(unmeasured("Records", why(kinds)), unmeasured("Kinds", why(kinds)));
@@ -79,7 +91,6 @@ function stats(rt: Runtime): Section {
       unmeasured("Invalid or expiring", why(legal)),
     );
   }
-  items.push(unmeasured("Schemas", "schema service not probed"));
   return { kind: "stats", items };
 }
 
@@ -94,13 +105,21 @@ function status(rt: Runtime): NonNullable<CanvasBoardView["header"]>["status"] {
   return { label: parts.join(" · "), tone: "caution" };
 }
 
+// Each area says when it was measured, so an old reading never borrows a newer one's time.
 function chip(rt: Runtime): string | undefined {
   const partition = rt.profile?.partition;
   if (!partition) return undefined;
-  const fresh = [LEGAL_AREA, KINDS_AREA, SERVICES_AREA]
-    .map((a) => rt.freshness(a))
-    .find((f) => f !== undefined);
-  return `${partition} · ${fresh ?? "not measured yet"}`;
+  const verb = rt.status.phase === "connected" ? "measured" : "cached from";
+  const times = (
+    [
+      ["counts", KINDS_AREA],
+      ["legal", LEGAL_AREA],
+    ] as const
+  ).flatMap(([label, area]) => {
+    const f = rt.freshness(area);
+    return f ? [`${label} ${f.replace(/^(measured|cached from) /, "")}`] : [];
+  });
+  return `${partition} · ${times.length ? `${verb} ${times.join(", ")}` : "not measured yet"}`;
 }
 
 export function composeDataPulse(rt: Runtime): CanvasBoardView {
@@ -122,7 +141,6 @@ export function composeDataPulse(rt: Runtime): CanvasBoardView {
             unmeasured("Kinds"),
             unmeasured("Legal tags valid"),
             unmeasured("Invalid or expiring"),
-            unmeasured("Schemas"),
           ],
         },
       ],

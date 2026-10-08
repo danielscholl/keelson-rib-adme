@@ -31,11 +31,13 @@ export const IDLE_WINDOW_MS = 15 * 60_000;
 export const TICK_MS = 5 * 60_000;
 
 // A tier-1 area: one read the sweep runs on open, on Refresh now and while the
-// operator is active. `keys` recompose when it lands.
+// operator is active. `keys` recompose when it lands. An area with `everyMs`
+// is skipped while its last good read is younger, unless the sweep is forced.
 export interface Area<T = unknown> {
   name: string;
   keys: readonly string[];
   read(batch: Batch): Promise<CallResult<T>>;
+  everyMs?: number;
 }
 
 export interface RuntimeOptions {
@@ -253,26 +255,34 @@ export class Runtime {
     if (this.status.phase === "connected") await this.sweep();
   }
 
-  // Tier 1: every area in one batch, so the reads share one token per resource.
-  sweep(): Promise<void> {
+  // Tier 1: every due area in one batch, so the reads share one token per resource.
+  sweep(opts: { force?: boolean } = {}): Promise<void> {
     if (this.sweeping) return this.sweeping;
     const client = this.client;
     if (!client || this.status.phase !== "connected") return Promise.resolve();
+    const areas = opts.force ? this.areas : this.areas.filter((a) => this.due(a));
+    if (areas.length === 0) return Promise.resolve();
     this.sweeping = client
-      .batch((b) => this.readAreas(b))
+      .batch((b) => this.readAreas(b, areas))
       .finally(() => {
         this.sweeping = undefined;
       });
     return this.sweeping;
   }
 
-  private async readAreas(batch: Batch): Promise<void> {
-    const results = await Promise.all(this.areas.map((a) => a.read(batch)));
+  private due(area: Area): boolean {
+    if (!area.everyMs) return true;
+    const at = this.cache.get(area.name).at;
+    return !at || this.now().getTime() - Date.parse(at) >= area.everyMs;
+  }
+
+  private async readAreas(batch: Batch, areas: readonly Area[]): Promise<void> {
+    const results = await Promise.all(areas.map((a) => a.read(batch)));
     const at = this.now();
     const keys = new Set<string>();
     let signin: string | undefined;
     results.forEach((res, i) => {
-      const area = this.areas[i] as Area;
+      const area = areas[i] as Area;
       for (const k of area.keys) keys.add(k);
       if (res.ok) {
         this.cache.succeed(area.name, res.data, at);

@@ -6,6 +6,7 @@ import {
   INVALID_ROW_CAP,
   VALID_ROW_CAP,
 } from "../src/boards/legal";
+import { LEGAL_BROWSE_ACTION } from "../src/boards/records";
 import { LEGAL_AREA, type LegalTag, type LegalTags } from "../src/data/areas";
 import { classifyTags } from "../src/data/legal";
 import { LEGAL_KEY } from "../src/keys";
@@ -98,13 +99,20 @@ describe("connected", () => {
       value: "2026-08-31",
       tone: "error",
     });
-    expect(invalid?.fields).toContainEqual({ label: "records affected", value: null });
+    expect(invalid?.actions).toEqual([
+      {
+        type: LEGAL_BROWSE_ACTION,
+        label: "Browse records",
+        payload: { tag: "opendes-legacy-training" },
+      },
+    ]);
     expect(invalid?.fields).toContainEqual({
       label: "name",
       value: "opendes-legacy-training",
       copyable: true,
     });
-    expect(invalid?.reason?.text).toStartWith("the contract expiry date has passed.");
+    expect(invalid?.reason?.text).toBe("the contract expiry date has passed.");
+    expect(JSON.stringify(view)).not.toContain("cannot be read");
 
     expect(expiring?.title).toBe("opendes-pilot-trial");
     expect(expiring?.edge).toBe("warn");
@@ -124,7 +132,21 @@ describe("connected", () => {
     ]);
     expect(valid.items[0]?.trailing).toBe("expires 2099-12-31 · Public Domain Data");
     expect(view.sections.some((s) => s.title?.startsWith("More invalid"))).toBe(false);
-    expect(JSON.stringify(view)).not.toContain('"actions"');
+
+    const bands = section(view, "bars", "Tags by expiry");
+    expect(bands.items.map((b) => [b.label, b.value])).toEqual([
+      ["past", 1],
+      ["0–30 d", 1],
+      ["31–90 d", 0],
+      ["91–365 d", 0],
+      ["over 365 d", 13],
+      ["no date", 0],
+    ]);
+    expect(bands.items[0]?.tone).toBe("error");
+
+    const props = section(view, "rows", "Tag properties · counted over tags");
+    expect(props.items[0]).toEqual({ text: "country of origin", trailing: "US 13 · NO 2" });
+    expect(props.items[3]).toEqual({ text: "personal data", trailing: "not set 15" });
   });
 
   test("46 invalid and 30 valid tags stay within the caps", () => {

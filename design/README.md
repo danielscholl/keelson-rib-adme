@@ -53,16 +53,18 @@ The matrix shows one row per person against Entra state, roster group, `users@`,
 
 ![ADME Data tab](screens/data.png)
 
-Question it answers: which services answer, which legal tags hold, how much data is in the partition, and can I find a record? Nothing on this tab changes the instance.
+Question it answers: what records are in the partition, which legal tags need a look and which records carry them, can I find and inspect a record, and which services answer? Nothing on this section changes the instance.
 
 | Region | Key | What it holds |
 |---|---|---|
-| Data | `rib:adme:data-pulse` | 5 stat tiles: Records 1,284,512, Kinds 214, Legal tags valid 14, Invalid or expiring 2, Schemas "?" (schema service not probed). |
-| Records | `rib:adme:records` | Left: find tabs (By kind, By id, Lucene, By ACL group, By legal tag) and the top kinds as bars. Right: results, 25 per page, paged by the server with Prev, Next 25 and Clear. The active query sits in the region chip and the section title. |
-| Legal tags | `rib:adme:legal` | 14 valid, 1 invalid. Tags that need a look come first as cards with the expiry date and days left. |
-| Services | `rib:adme:services` | Probe result and version for 10 services: 5 answered, 1 not permitted, 4 not probed. Collapsible. |
+| Data | `rib:adme:data-pulse` | 4 stat tiles in the header: Records (search's tracked total, visible to this sign-in), Kinds with families and authorities, Legal tags valid, Invalid or expiring. The chip carries each area's measured time. |
+| Inventory | `rib:adme:inventory` | Records grouped by family, authority, namespace or schema version from the one kind aggregate, 8 rows with bars and the rest. A row lists that group in Records. |
+| Legal watch | `rib:adme:legal` | Tags that need a look as cards with Browse records, tags by expiry band, then tag properties counted over tags. |
+| Records | `rib:adme:records` | Find tabs (By kind, By id, Lucene, By ACL group, By legal tag) and results, 25 per page, paged by the server. A row opens the record drawer. |
+| Record | `rib:adme:record` | Drawer: one storage read of the latest version, allowlisted fields, ancestry parents and the JSON size. The body is not kept. |
+| Services | `rib:adme:services` | Probe result and version per service, probed at most hourly unless Refresh now. Collapsed. |
 
-An unmeasured value is drawn as "?" and worded "not measured". Dataset counts, schemas and the records affected by an invalid legal tag all appear that way.
+An unmeasured value is drawn as "?" and worded "not measured". Counts come from search, so they cover indexed records this sign-in can see. What happens to records once their tag goes invalid is not measured and not claimed.
 
 ## Seismic section
 
