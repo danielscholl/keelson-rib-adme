@@ -3,7 +3,7 @@ import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { composeDataPulse } from "../src/boards/data-pulse";
 import { composeServices } from "../src/boards/services";
 import { KINDS_AREA, LEGAL_AREA, SERVICES_AREA } from "../src/data/areas";
-import { BADGE_KEY, DATA_PULSE_KEY, SERVICES_KEY } from "../src/keys";
+import { DATA_PULSE_KEY, SERVICES_KEY } from "../src/keys";
 import { dataPulseModule } from "../src/modules/data";
 import { NOW, SAMPLE_KINDS, SAMPLE_LEGAL, SAMPLE_SERVICES } from "./fixtures/data";
 import { seededRuntime } from "./harness";
@@ -50,7 +50,7 @@ describe("data pulse, connected", () => {
   });
 
   test("the Data badge counts invalid and expiring tags", () => {
-    const badge = dataPulseModule.badges?.[BADGE_KEY];
+    const badge = dataPulseModule.counts?.data;
     expect(badge?.(seededRuntime(SEED, { now: NOW }))).toBe(2);
     expect(badge?.(seededRuntime({}, { now: NOW }))).toBe(0);
   });

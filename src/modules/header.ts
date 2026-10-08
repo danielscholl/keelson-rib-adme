@@ -10,20 +10,15 @@ import { composeAccessPulse } from "../boards/access.ts";
 import { composeDataPulse } from "../boards/data-pulse.ts";
 import { composeHeader, type HeaderParts } from "../boards/header.ts";
 import { composeSeismicPulse } from "../boards/seismic.ts";
-import { BADGE_KEY, HEADER_KEY, SURFACE_ID, surfaceTab } from "../keys.ts";
+import { HEADER_KEY, SURFACE_ID, surfaceTab } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 import { activeSection, isSectionId, SECTION_ACTION, setSection } from "../section.ts";
 import { accessModule } from "./access.ts";
 import { dataPulseModule } from "./data.ts";
 
-const zero = () => 0;
-
 const PARTS: HeaderParts = {
   pulses: { access: composeAccessPulse, data: composeDataPulse, seismic: composeSeismicPulse },
-  counts: {
-    access: accessModule.badges?.[BADGE_KEY] ?? zero,
-    data: dataPulseModule.badges?.[BADGE_KEY] ?? zero,
-  },
+  counts: { ...accessModule.counts, ...dataPulseModule.counts },
 };
 
 export const headerModule: RegionModule = {

@@ -10,7 +10,6 @@ import {
 } from "@keelson/shared";
 import rib from "../src/index";
 import {
-  BADGE_KEYS,
   BOARD_KEYS,
   CONNECTION_KEY,
   HEADER_KEY,
@@ -72,7 +71,7 @@ describe("rib contract shape", () => {
   });
 
   test("every key lives under the rib namespace", () => {
-    for (const key of [...BOARD_KEYS, ...BADGE_KEYS, ...regionKeys()]) {
+    for (const key of [...BOARD_KEYS, ...regionKeys()]) {
       expect(key.startsWith("rib:adme:")).toBe(true);
     }
   });
@@ -84,11 +83,8 @@ describe("rib contract shape", () => {
     expect(regionKeys()).not.toContain(PERSON_KEY);
   });
 
-  test("badge keys belong to surfaces and are not views", () => {
-    const badges = (rib.surfaces ?? []).map((s) => s.badgeKey).filter(Boolean);
-    expect(badges).toEqual([...BADGE_KEYS]);
-    const views = new Set((rib.views ?? []).map((v) => v.key));
-    for (const key of BADGE_KEYS) expect(views.has(key)).toBe(false);
+  test("the tab carries no badge; counts live on the section switcher", () => {
+    expect((rib.surfaces ?? []).map((s) => s.badgeKey)).toEqual([undefined]);
   });
 });
 
@@ -96,9 +92,9 @@ describe("binding", () => {
   test("registers every key and every resting frame passes its validator", async () => {
     const { ctx, snapshots } = fakeContext();
     rib.registerTools?.(ctx);
-    expect(snapshots.keys().sort()).toEqual([...BOARD_KEYS, ...BADGE_KEYS].sort());
+    expect(snapshots.keys().sort()).toEqual([...BOARD_KEYS].sort());
     const frames = await snapshots.composeAll();
-    expect(frames.size).toBe(BOARD_KEYS.length + BADGE_KEYS.length);
+    expect(frames.size).toBe(BOARD_KEYS.length);
   });
 
   test("only the showing section's regions publish", async () => {

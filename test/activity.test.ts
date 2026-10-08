@@ -28,7 +28,6 @@ import { Batch } from "../src/client";
 import { findAuditWorkspace } from "../src/discover";
 import {
   ACTIVITY_KEY,
-  BADGE_KEY,
   CHANGE_KEY,
   COHORTS_KEY,
   OPERATION_KEY,
@@ -241,7 +240,7 @@ describe("boards with the audit log read", () => {
 
   test("the tab badge counts the same people as the follow up pill", () => {
     const runtime = rt();
-    expect(accessModule.badges?.[BADGE_KEY]?.(runtime)).toBe(29);
+    expect(accessModule.counts?.access?.(runtime)).toBe(29);
     expect(JSON.stringify(composeAccessPulse(runtime))).toContain('"label":"29 to follow up"');
   });
 

@@ -13,15 +13,11 @@ import {
   type RibAction,
   type RibActionResult,
   type RibContext,
-  type RibSurfaceBadge,
   type RibViewDescriptor,
-  ribSurfaceBadgeSchema,
   type SnapshotManager,
 } from "@keelson/shared";
 import { DOCS } from "./docs.ts";
 import {
-  BADGE_KEY,
-  BADGE_KEYS,
   BOARD_KEYS,
   DATA_PULSE_KEY,
   HEADER_KEY,
@@ -58,15 +54,15 @@ const MODULES: readonly RegionModule[] = [
   headerModule,
 ];
 
-const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
+const ALL_KEYS = BOARD_KEYS;
 
 let snapshots: SnapshotManager | undefined;
 let runtime: Runtime | undefined;
 let unregisters: Array<() => void> = [];
 let ticker: ReturnType<typeof setInterval> | undefined;
 
-// The header draws from the section pulses and the badge counts.
-const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY, BADGE_KEY]);
+// The header draws from the section pulses.
+const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY]);
 
 function recompose(keys: readonly string[]): void {
   const all = new Set(keys);
@@ -78,12 +74,6 @@ function boardComposers(): Map<string, (rt: Runtime) => CanvasBoardView> {
   const map = new Map<string, (rt: Runtime) => CanvasBoardView>();
   for (const m of MODULES) for (const [k, f] of Object.entries(m.composers ?? {})) map.set(k, f);
   return map;
-}
-
-function badgeCount(rt: Runtime, key: string): number {
-  let n = 0;
-  for (const m of MODULES) n += m.badges?.[key]?.(rt) ?? 0;
-  return n;
 }
 
 const ACTIONS = new Map<string, ActionHandler>(
@@ -114,17 +104,6 @@ function bind(ctx: RibContext): void {
       sm.register(key, async () => (compose && shown(rt) ? compose(rt) : EMPTY_BOARD), {
         validate: expectView(key, "board"),
       }),
-    );
-  }
-  for (const key of BADGE_KEYS) {
-    unregisters.push(
-      sm.register(
-        key,
-        async (): Promise<RibSurfaceBadge> => ({
-          count: rt.status.phase === "connected" ? badgeCount(rt, key) : 0,
-        }),
-        { validate: (data) => ribSurfaceBadgeSchema.parse(data) },
-      ),
     );
   }
   recompose(ALL_KEYS);
