@@ -25,9 +25,8 @@ export const PRINCIPALS_KEY = "rib:adme:principals";
 
 // Data section
 export const DATA_PULSE_KEY = "rib:adme:data-pulse";
-export const INVENTORY_KEY = "rib:adme:inventory";
+export const MAP_KEY = "rib:adme:map";
 export const RECORDS_KEY = "rib:adme:records";
-export const LEGAL_KEY = "rib:adme:legal";
 
 // Seismic section
 export const SEIS_PULSE_KEY = "rib:adme:seis-pulse";
@@ -56,9 +55,8 @@ export const BOARD_KEYS = [
   COHORTS_KEY,
   PRINCIPALS_KEY,
   DATA_PULSE_KEY,
-  INVENTORY_KEY,
+  MAP_KEY,
   RECORDS_KEY,
-  LEGAL_KEY,
   SEIS_PULSE_KEY,
   SEIS_SUBPROJECTS_KEY,
   SEIS_SELECTED_KEY,

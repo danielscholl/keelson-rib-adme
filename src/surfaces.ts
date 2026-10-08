@@ -13,8 +13,7 @@ import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
   HEADER_KEY,
-  INVENTORY_KEY,
-  LEGAL_KEY,
+  MAP_KEY,
   OPERATION_KEY,
   ORGS_KEY,
   PEOPLE_KEY,
@@ -95,21 +94,16 @@ const DATA_ROWS: Row[] = [
   {
     columns: [
       {
-        key: INVENTORY_KEY,
-        title: "Inventory",
-        byline: "records by kind, from one search count · select a row to list its records",
-        glyph: { char: "▤", tone: "info" },
-        hideWhenEmpty: true,
-      },
-      {
-        key: LEGAL_KEY,
-        title: "Legal watch",
-        byline: "tags that need a look, expiry and properties",
-        glyph: { char: "§", tone: "caution" },
+        key: MAP_KEY,
+        title: "Partition map",
+        byline:
+          "what is in the partition, who can reach it and which legal tag governs it · select a row",
+        glyph: { char: "◈", tone: "info" },
         hideWhenEmpty: true,
       },
     ],
   },
+  // Folded until a search runs; Browse records on the map opens it.
   {
     columns: [
       {
@@ -118,6 +112,7 @@ const DATA_ROWS: Row[] = [
         byline: "search by kind, id, Lucene, ACL group or legal tag · open a row for its detail",
         glyph: { char: "⌕", tone: "info" },
         hideWhenEmpty: true,
+        collapsible: true,
       },
     ],
   },

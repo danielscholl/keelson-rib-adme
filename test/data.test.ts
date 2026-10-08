@@ -1,40 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
-import { INVENTORY_GROUP_ACTION, INVENTORY_OPEN_ACTION } from "../src/boards/inventory";
 import { formatBytes, RECORD_OPEN_ACTION } from "../src/boards/record";
 import { createClient, MAX_BODY_BYTES, readCapped } from "../src/client";
-import { KINDS_AREA, readKinds } from "../src/data/areas";
+import { readKinds } from "../src/data/areas";
 import { HEALTH_AREA } from "../src/data/health";
 import { groupKinds } from "../src/data/inventory";
-import { activeSearch } from "../src/data/records";
-import { INVENTORY_KEY, RECORD_KEY } from "../src/keys";
-import { inventoryModule } from "../src/modules/inventory";
+import { RECORD_KEY } from "../src/keys";
 import { recordModule } from "../src/modules/record";
 import type { Area, Runtime } from "../src/runtime";
-import { NOW, SAMPLE_KINDS } from "./fixtures/data";
+import { NOW } from "./fixtures/data";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { azExec, routeTransport, type SentRequest, seededRuntime } from "./harness";
 
-type Section = CanvasBoardView["sections"][number];
-
-const inventoryBoard = expectView(INVENTORY_KEY, "board");
 const recordBoard = expectView(RECORD_KEY, "board");
-
-function inventory(rt: Runtime): CanvasBoardView {
-  return inventoryBoard(inventoryModule.composers?.[INVENTORY_KEY]?.(rt)) as CanvasBoardView;
-}
 
 function drawer(rt: Runtime): CanvasBoardView {
   return recordBoard(recordModule.composers?.[RECORD_KEY]?.(rt)) as CanvasBoardView;
-}
-
-function rowsTitled(view: CanvasBoardView, prefix: string) {
-  const s = view.sections.find(
-    (x): x is Extract<Section, { kind: "rows" }> =>
-      x.kind === "rows" && !!x.title?.startsWith(prefix),
-  );
-  if (!s) throw new Error(`no rows titled ${prefix}`);
-  return s;
 }
 
 const KINDS = [
@@ -78,86 +59,6 @@ describe("grouping kinds", () => {
       ["1.1.0", 12, 1],
       ["1.0.0", 5, 1],
     ]);
-  });
-});
-
-describe("inventory board", () => {
-  test("the sample cast draws eight family rows, the rest, and a caption", () => {
-    const view = inventory(seededRuntime({ [KINDS_AREA]: SAMPLE_KINDS }, { now: NOW }));
-    expect(view.header?.chip).toBe("214 families · measured 14:05Z");
-    const strip = view.sections.find((s) => s.kind === "actions");
-    expect(strip?.kind === "actions" && strip.items.map((i) => [i.label, i.selected])).toEqual([
-      ["Family", true],
-      ["Authority", false],
-      ["Namespace", false],
-      ["Schema version", false],
-    ]);
-    const rows = rowsTitled(view, "Records by family");
-    expect(rows.items).toHaveLength(9);
-    expect(rows.items[0]).toEqual({
-      text: "WellLog",
-      bar: { value: 412_300, total: 1_284_512 },
-      trailing: "412,300 · 1 version",
-      action: {
-        type: INVENTORY_OPEN_ACTION,
-        payload: { pattern: "*:*:work-product-component--WellLog:*" },
-      },
-    });
-    expect(rows.items[8]).toMatchObject({ text: "206 more groups", trailing: "389,434" });
-    expect(rows.items[8]?.action).toBeUndefined();
-    expect(JSON.stringify(view)).toContain("Select a row to list its records.");
-  });
-
-  test("grouping by version switches the rows and the chip", async () => {
-    const rt = seededRuntime({ [KINDS_AREA]: SAMPLE_KINDS }, { now: NOW });
-    const res = await inventoryModule.actions?.[INVENTORY_GROUP_ACTION]?.(rt, { by: "version" });
-    expect(res).toEqual({ ok: true });
-    const view = inventory(rt);
-    expect(view.header?.chip).toBe("4 schema versions · measured 14:05Z");
-    expect(rowsTitled(view, "Records by schema version").items[0]).toMatchObject({
-      text: "1.2.0",
-      trailing: "500,404 · 2 kinds",
-    });
-    const bad = await inventoryModule.actions?.[INVENTORY_GROUP_ACTION]?.(rt, { by: "colour" });
-    expect(bad?.ok).toBe(false);
-  });
-
-  test("a full bucket list warns that kinds may be missing", () => {
-    const kinds = Array.from({ length: 1000 }, (_, i) => ({
-      kind: `osdu:wks:reference-data--S${i}:1.0.0`,
-      count: 1,
-    }));
-    const view = inventory(
-      seededRuntime({ [KINDS_AREA]: { total: 1000, visible: null, kinds } }, { now: NOW }),
-    );
-    expect(JSON.stringify(view)).toContain("the list may be incomplete");
-  });
-
-  test("sign-in needed keeps the rows but takes their actions away", () => {
-    const view = inventory(seededRuntime({ [KINDS_AREA]: SAMPLE_KINDS }, { phase: "signin" }));
-    const rows = rowsTitled(view, "Records by family");
-    expect(rows.items.every((r) => r.action === undefined)).toBe(true);
-    expect(view.header?.chip).toBe("214 families · cached from 14:05Z");
-  });
-
-  test("unmeasured says so, and first run hides the region", () => {
-    expect(JSON.stringify(inventory(seededRuntime({})))).toContain(
-      "Record counts are not measured yet.",
-    );
-    expect(inventory(seededRuntime({}, { phase: "firstrun" })).sections).toEqual([]);
-  });
-
-  test("selecting a row lists that family in Records and jumps there", async () => {
-    const { transport, sent } = routeTransport({
-      "POST /api/search/v2/query": () => ({ status: 200, body: { results: [], totalCount: 88 } }),
-    });
-    const rt = seededRuntime({ [KINDS_AREA]: SAMPLE_KINDS }, { transport });
-    const res = await inventoryModule.actions?.[INVENTORY_OPEN_ACTION]?.(rt, {
-      pattern: "*:*:master-data--Well:*",
-    });
-    expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
-    expect((sent[0]?.body as { kind?: string } | undefined)?.kind).toBe("*:*:master-data--Well:*");
-    expect(activeSearch(rt)?.result.total).toBe(88);
   });
 });
 

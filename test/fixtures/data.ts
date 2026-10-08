@@ -1,5 +1,6 @@
 import type { KindCounts, LegalTag, LegalTags } from "../../src/data/areas";
 import type { Health } from "../../src/data/health";
+import type { Facets } from "../../src/data/map";
 
 // The ADME Data cast from design/spec.md. "Now" is 2026-10-02 14:05 UTC.
 export const NOW = new Date("2026-10-02T14:05:00Z");
@@ -85,4 +86,29 @@ const tail = Array.from({ length: 208 }, (_, i) => ({
 export const SAMPLE_KINDS: KindCounts = {
   total: 1_284_512,
   kinds: [...TOP_KINDS, ...tail],
+};
+
+const D = "@opendes.dataservices.energy";
+
+// Records per legal tag and ACL group, as search aggregates them. One record can
+// carry several, so each list sums past the record total.
+export const SAMPLE_FACETS: Facets = {
+  tags: [
+    { key: "opendes-public-usa-dataset", count: 702_410 },
+    { key: "opendes-public-norway", count: 391_880 },
+    { key: "opendes-sample-tag-01", count: 98_200 },
+    { key: "opendes-pilot-trial", count: 8_400 },
+    { key: "opendes-retired-survey", count: 312 },
+  ],
+  viewers: [
+    { key: `data.default.viewers${D}`, count: 1_194_078 },
+    { key: `data.vendor.viewers${D}`, count: 52_644 },
+    { key: `data.pilot.viewers${D}`, count: 48_400 },
+    { key: `data.legacy.viewers${D}`, count: 312 },
+  ],
+  owners: [
+    { key: `data.default.owners${D}`, count: 1_194_078 },
+    { key: `data.pilot.owners${D}`, count: 8_400 },
+  ],
+  errors: {},
 };

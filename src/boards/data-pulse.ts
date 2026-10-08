@@ -16,6 +16,7 @@ import {
 } from "../data/areas.ts";
 import { groupKinds } from "../data/inventory.ts";
 import { classifyTags, EXPIRY_WINDOW_DAYS } from "../data/legal.ts";
+import { FACETS_AREA, type Facets } from "../data/map.ts";
 import type { Runtime } from "../runtime.ts";
 import { phasePill, signinCard } from "./connection.ts";
 
@@ -75,20 +76,30 @@ function stats(rt: Runtime): Section {
     const total = legal.data.valid.length + legal.data.invalid.length;
     const needs = invalid + expiring;
     items.push({
-      label: "Legal tags valid",
-      value: fmt(legal.data.valid.length),
-      sub: `of ${fmt(total)} ${plural(total, "tag", "tags")}`,
-    });
-    items.push({
-      label: "Invalid or expiring",
-      value: fmt(needs),
-      sub: `${fmt(invalid)} invalid, ${fmt(expiring)} within ${EXPIRY_WINDOW_DAYS} days`,
+      label: "Legal tags",
+      value: fmt(total),
+      sub:
+        needs > 0
+          ? `${fmt(invalid)} invalid · ${fmt(expiring)} within ${EXPIRY_WINDOW_DAYS} days`
+          : `all valid, none expire within ${EXPIRY_WINDOW_DAYS} days`,
       ...(needs > 0 ? { tone: "caution" as const } : {}),
     });
   } else {
+    items.push(unmeasured("Legal tags", why(legal)));
+  }
+  const facets = rt.cache.get<Facets>(FACETS_AREA);
+  const viewers = facets.data?.viewers;
+  const owners = facets.data?.owners;
+  if (viewers && owners) {
+    const groups = new Set([...viewers, ...owners].map((b) => b.key)).size;
+    items.push({
+      label: "ACL groups",
+      value: fmt(groups),
+      sub: `${fmt(viewers.length)} read · ${fmt(owners.length)} own, on records`,
+    });
+  } else {
     items.push(
-      unmeasured("Legal tags valid", why(legal)),
-      unmeasured("Invalid or expiring", why(legal)),
+      unmeasured("ACL groups", facets.data ? "search refused the group count" : why(facets)),
     );
   }
   return { kind: "stats", items };
@@ -139,8 +150,8 @@ export function composeDataPulse(rt: Runtime): CanvasBoardView {
           items: [
             unmeasured("Records"),
             unmeasured("Kinds"),
-            unmeasured("Legal tags valid"),
-            unmeasured("Invalid or expiring"),
+            unmeasured("Legal tags"),
+            unmeasured("ACL groups"),
           ],
         },
       ],
