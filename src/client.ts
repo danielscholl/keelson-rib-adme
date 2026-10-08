@@ -46,6 +46,39 @@ export interface HttpResponse {
 export type Transport = (req: HttpRequest) => Promise<HttpResponse>;
 
 const HTTP_TIMEOUT_MS = 30_000;
+export const MAX_BODY_BYTES = 8 * 1024 * 1024;
+
+// A body past the cap answers 413 so the call fails as a client error and is not retried.
+export function tooLarge(): HttpResponse {
+  return {
+    status: 413,
+    body: JSON.stringify({
+      message: `response larger than ${MAX_BODY_BYTES / 1024 / 1024} MiB, not read`,
+    }),
+  };
+}
+
+export async function readCapped(res: Response, cap = MAX_BODY_BYTES): Promise<HttpResponse> {
+  if (Number(res.headers.get("content-length") ?? 0) > cap) {
+    await res.body?.cancel();
+    return tooLarge();
+  }
+  if (!res.body) return { status: res.status, body: "" };
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > cap) {
+      await reader.cancel();
+      return tooLarge();
+    }
+    chunks.push(value);
+  }
+  return { status: res.status, body: Buffer.concat(chunks).toString("utf8") };
+}
 
 export const fetchTransport: Transport = async (req) => {
   const res = await fetch(req.url, {
@@ -54,7 +87,7 @@ export const fetchTransport: Transport = async (req) => {
     body: req.body,
     signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
   });
-  return { status: res.status, body: await res.text() };
+  return readCapped(res);
 };
 
 export type FailureKind =

@@ -7,7 +7,14 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallResult, Service } from "../client.ts";
-import { DATA_PULSE_KEY, LEGAL_KEY, RECORDS_KEY, SEIS_PULSE_KEY, SERVICES_KEY } from "../keys.ts";
+import {
+  DATA_PULSE_KEY,
+  INVENTORY_KEY,
+  LEGAL_KEY,
+  RECORDS_KEY,
+  SEIS_PULSE_KEY,
+  SERVICES_KEY,
+} from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const SERVICES_AREA = "services";
@@ -26,7 +33,7 @@ export interface ServiceProbe {
   message?: string;
 }
 
-// Probed on every sweep. Others are listed as not probed so the gap is visible.
+// Probed at most hourly unless the operator refreshes. Others are listed as not probed so the gap is visible.
 export const PROBED_SERVICES: readonly Service[] = [
   "entitlements",
   "legal",
@@ -139,33 +146,54 @@ export interface KindCount {
 }
 
 export interface KindCounts {
-  // Summed from the kind buckets: search caps totalCount at 10,000.
+  // Summed from the kind buckets, so it misses kinds past the bucket limit.
   total: number;
+  // Search's tracked total over every kind; null when that count failed.
+  visible?: number | null;
   kinds: KindCount[];
 }
 
+// Search returns at most this many aggregation buckets.
+export const KIND_BUCKET_LIMIT = 1000;
+
+const NO_AGGREGATION = "search returned no kind aggregation";
+
 export async function readKinds(batch: Batch): Promise<CallResult<KindCounts>> {
-  const res = await batch.adme<{ aggregations?: { key: string; count: number }[] }>(
-    "search",
-    "/query",
-    {
+  const [res, count] = await Promise.all([
+    batch.adme<{ aggregations?: { key: string; count: number }[] }>("search", "/query", {
       method: "POST",
       body: { kind: "*:*:*:*", query: "*", limit: 1, aggregateBy: "kind", returnedFields: ["id"] },
-    },
-  );
+    }),
+    batch.adme<{ totalCount?: unknown }>("search", "/query", {
+      method: "POST",
+      body: { kind: "*:*:*:*", limit: 1, returnedFields: ["id"], trackTotalCount: true },
+    }),
+  ]);
   if (!res.ok) return res;
-  const kinds = (res.data.aggregations ?? [])
+  if (!Array.isArray(res.data?.aggregations)) {
+    return { ok: false, failure: { kind: "server", status: res.status, message: NO_AGGREGATION } };
+  }
+  const kinds = res.data.aggregations
     .map((a) => ({ kind: a.key, count: a.count }))
     .sort((a, b) => b.count - a.count);
+  const visible =
+    count.ok && typeof count.data?.totalCount === "number" ? count.data.totalCount : null;
   return {
     ok: true,
     status: 200,
-    data: { total: kinds.reduce((n, k) => n + k.count, 0), kinds },
+    data: { total: kinds.reduce((n, k) => n + k.count, 0), visible, kinds },
   };
 }
 
+export const SERVICES_EVERY_MS = 60 * 60_000;
+
 export const DATA_AREAS: readonly Area[] = [
-  { name: SERVICES_AREA, keys: [SERVICES_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY], read: readServices },
+  {
+    name: SERVICES_AREA,
+    keys: [SERVICES_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY],
+    read: readServices,
+    everyMs: SERVICES_EVERY_MS,
+  },
   { name: LEGAL_AREA, keys: [LEGAL_KEY, DATA_PULSE_KEY], read: readLegal },
-  { name: KINDS_AREA, keys: [RECORDS_KEY, DATA_PULSE_KEY], read: readKinds },
+  { name: KINDS_AREA, keys: [INVENTORY_KEY, RECORDS_KEY, DATA_PULSE_KEY], read: readKinds },
 ];

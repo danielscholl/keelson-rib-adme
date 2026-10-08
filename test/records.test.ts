@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { SIGNIN_REASON } from "../src/boards/connection";
+import { RECORD_OPEN_ACTION } from "../src/boards/record";
 import {
   CLEAR_ACTION,
   composeRecords,
@@ -309,36 +310,22 @@ describe("actions", () => {
   });
 });
 
-describe("top kinds", () => {
-  test("six named bars and one for the rest, the active kind accented", async () => {
+describe("result rows", () => {
+  test("the find column carries no kind bars: the Inventory owns them", () => {
     const { rt } = wired();
-    let bars = leaf(frame(rt), 0, "bars");
-    expect(bars.title).toBe("Top kinds · share of 1,284,512 records");
-    expect(bars.items).toHaveLength(7);
-    expect(bars.items[0]).toMatchObject({
-      label: "work-product-component--WellLog:1.2.0",
-      value: 412_300,
-      total: 1_284_512,
-      trailing: "412,300",
-    });
-    expect(bars.items[6]).toMatchObject({
-      label: "208 more kinds",
-      value: 393_216,
-      trailing: "393,216",
-    });
-    expect(bars.items.some((b) => b.tone === "accent")).toBe(false);
-
-    await act(rt, SEARCH_ACTIONS.kind, { kind: WELLS });
-    bars = leaf(frame(rt), 0, "bars");
-    expect(bars.items.filter((b) => b.tone === "accent").map((b) => b.label)).toEqual([
-      "master-data--Well:1.2.0",
-    ]);
+    expect(columns(frame(rt))[0]?.sections.map((x) => x.kind)).toEqual(["actions"]);
   });
 
-  test("unmeasured kinds draw as ?, not as zero", () => {
-    const rt = seededRuntime({});
-    const rows = leaf(frame(rt), 0, "rows");
-    expect(rows.items[0]?.trailing).toBe("?");
+  test("a connected row opens the record drawer instead of disclosing detail", async () => {
+    const { rt } = wired();
+    await act(rt, SEARCH_ACTIONS.kind, { kind: WELLS });
+    const rows = columns(frame(rt))[1]?.sections.find((x) => x.kind === "rows");
+    if (rows?.kind !== "rows") throw new Error("no rows");
+    expect(rows.items[0]).toMatchObject({
+      text: "opendes:master-data--Well:8690",
+      action: { type: RECORD_OPEN_ACTION, payload: { id: "opendes:master-data--Well:8690" } },
+    });
+    expect(rows.items[0]?.detail).toBeUndefined();
   });
 });
 

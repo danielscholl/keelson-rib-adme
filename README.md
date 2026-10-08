@@ -18,8 +18,9 @@ details.
 
 - **Access.** People and applications: who needs attention and why, every
   person against roles and seismic grants, and who uses the instance.
-- **Data.** Read-only: which services answer, legal tags and their expiry,
-  how much data is in the partition by kind, and a record search.
+- **Data.** Read-only: how many records each family, authority or schema
+  version holds, which legal tags need a look and the records that carry them,
+  a record search with a detail drawer, and which services answer.
 - **Seismic.** Seismic subprojects with their members by name, and granting
   or revoking a person's access.
 

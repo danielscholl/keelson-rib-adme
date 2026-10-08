@@ -10,7 +10,6 @@ import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
 import type { ConnectionStatus } from "../connection.ts";
 import type { KindCounts } from "../data/areas.ts";
 import {
-  ALL_KINDS,
   type FindMode,
   type FoundRecord,
   MODE_WORDS,
@@ -22,10 +21,10 @@ import {
 import { EMPTY_BOARD } from "../resting.ts";
 import { clock } from "../sweep.ts";
 import { phasePill, SIGNIN_REASON } from "./connection.ts";
+import { RECORD_OPEN_ACTION } from "./record.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
-type Bar = Extract<Section, { kind: "bars" }>["items"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
 
 export const SEARCH_ACTIONS: Record<FindMode, string> = {
@@ -38,9 +37,9 @@ export const SEARCH_ACTIONS: Record<FindMode, string> = {
 export const NEXT_ACTION = "records-next";
 export const PREV_ACTION = "records-prev";
 export const CLEAR_ACTION = "records-clear";
+export const LEGAL_BROWSE_ACTION = "records-browse-legal";
 
 export const DEFAULT_KIND = "osdu:wks:master-data--Well:*";
-const TOP_KINDS = 6;
 
 export interface RecordsInput {
   status: ConnectionStatus;
@@ -49,15 +48,6 @@ export interface RecordsInput {
 }
 
 const n = (v: number | null): string => (v === null ? "?" : v.toLocaleString("en-US"));
-
-function kindMatcher(pattern: string): ((kind: string) => boolean) | undefined {
-  const parts = pattern.split(":");
-  if (pattern === ALL_KINDS || parts.every((p) => p === "*")) return undefined;
-  const re = new RegExp(
-    `^${parts.map((p) => p.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^:]*")).join(":")}$`,
-  );
-  return (kind) => re.test(kind);
-}
 
 function findActions(input: RecordsInput, locked: boolean): CanvasActionItem[] {
   const active = input.search?.query;
@@ -128,37 +118,6 @@ function findActions(input: RecordsInput, locked: boolean): CanvasActionItem[] {
   ];
 }
 
-function kindBars(kinds: KindCounts | undefined, search: RecordsState | undefined): Leaf {
-  if (!kinds) {
-    return {
-      kind: "rows",
-      title: "Top kinds",
-      items: [{ glyph: "neutral", text: "Not measured yet", trailing: "?" }],
-    };
-  }
-  const q = search?.query;
-  const matches = q?.mode === "kind" ? kindMatcher(q.kind) : undefined;
-  const top = kinds.kinds.slice(0, TOP_KINDS);
-  const rest = kinds.kinds.slice(TOP_KINDS);
-  const items: Bar[] = top.map((k) => ({
-    label: k.kind.replace(/^osdu:wks:/, ""),
-    value: k.count,
-    total: kinds.total,
-    trailing: n(k.count),
-    ...(matches?.(k.kind) ? { tone: "accent" as const } : {}),
-  }));
-  if (rest.length > 0) {
-    const count = rest.reduce((s, k) => s + k.count, 0);
-    items.push({
-      label: `${n(rest.length)} more kinds`,
-      value: count,
-      total: kinds.total,
-      trailing: n(count),
-    });
-  }
-  return { kind: "bars", title: `Top kinds · share of ${n(kinds.total)} records`, items };
-}
-
 export function shortKind(kind: string): string {
   const parts = kind.split(":");
   if (parts.length < 4) return kind;
@@ -193,12 +152,15 @@ function detail(r: FoundRecord): string {
     .slice(0, 4000);
 }
 
-function recordRow(r: FoundRecord): Row {
+// Connected rows open the record drawer; while sign-in is needed they disclose the cached hit.
+function recordRow(r: FoundRecord, locked: boolean): Row {
   return {
     chip: legalChip(r.legalStatus),
     text: r.id,
     trailing: [r.name, shortKind(r.kind), when(r)].filter(Boolean).join(" · "),
-    detail: detail(r),
+    ...(locked
+      ? { detail: detail(r) }
+      : { action: { type: RECORD_OPEN_ACTION, payload: { id: r.id } } }),
   };
 }
 
@@ -212,7 +174,7 @@ function results(search: RecordsState, locked: boolean): Leaf[] {
   };
   const rows: Leaf =
     result.records.length > 0
-      ? { kind: "rows", title, items: result.records.map(recordRow) }
+      ? { kind: "rows", title, items: result.records.map((r) => recordRow(r, locked)) }
       : {
           kind: "rows",
           title,
@@ -280,7 +242,6 @@ export function composeRecords(input: RecordsInput): CanvasBoardView {
                 tabs: true,
                 items: findActions(input, locked),
               },
-              kindBars(input.kinds, input.search),
             ],
           },
           { weight: 2, sections: input.search ? results(input.search, locked) : [INVITE] },

@@ -37,16 +37,26 @@ describe("data pulse, connected", () => {
   test("the sample cast reproduces the spec's tiles, status and chip", () => {
     const view = pulse(seededRuntime(SEED, { now: NOW }));
     expect(view.header?.status).toEqual({ label: "1 tag invalid · 1 expiring", tone: "caution" });
-    expect(view.header?.chip).toBe("opendes · measured 14:05Z");
+    expect(view.header?.chip).toBe("opendes · measured counts 14:05Z, legal 14:05Z");
     expect(tiles(view)).toEqual({
-      Records: { value: "1,284,512", sub: "summed over kinds" },
-      Kinds: { value: "214", sub: "from search aggregateBy kind" },
+      Records: { value: "1,284,512", sub: "summed over kinds, may be incomplete" },
+      Kinds: { value: "214", sub: "214 families · 1 authority" },
       "Legal tags valid": { value: "14", sub: "of 15 tags" },
       "Invalid or expiring": { value: "2", sub: "1 invalid, 1 within 30 days" },
-      Schemas: { value: null, sub: "schema service not probed" },
     });
     const needs = section(view, "stats")?.items.find((t) => t.label === "Invalid or expiring");
     expect(needs?.tone).toBe("caution");
+  });
+
+  test("the tracked total is the visible count; past the bucket limit kinds say so", () => {
+    const many = Array.from({ length: 1000 }, (_, i) => ({
+      kind: `osdu:wks:reference-data--Sample${i}:1.0.0`,
+      count: 1,
+    }));
+    const seeded = { ...SEED, [KINDS_AREA]: { total: 1000, visible: 1_300_008, kinds: many } };
+    const t = tiles(pulse(seededRuntime(seeded, { now: NOW })));
+    expect(t.Records).toEqual({ value: "1,300,008", sub: "indexed, visible to this sign-in" });
+    expect(t.Kinds).toEqual({ value: "1,000", sub: "search's 1,000 limit, may be more" });
   });
 
   test("the Data badge counts invalid and expiring tags", () => {
@@ -87,7 +97,7 @@ describe("data pulse, other phases", () => {
   test("sign-in needed keeps the cached tiles and says cached from", () => {
     const view = pulse(seededRuntime(SEED, { now: NOW, phase: "signin" }));
     expect(view.header?.status).toEqual({ label: "sign-in needed", tone: "error" });
-    expect(view.header?.chip).toBe("opendes · cached from 14:05Z");
+    expect(view.header?.chip).toBe("opendes · cached from counts 14:05Z, legal 14:05Z");
     expect(view.sections[0]).toMatchObject({ kind: "cards", title: "Sign in again" });
     expect(tiles(view).Records?.value).toBe("1,284,512");
   });
@@ -98,7 +108,7 @@ describe("data pulse, other phases", () => {
       "not connected, finish the connect steps in the header",
     );
     const items = section(view, "stats")?.items ?? [];
-    expect(items).toHaveLength(5);
+    expect(items).toHaveLength(4);
     for (const t of items) expect(t).toMatchObject({ value: null, sub: "not measured" });
   });
 });

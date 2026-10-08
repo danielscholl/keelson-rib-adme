@@ -84,7 +84,7 @@ const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;
 const refresh = connectionModule.actions?.[REFRESH_ACTION] as ActionHandler;
 
 async function refreshWithSeismic(rt: Runtime): Promise<RibActionResult> {
-  const [, res] = await Promise.all([rt.sweep(), measureSeismic(rt)]);
+  const [, res] = await Promise.all([rt.sweep({ force: true }), measureSeismic(rt)]);
   return res;
 }
 

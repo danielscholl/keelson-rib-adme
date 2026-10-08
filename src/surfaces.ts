@@ -13,6 +13,7 @@ import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
   HEADER_KEY,
+  INVENTORY_KEY,
   LEGAL_KEY,
   OPERATION_KEY,
   ORGS_KEY,
@@ -95,8 +96,27 @@ const DATA_ROWS: Row[] = [
   {
     columns: [
       {
+        key: INVENTORY_KEY,
+        title: "Inventory",
+        byline: "records by kind, from one search count · select a row to list its records",
+        glyph: { char: "▤", tone: "info" },
+        hideWhenEmpty: true,
+      },
+      {
+        key: LEGAL_KEY,
+        title: "Legal watch",
+        byline: "tags that need a look, expiry and properties",
+        glyph: { char: "§", tone: "caution" },
+        hideWhenEmpty: true,
+      },
+    ],
+  },
+  {
+    columns: [
+      {
         key: RECORDS_KEY,
         title: "Records",
+        byline: "search by kind, id, Lucene, ACL group or legal tag · open a row for its detail",
         glyph: { char: "⌕", tone: "info" },
         hideWhenEmpty: true,
       },
@@ -105,17 +125,13 @@ const DATA_ROWS: Row[] = [
   {
     columns: [
       {
-        key: LEGAL_KEY,
-        title: "Legal tags",
-        glyph: { char: "§", tone: "caution" },
-        hideWhenEmpty: true,
-      },
-      {
         key: SERVICES_KEY,
         title: "Services",
+        byline: "probed at most hourly · Refresh now probes again",
         glyph: { char: "⇄", tone: "neutral" },
         hideWhenEmpty: true,
         collapsible: true,
+        collapsed: true,
       },
     ],
   },
