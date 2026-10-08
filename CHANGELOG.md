@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.4.0...v1.5.0) (2026-10-08)
+
+
+### Added
+
+* show instance health on the connection line ([#34](https://github.com/danielscholl/keelson-rib-adme/issues/34)) ([6d8e907](https://github.com/danielscholl/keelson-rib-adme/commit/6d8e907b75e58f9e1051acd8cf0f5f50b8643d48))
+
 ## [1.4.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.3.0...v1.4.0) (2026-10-08)
 
 
