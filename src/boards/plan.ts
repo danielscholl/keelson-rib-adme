@@ -318,7 +318,7 @@ export function composePlan(rt: Runtime): CanvasBoardView {
             items: [
               {
                 glyph: "neutral",
-                text: "No plan is open. Preview one from Grant or revoke on ADME Seismic.",
+                text: "No plan is open. Preview one from Grant or revoke in the Seismic section.",
               },
             ],
           },

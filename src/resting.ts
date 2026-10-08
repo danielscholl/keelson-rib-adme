@@ -26,7 +26,7 @@ export function composeRestingHeader(
         {
           kind: "rows",
           items: [
-            { glyph: "neutral", text: "Not connected. Finish the steps on the ADME Access tab." },
+            { glyph: "neutral", text: "Not connected. Finish the connect steps in the header." },
           ],
         },
       ],

@@ -8,9 +8,9 @@
 
 import type { Batch, CallResult } from "../client.ts";
 import {
-  ACCESS_BADGE_KEY,
   ACTIVITY_KEY,
   ATTENTION_KEY,
+  BADGE_KEY,
   ORGS_KEY,
   PEOPLE_KEY,
   PERSON_KEY,
@@ -232,15 +232,7 @@ export function activityState(rt: Runtime, access: AccessModel): ActivityState {
 export const ACTIVITY_AREAS: readonly Area[] = [
   {
     name: ACTIVITY_AREA,
-    keys: [
-      PULSE_KEY,
-      ATTENTION_KEY,
-      ACTIVITY_KEY,
-      ORGS_KEY,
-      PEOPLE_KEY,
-      PERSON_KEY,
-      ACCESS_BADGE_KEY,
-    ],
+    keys: [PULSE_KEY, ATTENTION_KEY, ACTIVITY_KEY, ORGS_KEY, PEOPLE_KEY, PERSON_KEY, BADGE_KEY],
     read: readActivity,
   },
 ];

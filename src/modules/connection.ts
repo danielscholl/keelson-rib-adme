@@ -8,6 +8,7 @@
 
 import {
   CONNECT_ACTION,
+  CONNECTION_DETAILS_ACTION,
   composeConnection,
   DISCOVER_ACTION,
   FIND_AUDIT_ACTION,
@@ -31,7 +32,7 @@ export const connectionModule: RegionModule = {
       const res = await rt.saveProfile(payload ?? {});
       if (!res.ok) return res;
       const message =
-        rt.status.phase === "connected" ? "Connection works" : "Tested; see the Connection footer";
+        rt.status.phase === "connected" ? "Connection works" : "Tested; see Connection details";
       return { ok: true, data: { message } };
     },
     [DISCOVER_ACTION]: async (rt) => {
@@ -49,7 +50,7 @@ export const connectionModule: RegionModule = {
       const res = await rt.connectInstance(instance, partition);
       if (!res.ok) return res;
       const message =
-        rt.status.phase === "connected" ? "Connection works" : "Tested; see the Connection footer";
+        rt.status.phase === "connected" ? "Connection works" : "Tested; see Connection details";
       return { ok: true, data: { message } };
     },
     [USE_ROSTER_ACTION]: async (rt, payload) =>
@@ -62,6 +63,10 @@ export const connectionModule: RegionModule = {
       await rt.testConnection();
       return { ok: true };
     },
+    [CONNECTION_DETAILS_ACTION]: async () => ({
+      ok: true,
+      data: { effect: "open-canvas", key: CONNECTION_KEY, title: "Connection", placement: "side" },
+    }),
     [REFRESH_ACTION]: async (rt) => {
       await rt.sweep();
       return { ok: true };

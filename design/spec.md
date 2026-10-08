@@ -8,20 +8,22 @@ Nothing is built yet and nothing was called live. Every name, count and id is sa
 
 The rib is an admin surface for one Azure Data Manager for Energy (ADME) instance inside Keelson. Access is the daily work on such an instance, so the layout is people first: the rib opens on an access desk that lists who needs attention and why, shows every person against roles and seismic grants by name, and routes every write through one previewed plan.
 
-The first take has three tabs:
+The first take is one tab, ADME (surface id `adme`), with three sections picked in its header:
 
-| Tab | Surface id | Badge | Covers |
-|---|---|---|---|
-| ADME Access | `access` | 5 | Managing people and applications. |
-| ADME Data | `data` | 2 | Whether each service answers, legal tags, how much data is in the partition, record search. Read-only. |
-| ADME Seismic | `seismic` | none | Seismic subprojects: who is in each by name, grant and revoke. |
+| Section | Count on its switcher button | Covers |
+|---|---|---|
+| Access | 5 | Managing people and applications. |
+| Data | 2 | Whether each service answers, legal tags, how much data is in the partition, record search. Read-only. |
+| Seismic | none | Seismic subprojects: who is in each by name, grant and revoke. |
+
+The tab badge is the sum of the counts, 7.
 
 How it runs:
 
 - Everything is an in-process composer in the Keelson server. There are no workflows and no cadence.
 - The rib works from the operator's Azure CLI sign-in and holds no secret. See [Sign-in and connection](#sign-in-and-connection).
 - Every change is a dry-run plan first. Nothing is written until the plan is applied. See [The plan primitive](#the-plan-primitive).
-- ADME Data creates, extends and deletes nothing in the first take.
+- The Data section creates, extends and deletes nothing in the first take.
 
 Limits to keep in view:
 
@@ -55,7 +57,7 @@ Ids are always drawn truncated in that form.
 - People by cohort (sums to 32): Pilot 29 (created 2026-09-28, pass ends 2026-10-28, 26 days left), Vendor 1 (created 2026-09-29, pass ends 2026-10-29, 27 days left), Permanent 2 (no pass).
 - People by state (sums to 32): healthy 27, pending acceptance 3, broken 2.
 - People by highest role (sums to 32): Editor 29, Admin 1, Ops 2. Viewers 0.
-- Needs-you count, which is the ADME Access tab badge: 5 = 3 pending + 2 broken.
+- Needs-you count, which is the Access count on the switcher: 5 = 3 pending + 2 broken.
 - Pilot composition: 24 healthy, 3 pending, 2 broken.
 - Expected effective group counts: Editor 33, Admin 49, Ops 46. Seismic grants raise a person's expected count; the drawn values are in the table.
 - People with at least one seismic grant: 9.
@@ -119,7 +121,7 @@ Tenant `opendes`, 13 subprojects, service status ok. 2 are on the default ACL (`
 
 - Records 1,284,512, up 3,180 since yesterday, with a rising spark.
 - Kinds 214.
-- Legal tags 15 = 14 valid + 1 invalid. 1 valid tag expires within 30 days. The ADME Data tab badge is 2 = 1 invalid + 1 expiring.
+- Legal tags 15 = 14 valid + 1 invalid. 1 valid tag expires within 30 days. The Data count on the switcher is 2 = 1 invalid + 1 expiring.
 - Schemas: not measured (the schema service is not probed).
 
 Legal tags drawn:
@@ -156,28 +158,38 @@ Services, from `GET /info` per service: 5 answered, 1 not permitted, 4 not probe
 | partition | 403, not permitted (service principal only) |
 | schema, workflow, file, indexer | `?`, not probed |
 
-## Tabs
+## The ADME tab
 
-The top bar reads: Chat, Workflows, a divider, ADME Access (badge 5), ADME Data (badge 2), ADME Seismic (no badge), Beads, Swarms. Only the three ADME tabs belong to this rib. The labels carry the rib name because the top bar has no overflow rule and other ribs sit beside them.
+The top bar reads: Chat, Workflows, a divider, ADME (badge 7), Beads, Swarms. Only the ADME tab belongs to this rib. Keelson draws one tab per surface and cannot nest them, so the rib declares one surface and switches sections inside it.
 
-Conventions on every tab:
+Heading "ADME", subtitle "Who has access to the instance, what data is in it, and who can reach each seismic subproject."
 
-- A header region carries a status pill and a chip that reads "measured 14:05Z", because an in-process region gets no host "updated" label.
-- The Connection region (`rib:adme:connection`) is the footer of all three tabs under one snapshot key.
+**Header region `rib:adme:header`**, title "ADME", live dot, head menu: Refresh now, Re-test connection, Connection details. Its board is, top to bottom:
+
+1. The section switcher: one toggle per section, "Access · 5", "Data · 2", "Seismic", the showing one selected. A count shows only while connected and above zero.
+2. The connection line: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example" (ok), or "Sign-in needed for contoso-adme · opendes" (error), trailing "details". Clicking it, or Connection details in the head menu, opens the Connection inspector in the drawer. Absent before the first connection.
+3. The showing section's pulse, with its status pill and chip as the header's own. Before the rib connects, the connect journey stands in for every section's pulse.
+
+Conventions in every section:
+
+- The header carries a status pill and a chip that reads "measured 14:05Z", because an in-process region gets no host "updated" label.
+- Every row region belongs to one section and is hidden when empty; a region outside the showing section publishes no sections, so it hides. Rows carry no zone titles, because a zone title stays on screen when every region under it hides.
+- The section is held by the rib in memory and opens on Access after a restart. A jump to a region in another section (a People filter, a subproject pick) shows that section first.
+- Refresh now also reads the seismic store while Seismic shows.
 - An unmeasured value is drawn as "?" and worded "not measured".
 - Every form submits "Preview plan" and never mutates.
 
-### ADME Access
+### Access section
 
 Screens: [access.png](screens/access.png), [matrix.png](screens/matrix.png).
 
-Heading "ADME access", subtitle "Who has access to the instance, and are they using it?" The tab is a viewer: it answers who has access, who is stuck, and how each organization is doing, and nothing on it changes access. Seismic grants are planned on ADME Seismic; everything else changes outside the rib for now.
+The section is a viewer: it answers who has access, who is stuck, and how each organization is doing, and nothing in it changes access. Seismic grants are planned in the Seismic section; everything else changes outside the rib for now.
 
 Usage uses the access guide's four words. **Invited** has not accepted the invitation. **Not used** has made no data call in the audit log, which reaches back as far as the workspace retains it; the rib names that day ("no data call since 2026-09-20") rather than saying "never". **Active** made a data call in the last 7 days. **Idle** has made calls, but none in the last 7 days. Every word except Invited needs the audit log (see [Audit log](#audit-log)). Until the audit log is read, those values are drawn as unmeasured, never as 0.
 
-**Header region `rib:adme:pulse`**, title "Access".
+**Pulse `rib:adme:pulse`**, drawn in the header while Access shows.
 
-- Status "N to follow up" (caution), or "all in use" (ok). N counts people who cannot use their access, have not accepted, or made no call in the log, plus unknown principals. The tab badge counts the same N. Chip `contoso-adme · opendes · measured 14:05Z`. Live dot.
+- Status "N to follow up" (caution), or "all in use" (ok). N counts people who cannot use their access, have not accepted, or made no call in the log, plus unknown principals. The Access count on the switcher counts the same N. Chip `contoso-adme · opendes · measured 14:05Z`. Live dot.
 - Head segments, the adoption strip: Invited (info), Not used (warn), Idle (caution), Active (ok). Without the audit log the strip is Invited, Accepted, and a hatched "In use: not measured".
 - One sentence: "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted with no data call since 2026-09-20. 2 people cannot use it." Without the audit log it ends "Who uses it is not measured: set the audit log workspace in Connection."
 - Head menu (⋯): Refresh now, Re-test connection.
@@ -189,7 +201,7 @@ Usage uses the access guide's four words. **Invited** has not accepted the invit
   5. Access gaps 2 (error), sub "1 missing users@ · 1 duplicate entry".
   6. Next pass ends, only when cohorts are tracked.
 
-**Zone "Now"**, two columns.
+**Row 1**, two columns.
 
 Left: region `rib:adme:attention`, title "Follow up", byline "people who have access but cannot or do not use it yet". Status as the header, chip "oldest first". Rows only, and no row changes anything: clicking one opens the person inspector.
 
@@ -204,7 +216,7 @@ Right: region `rib:adme:activity`, title "Activity", byline "data calls from the
 - Bars "Calls by organization, last 14 days", at most 10, each trailing "calls · N of M active".
 - Without a workspace: one row naming OEPAuditLogs and the action "Find the audit log" (brand).
 
-**Zone "Who has access"**, full width.
+**Row 2**, full width.
 
 - `rib:adme:orgs`, title "Organizations", byline "one card per email domain · select one to filter People". A grid of cards, one per registrable email domain, most people first. Each card has the organization name (from the domain: halden-geo.example is "Halden Geo", xyz.example is "XYZ"), a pill for a gap or open invitations, a usage bar labelled "Usage" and captioned "N of M active", a People field naming everyone in their usage tone, and the domain as footnote. Clicking a card filters People to it in place; clicking it again clears the filter.
 
@@ -222,7 +234,7 @@ Then the region `rib:adme:people`, title "People", chip "32 of 32 · all", colla
    - **Seismic grants**: one table, section "Subproject grants · 9 of 9 people" (at most 25 rows under the All filter). Rows: Marcus Oyelaran, Hiro Tanaka, Sofia Marchetti, Dmitri Volkov, Elena Petrova and one more Pilot member, then the tenant admins (anyone in `users.datalake.admins` or `users.datalake.ops`) marked "tenant admin": Priya Nair, Ingrid Halvorsen and Tomas Reyes. Columns: default (volve, drogon), alpha, bravo, charlie, delta, sleipner, echo, foxtrot, golf, golf2, golf3, at most 12 own-ACL columns. Cells are badge A (brand), V (info) or the null placeholder; every row shows its explicit ACL entries, tenant admins included. Caption: "9 of 32 people hold a subproject grant. Editors reach volve and drogon through data.default. A is admin, V is viewer." Two rows follow: "Tenant admins can list and manage every subproject; reading one still needs its ACL group" and "Not shown: subproject-legacy (no members)", which also names any people or subprojects left out by the caps.
    - Both table views end with a one-line "Open person" form (a select and an Open button), because table rows cannot be clicked.
 
-**Not on the tab while it is a viewer.** Change access and Cohorts (with its Import cohorts form) still compose, but no surface shows them. Operation and Recent changes moved to ADME Seismic, the one tab that still plans a change. Their specs follow.
+**Not in the section while it is a viewer.** Change access and Cohorts (with its Import cohorts form) still compose, but no surface shows them. Operation and Recent changes moved to the Seismic section, the one section that still plans a change. Their specs follow.
 
 - `rib:adme:change`, title "Change access", byline "Nothing changes until you apply the plan." Tabbed actions: **Add people** (open), Grant seismic, Remove person, Add application, Why 401/403. The open "Add people" form has:
   - Emails, one per line (textarea, prefilled with the two worked-example addresses)
@@ -262,17 +274,13 @@ Because an inspector replaces whatever the drawer showed, a running plan stays v
 
 - `rib:adme:principals`, title "Applications", byline "4 apps with entitlements in opendes", status "1 legacy" (caution). Stacked cards with mono titles for the 4 applications, each with a copyable appId and a role. The root app card has a caution edge, pill `legacy` and the reason from the cast table.
 
-**Footer**: Connection, collapsed.
-
-### ADME Data
+### Data section
 
 Screen: [data.png](screens/data.png).
 
-Heading "Data and governance", subtitle "Which services answer, which legal tags hold, how much data is in opendes, and a record search. Read only."
+This section is read-only in the first take. There is no "Extend expiry" and no create or delete of legal tags.
 
-This tab is read-only in the first take. There is no "Extend expiry" and no create or delete of legal tags.
-
-**Header region `rib:adme:data-pulse`**, title "Data". Status "1 tag invalid · 1 expiring" (caution). Chip `opendes · measured 14:05Z`. Stats, 5 tiles:
+**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 tag invalid · 1 expiring" (caution). Chip `opendes · measured 14:05Z`. Stats, 5 tiles:
 
 1. Records 1,284,512, delta up 3,180, sub "since yesterday", spark.
 2. Kinds 214, sub "from search aggregateBy kind".
@@ -280,7 +288,7 @@ This tab is read-only in the first take. There is no "Extend expiry" and no crea
 4. Invalid or expiring 2 (caution), sub "1 invalid, 1 within 30 days".
 5. Schemas "?", sub "schema service not probed".
 
-**Zone "Records"**, one full-width region `rib:adme:records`, title "Records", chip "kind: osdu:wks:master-data--Well:* · 88,104 hits". A columns section with weights 1:2.
+**Row 1**, one full-width region `rib:adme:records`, title "Records", chip "kind: osdu:wks:master-data--Well:* · 88,104 hits". A columns section with weights 1:2.
 
 - Left column:
   - "Find records", tabbed actions: **By kind** (open), By id, Lucene, By ACL group, By legal tag. The open form has Kind (text, `osdu:wks:master-data--Well:*`), Query (text, placeholder `data.FacilityName:"NO 15/9*" (Lucene, optional)`), "Search" (brand) and Cancel.
@@ -291,7 +299,7 @@ This tab is read-only in the first take. There is no "Extend expiry" and no crea
   - Caption "Showing 8 of 25 on this page · 25 per page, paged by the server".
   - Actions: "Prev" (disabled, reason "first page"), "Next 25", "Clear".
 
-**Zone "Governance"**, two columns.
+**Row 2**, two columns.
 
 - `rib:adme:legal`, title "Legal tags", status "2 need a look" (caution), chip "15 tags". Segments "14 valid · 1 invalid". Cards in two sections, none with an action:
   - "Needs a look · 2":
@@ -302,15 +310,11 @@ This tab is read-only in the first take. There is no "Extend expiry" and no crea
   - Grid "Probe result, by service": entitlements, legal, storage, search and seismic `ok`; partition `403` (caution); schema, workflow, file and indexer `?` (neutral).
   - Rows "Versions from GET /info, and the sweep": entitlements 0.28.2, legal 0.28.0, storage 0.28.1, search 0.28.1, partition "403, not permitted (service principal only)", "API calls, last sweep" 12, and "Audit log · OEPAuditLogs · 2.4M calls in 30 days (from the tracker, not measured here)".
 
-**Footer**: Connection, collapsed.
-
-### ADME Seismic
+### Seismic section
 
 Screen: [seismic.png](screens/seismic.png).
 
-Heading "Seismic store", subtitle "Subprojects in tenant opendes, and who is in each, by name."
-
-**Header region `rib:adme:seis-pulse`**, title "Seismic store", byline "tenant opendes". Status "13 subprojects · service ok" (ok). Chip `sd://opendes · measured 14:05Z`. Stats, 4 tiles:
+**Pulse `rib:adme:seis-pulse`**, drawn in the header while Seismic shows. Status "13 subprojects · service ok" (ok). Chip `sd://opendes · measured 14:05Z`. Stats, 4 tiles:
 
 1. Subprojects 13, sub "11 own ACL, 2 default".
 2. People with grants 9, sub "of 32 people".
@@ -340,13 +344,15 @@ Right: a stack of two regions.
   - Rows "Reachable paths · 4", each with chip `viewer`: `sd://opendes/volve` and `sd://opendes/drogon` (via data.default), `sd://opendes/alpha` and `sd://opendes/delta` (direct grant).
   - Card "Send to Marcus Oyelaran" with a copyable "Access note": "You can read four seismic subprojects in tenant opendes on contoso-adme.energy.azure.com: sd://opendes/volve, sd://opendes/drogon, sd://opendes/alpha and sd://opendes/delta. Your role in each is viewer. Listing subprojects is admin only, so open them by path."
 
-**Row, two columns**, both hidden when empty: Operation and Recent changes (collapsed), as specified under ADME Access.
-
-**Footer**: Connection, collapsed.
+**Row, two columns**, both hidden when empty: Operation and Recent changes (collapsed), as specified under the Access section.
 
 ## Drawer inspectors
 
 The canvas drawer holds one document and has no back stack. Each inspector has its own snapshot key and replaces whatever the drawer showed. Every click is a rib action: the rib stores the selection, recomposes the one drawer key that changed and opens the canvas.
+
+### Connection inspector `rib:adme:connection`
+
+Opened from the header's connection line or Connection details in its head menu, docked at the side. Status pill by phase ("connected", "sign-in needed", "check the connection"), chip `contoso-adme · opendes`. It holds the "Sign in again" card while sign-in is needed, the actions Re-test connection, Find the audit log (while no workspace is set) and Edit profile, the instance profile, the roster group suggestion, and "What this sign-in can do", captioned "Tested as ingrid.halvorsen@contoso.example".
 
 ### Person inspector `rib:adme:person`
 
@@ -448,7 +454,7 @@ Three states are drawn. In the mockup they are selected by the buttons above the
 
 ### Connected
 
-The default. Everything above describes this state. The Connection footer is collapsed and shows only the status pill "connected" (ok) and the chip `contoso-adme · opendes`.
+The default. Everything above describes this state. The header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example".
 
 A "measured 14:05Z" chip names the time of the reading. A reading from an earlier day also names the day, "measured 2026-09-27 22:13Z". This matters for seismic, which is read on first use rather than on every sweep, so a reading cached before a restart never passes as today's.
 
@@ -461,15 +467,15 @@ There is one sign-in state and it is worded "sign-in needed" everywhere.
 - Every header status reads "sign-in needed" (error), and the Change access region carries the same pill.
 - The page keeps showing the last sweep. Chips read "cached from 13:02Z" in place of "measured 14:05Z". Stats stay at their cached values, and the fifth Access tile stays Applications 4.
 - The Access header gains a section "Sign in again" with one card: `az login`, pill `needed`, a copyable command `az login --tenant 1f2e…9a00`, and the line "Run this in a terminal, then Re-test. Until then this page shows the last sweep and changes are paused."
-- Every control that would change something or needs a live read is disabled with the reason "sign-in needed: run az login, then Re-test". That covers Plan the fix, Plan the cleanup, Resend invitation, Add people, Preview plan, Apply, Grant access, Grant, Revoke, Copy grants from person, Verify all, and on ADME Data the By kind tab, Search and Next 25. "Why 401/403" stays enabled.
-- The Connection footer is open and holds: the same "Sign in again" card; actions "Re-test connection" (brand) and "Verify all" (disabled); and rows "Instance profile (no secrets)": Host, Partition, Entitlements domain, Tenant "Contoso · 1f2e…9a00", ADME app id, Roster group "contoso-adme · 9d3a…5e42", and "Changes: paused until Re-test passes". An entitlements domain that has not been read yet shows "?", and a roster group that is not set shows "not set". While it is not set and exactly one Entra group carries the instance's name, a "Roster group" card offers that group with "Use this group".
+- Every control that would change something or needs a live read is disabled with the reason "sign-in needed: run az login, then Re-test". That covers Plan the fix, Plan the cleanup, Resend invitation, Add people, Preview plan, Apply, Grant access, Grant, Revoke, Copy grants from person, Verify all, and in the Data section the By kind tab, Search and Next 25. "Why 401/403" stays enabled.
+- The header's connection line reads "Sign-in needed for contoso-adme · opendes". The Connection inspector holds: the same "Sign in again" card; actions "Re-test connection" (brand) and "Verify all" (disabled); and rows "Instance profile (no secrets)": Host, Partition, Entitlements domain, Tenant "Contoso · 1f2e…9a00", ADME app id, Roster group "contoso-adme · 9d3a…5e42", and "Changes: paused until Re-test passes". An entitlements domain that has not been read yet shows "?", and a roster group that is not set shows "not set". While it is not set and exactly one Entra group carries the instance's name, a "Roster group" card offers that group with "Use this group".
 - A running plan pauses at its step and resumes after sign-in. History and Recent changes describe a past pause as "sign-in lapsed at step 3" or "sign-in lapsed mid-batch".
 
 ### First run
 
 Screen: [firstrun.png](screens/firstrun.png).
 
-The ADME Access tab shows only the header region, composed as the connect flow. All other regions are hidden. Status "not connected", byline "connect this rib to one ADME instance".
+The ADME tab shows only the header region: the section switcher over the connect flow, whichever section is picked. All other regions are hidden. Status "not connected", byline "connect this rib to one ADME instance".
 
 - Journey "Connect":
   1. Sign in with Azure CLI. "Run az login in a terminal. The rib uses that sign-in and stores no secret."
@@ -492,7 +498,7 @@ The ADME Access tab shows only the header region, composed as the connect flow. 
 
 A missing capability disables the feature that needs it, with a reason.
 
-On ADME Data and ADME Seismic the header status reads "not connected, finish the steps on the ADME Access tab", every stat tile reads "?" with "not measured", and the other regions are hidden.
+The regions of every section are hidden until the rib connects.
 
 ## The plan primitive
 
@@ -524,7 +530,7 @@ Limits:
 
 The rib uses the operator's Azure CLI sign-in. It runs in-process in the Keelson server and stores no credential. The connection profile is up to six non-secret values: host, partition, entitlements domain, tenant id, ADME app id and, optionally, roster group id.
 
-The operator does not type them. On first run the rib asks Azure Resource Graph, through `az rest`, for every `Microsoft.OpenEnergyPlatform/energyServices` resource the sign-in can read. That covers all subscriptions, not only the selected one, and needs no `az` extension. The chosen instance supplies host, tenant id, ADME app id and partition. Test connection reads the entitlements domain from the operator's own groups. The roster group is optional: when exactly one Entra group carries the instance's name, the Connection footer offers it and the operator confirms. An operator who has data access but no Azure role on the instance sees an empty list and enters the values by hand.
+The operator does not type them. On first run the rib asks Azure Resource Graph, through `az rest`, for every `Microsoft.OpenEnergyPlatform/energyServices` resource the sign-in can read. That covers all subscriptions, not only the selected one, and needs no `az` extension. The chosen instance supplies host, tenant id, ADME app id and partition. Test connection reads the entitlements domain from the operator's own groups. The roster group is optional: when exactly one Entra group carries the instance's name, the Connection inspector offers it and the operator confirms. An operator who has data access but no Azure role on the instance sees an empty list and enters the values by hand.
 
 Before each batch of calls the rib asks `az` for a token again through `ctx.getExec()`:
 
@@ -538,21 +544,20 @@ az account get-access-token --resource https://graph.microsoft.com
 
 Every ADME request sends `Authorization: Bearer` and `data-partition-id: opendes`. The rib calls ADME services (entitlements, legal, storage, search, seismic) and Entra Graph (users, invitations, deleted items, the roster group) directly. ADME does not read the roster group; it is kept for tracking only.
 
-Because the token is fetched again before each batch, token lifetime is never the operator's concern, and the UI shows nothing about tokens: no token tile, no countdown, no token wording in any check. While the connection works the footer says "connected" and names the instance and partition. The only other state the operator sees is "sign-in needed", described under [States](#states).
+Because the token is fetched again before each batch, token lifetime is never the operator's concern, and the UI shows nothing about tokens: no token tile, no countdown, no token wording in any check. While the connection works the header's connection line says "Connected to" and names the instance, partition and who is signed in. The only other state the operator sees is "sign-in needed", described under [States](#states).
 
 Limits:
 
 - Shelling `az` through `ctx.getExec()` is unverified. Resolve it with a spike before any board work: one composer that signs in through `az` for both resources and makes one read against ADME and one against Graph.
 - Seismic reads may not behave as assumed. The subproject list returning ACL group names, reading other subprojects' members as tenant admin, and `GET /groups/all` are untested. Test connection probes each and writes the capability matrix; the fallback parses `data.sdms.*` from the operator's own groups and may be incomplete.
 - Aggregate by kind, the schema service and the partition API are not exercised. The partition API returns 403 to a user sign-in. Until each is probed the tiles read "?".
-- One Connection key on three surfaces is assumed to work. If it does not, three keys share one composer.
 - Names, emails and object ids are plain text in snapshot frames and the data dir. Selection is rib-held and global, so two browser windows share one drawer target and one view. Both are acceptable for a single operator on a local workbench and should be stated in the rib's docs.
 
 ### Audit log
 
 Active, Idle and Not used come from the instance's audit log: the `OEPAuditLogs` table in the Log Analytics workspace the instance's diagnostic setting sends to. The profile gains a seventh, optional, non-secret value, the workspace id (its customer id GUID).
 
-- **Finding it.** "Find the audit log" (on the Activity region and in the Connection footer) asks Resource Graph for the instance by host, reads its diagnostic settings, and reads the workspace's customer id, all through `az rest`. It can also be entered by hand in the profile form.
+- **Finding it.** "Find the audit log" (on the Activity region and in the Connection inspector) asks Resource Graph for the instance by host, reads its diagnostic settings, and reads the workspace's customer id, all through `az rest`. It can also be entered by hand in the profile form.
 - **Reading it.** One tier-1 read per sweep, with a token for `https://api.loganalytics.io`:
 
   ```
@@ -569,13 +574,13 @@ Active, Idle and Not used come from the instance's audit log: the `OEPAuditLogs`
 
 ## Performance plan
 
-Calls are tiered so that opening a tab never triggers the expensive reads.
+Calls are tiered so that opening a section never triggers the expensive reads.
 
 | Tier | When | Calls | What is read |
 |---|---|---|---|
 | 0 | Every paint | 0 | The disk cache of the last sweep, with a "cached from HH:MMZ" chip |
 | 1 | On open, and on Refresh now | about 12 | `users@` members, 4 role group member lists, roster group members (Graph), legal tags valid and invalid, search total and aggregate by kind, seismic status and subproject list |
-| 2 | When a People table view or the ADME Seismic tab is opened | 22 to 26 | Member lists of the 22 `data.sdms` groups, inverted into the matrix; Graph `$batch` for names and acceptance state, 20 per batch |
+| 2 | When a People table view or the Seismic section is opened | 22 to 26 | Member lists of the 22 `data.sdms` groups, inverted into the matrix; Graph `$batch` for names and acceptance state, 20 per batch |
 | 3 | On demand only | 1 per person | Effective groups when an inspector opens or after a mutation; "Verify all" runs as a registered op |
 
 The tier 1 figure counts the 12 service reads. Token fetches are not counted as calls.
@@ -623,8 +628,7 @@ None is assumed by the first take. Each removes a workaround used above.
 | A masked or typeahead form field | Person and subproject selects, which stop working at a few hundred entries |
 | A confirm that is not destructive | Marking a routine add as destructive to get a dialog |
 | Sticky table header and clickable table rows | 15-row chunks and the "Open person" form under each table |
-| Region max-height with scroll | A long ADME Access tab when the People region is on a table view |
+| Region max-height with scroll | A long Access section when the People region is on a table view |
 | A drawer back stack | "Recent answers" rows and the inline Operation region |
-| Open-surface from drawer boards | Closing the inspector to jump to the ADME Seismic tab |
-| Top bar overflow | The three-tab ceiling |
-| A nav group, so one rib's surfaces nest under one tab | Repeating "ADME" in every tab label |
+| Open-surface from drawer boards | Closing the inspector to jump to the Seismic section |
+| A nav group, so one rib's surfaces nest under one tab | The header's section switcher, and hiding the other sections' regions by publishing them empty |

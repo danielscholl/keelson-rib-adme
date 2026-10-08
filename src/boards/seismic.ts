@@ -37,7 +37,6 @@ type Tone = NonNullable<Person["tone"]>;
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
 
 export const SEIS_READ_ACTION = "seis-read";
-export const SEIS_REFRESH_ACTION = "seis-refresh";
 export const SEIS_SELECT_ACTION = "seis-select";
 export const SEIS_REACH_ACTION = "seis-reach";
 export const PREVIEW_SEIS_GRANT_ACTION = "preview-seismic-grant";
@@ -180,7 +179,7 @@ export function composeSeismicPulse(rt: Runtime): CanvasBoardView {
       view: "board",
       header: {
         status: {
-          label: "not connected, finish the steps on the ADME Access tab",
+          label: "not connected, finish the connect steps in the header",
           tone: "neutral",
         },
       },
@@ -202,7 +201,7 @@ export function composeSeismicPulse(rt: Runtime): CanvasBoardView {
             ? { glyph: "error", text: `Subprojects could not be read: ${error}` }
             : {
                 glyph: "neutral",
-                text: "This tab reads seismic subprojects and their members on first use, not on every sweep.",
+                text: "This section reads seismic subprojects and their members on first use, not on every sweep.",
               },
         ],
       });

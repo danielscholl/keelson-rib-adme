@@ -8,7 +8,6 @@ import {
   composeSeismicSelected,
   composeSeismicSubprojects,
   SEIS_READ_ACTION,
-  SEIS_REFRESH_ACTION,
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
 import { DATA_AREAS, SERVICES_AREA } from "../src/data/areas";
@@ -22,8 +21,10 @@ import {
 import { accessModule } from "../src/modules/access";
 import { seismicModule } from "../src/modules/seismic";
 import type { Runtime } from "../src/runtime";
+import { setSection } from "../src/section";
 import { buildSeismic, countSeismic } from "../src/seismic/model";
 import { fromOwnGroups, SEISMIC_AREA, type SeismicRead } from "../src/seismic/read";
+import { REFRESH_ACTION } from "../src/surfaces";
 import { SIGNED_IN_AS, sampleAccess, sampleCohortCsv } from "./fixtures/access";
 import { NOW, SAMPLE_SERVICES } from "./fixtures/data";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
@@ -256,15 +257,18 @@ describe("seismic read", () => {
     expect(rt.cache.get(SEISMIC_AREA).at).toBeUndefined();
   });
 
-  test("Refresh now on the Seismic header reads the store", async () => {
+  test("Refresh now reads the store only while the Seismic section shows", async () => {
     const { transport, sent } = routeTransport(seismicRoutes());
     const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW, transport });
-    await act(rt, SEIS_REFRESH_ACTION);
+    await act(rt, REFRESH_ACTION);
+    expect(sent.some((r) => r.url.includes("/subproject/"))).toBe(false);
+    setSection(rt, "seismic");
+    await act(rt, REFRESH_ACTION);
     expect(sent.some((r) => r.url.includes("/subproject/tenant/opendes"))).toBe(true);
     expect(rt.cache.get(SEISMIC_AREA).at).toBeDefined();
   });
 
-  test("Re-test reads the store only once the tab has been used", async () => {
+  test("Re-test reads the store only once the section has been used", async () => {
     const { transport, sent } = routeTransport(seismicRoutes());
     const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW, transport });
     await act(rt, RETEST_ACTION);
@@ -331,7 +335,7 @@ describe("seismic pulse", () => {
     const rt = seededRuntime(SEED, { now: NOW, phase: "firstrun" });
     const view = pulse(rt);
     expect(view.header?.status?.label).toBe(
-      "not connected, finish the steps on the ADME Access tab",
+      "not connected, finish the connect steps in the header",
     );
     expect(Object.values(tiles(view)).every((t) => t.value === null)).toBe(true);
     expect(subprojects(rt).sections).toEqual([]);
@@ -436,10 +440,11 @@ describe("subprojects and the selected subproject", () => {
       now: NOW,
       recompose: (keys) => recomposed.push([...keys]),
     });
+    setSection(rt, "seismic");
     const res = await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" });
     expect(res).toMatchObject({
       ok: true,
-      data: { effect: "open-surface", surfaceId: "surface:adme:adme-seismic" },
+      data: { effect: "open-surface", surfaceId: "surface:adme:adme" },
     });
     expect(recomposed).toEqual([[SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]]);
     const view = selected(rt);

@@ -5,21 +5,21 @@ A [keelson](https://github.com/danielscholl/keelson) rib for administering an
 (ADME) instance: who has access, what data is in it, and who can reach each
 seismic subproject.
 
-**Status: first take built.** All three tabs work against a live instance:
-ADME Data read-only, and ADME Access and ADME Seismic with every change made
+**Status: first take built.** All three sections work against a live
+instance: Access and Data read-only, and Seismic with every change made
 through a previewed plan. Applying plans to a real instance is the part still
 being proven.
 
 ## What the first take covers
 
-Three surfaces, one per tab:
+One ADME tab. Its header picks one of three sections and carries the
+connection: the instance, who is signed in, and Connection details.
 
-- **ADME Access.** People and applications: who needs attention and why, every
-  person against roles and seismic grants, and adding, fixing or removing
-  access through a previewed plan.
-- **ADME Data.** Read-only: which services answer, legal tags and their expiry,
+- **Access.** People and applications: who needs attention and why, every
+  person against roles and seismic grants, and who uses the instance.
+- **Data.** Read-only: which services answer, legal tags and their expiry,
   how much data is in the partition by kind, and a record search.
-- **ADME Seismic.** Seismic subprojects with their members by name, and granting
+- **Seismic.** Seismic subprojects with their members by name, and granting
   or revoking a person's access.
 
 The rib works from the operator's Azure CLI sign-in and stores no secret. Every
@@ -32,7 +32,7 @@ keelson rib add github:danielscholl/keelson-rib-adme
 keelson restart
 ```
 
-Then sign in to the tenant that holds the instance and open the ADME Access tab:
+Then sign in to the tenant that holds the instance and open the ADME tab:
 
 ```sh
 az login --tenant <tenant id>
@@ -50,10 +50,10 @@ what this sign-in can do. A missing capability disables the feature that needs i
 The rib runs inside the Keelson server. Before each batch of calls it asks
 `az account get-access-token` for a token for the ADME app id and for Microsoft
 Graph, scoped to the profile's tenant, and calls the ADME services and Graph
-directly. When the sign-in lapses, every tab says "sign-in needed", keeps
+directly. When the sign-in lapses, every section says "sign-in needed", keeps
 showing the last sweep, and pauses changes until `az login` and Re-test.
 
-Reads are tiered so that opening a tab is cheap: the last sweep is cached in
+Reads are tiered so that opening a section is cheap: the last sweep is cached in
 the rib's data directory (`~/.keelson/rib-adme`), a sweep runs on Refresh now
 and after Re-test, and a timer refreshes only within 15 minutes of the last
 action.
@@ -63,8 +63,8 @@ action.
 - Names, email addresses and object ids appear as plain text in board frames
   and in the rib's data directory. That suits a single operator on a local
   workbench; don't run it on a shared host.
-- Selection is held by the rib, not per browser window: two windows share one
-  drawer target and one view.
+- Selection, including the section, is held by the rib, not per browser
+  window: two windows share one drawer target and one view.
 
 ## Develop
 

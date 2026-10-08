@@ -8,8 +8,8 @@
 
 import type { Batch, CallFailure, CallResult } from "../client.ts";
 import {
-  ACCESS_BADGE_KEY,
   ATTENTION_KEY,
+  BADGE_KEY,
   COHORTS_KEY,
   PEOPLE_KEY,
   PRINCIPALS_KEY,
@@ -285,7 +285,7 @@ export const ACCESS_AREAS: readonly Area[] = [
       PEOPLE_KEY,
       COHORTS_KEY,
       PRINCIPALS_KEY,
-      ACCESS_BADGE_KEY,
+      BADGE_KEY,
       SEIS_PULSE_KEY,
       SEIS_SUBPROJECTS_KEY,
       SEIS_SELECTED_KEY,

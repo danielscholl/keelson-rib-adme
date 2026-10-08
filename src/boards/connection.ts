@@ -25,6 +25,7 @@ export const DISCOVER_ACTION = "discover-instances";
 export const CONNECT_ACTION = "connect-instance";
 export const USE_ROSTER_ACTION = "use-roster-group";
 export const FIND_AUDIT_ACTION = "find-audit-log";
+export const CONNECTION_DETAILS_ACTION = "open-connection";
 
 export function findAuditAction(brand: boolean): CanvasActionItem {
   return {
@@ -240,15 +241,36 @@ export function capabilityTable(status: ConnectionStatus): Section | undefined {
   };
 }
 
-// The footer of all three surfaces: collapsed to "connected" when all is well,
-// open with the sign-in card when it is not.
+// The header's one-line connection: which instance, as whom, and a way into the details.
+export function connectionLine(status: ConnectionStatus): Section | undefined {
+  const profile = status.profile;
+  if (!profile || status.phase === "firstrun") return undefined;
+  const where = `${instanceName(profile)} · ${profile.partition}`;
+  const who = status.test?.signedInAs;
+  const text =
+    status.phase === "connected"
+      ? `Connected to ${where}${who ? ` as ${who}` : ""}`
+      : status.phase === "signin"
+        ? `Sign-in needed for ${where}`
+        : `Check the connection to ${where}`;
+  return {
+    kind: "rows",
+    items: [
+      {
+        icon: "⌁",
+        glyph: status.phase === "connected" ? "ok" : "error",
+        text,
+        trailing: "details",
+        action: { type: CONNECTION_DETAILS_ACTION },
+      },
+    ],
+  };
+}
+
+// The connection inspector, opened from the header's connection line or menu.
 export function composeConnection(status: ConnectionStatus): CanvasBoardView {
   const chip = instanceChip(status.profile);
-  const header = {
-    status: phasePill(status),
-    ...(chip ? { chip } : {}),
-    defaultCollapsed: status.phase === "connected",
-  };
+  const header = { status: phasePill(status), ...(chip ? { chip } : {}) };
   if (!status.profile) {
     return {
       view: "board",
@@ -256,7 +278,7 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
       sections: [
         {
           kind: "rows",
-          items: [{ glyph: "neutral", text: "Finish the steps on the ADME Access tab." }],
+          items: [{ glyph: "neutral", text: "Finish the connect steps in the ADME header." }],
         },
       ],
     };
@@ -290,7 +312,7 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
   return { view: "board", header, sections };
 }
 
-// The connect journey shown on the ADME Access header before the rib works.
+// The connect journey shown in the ADME header before the rib works.
 export function composeFirstRun(
   status: ConnectionStatus,
   discovery: Discovery = { state: "idle" },

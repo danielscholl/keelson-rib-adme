@@ -6,259 +6,226 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
-import { RETEST_ACTION } from "./boards/connection.ts";
+import { columnRegions, type RibSurfaceDescriptor, type RibSurfaceRegion } from "@keelson/shared";
+import { CONNECTION_DETAILS_ACTION, RETEST_ACTION } from "./boards/connection.ts";
 import { EXPORT_GUIDE_ACTION } from "./boards/people.ts";
-import { SEIS_REFRESH_ACTION } from "./boards/seismic.ts";
 import {
-  ACCESS_BADGE_KEY,
-  ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
   ATTENTION_KEY,
-  CONNECTION_KEY,
-  DATA_BADGE_KEY,
-  DATA_PULSE_KEY,
-  DATA_SURFACE_ID,
+  BADGE_KEY,
+  HEADER_KEY,
   LEGAL_KEY,
   OPERATION_KEY,
   ORGS_KEY,
   PEOPLE_KEY,
   PRINCIPALS_KEY,
-  PULSE_KEY,
   RECENT_KEY,
   RECORDS_KEY,
   SEIS_CHANGE_KEY,
-  SEIS_PULSE_KEY,
   SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
-  SEISMIC_SURFACE_ID,
   SERVICES_KEY,
+  SURFACE_ID,
 } from "./keys.ts";
+import type { SectionId } from "./section.ts";
 
 export const REFRESH_ACTION = "refresh";
 
-// Not statically collapsed: the board's defaultCollapsed folds it while connected
-// and leaves it open when sign-in is needed.
-const connectionFooter: RibSurfaceRegion = {
-  key: CONNECTION_KEY,
-  title: "Connection",
-  glyph: { char: "⌁", tone: "neutral" },
-  collapsible: true,
+type Row = RibSurfaceDescriptor["layout"]["rows"][number];
+
+// Zone titles stay on screen when their regions hide, so sections set none.
+const ACCESS_ROWS: Row[] = [
+  {
+    columns: [
+      {
+        key: ATTENTION_KEY,
+        title: "Follow up",
+        byline: "people who have access but cannot or do not use it yet",
+        glyph: { char: "!", tone: "caution" },
+        hideWhenEmpty: true,
+      },
+      {
+        key: ACTIVITY_KEY,
+        title: "Activity",
+        byline: "data calls from the instance audit log",
+        glyph: { char: "≋", tone: "info" },
+        hideWhenEmpty: true,
+      },
+    ],
+  },
+  {
+    columns: [
+      {
+        key: ORGS_KEY,
+        title: "Organizations",
+        byline: "who has access, one card per email domain · select one to filter People",
+        glyph: { char: "▦", tone: "info" },
+        hideWhenEmpty: true,
+      },
+    ],
+  },
+  {
+    columns: [
+      {
+        key: PEOPLE_KEY,
+        title: "People",
+        glyph: { char: "☰", tone: "info" },
+        hideWhenEmpty: true,
+        collapsible: true,
+        collapsed: true,
+        headActions: [{ type: EXPORT_GUIDE_ACTION, label: "Export who has access" }],
+      },
+    ],
+  },
+  {
+    columns: [
+      {
+        key: PRINCIPALS_KEY,
+        title: "Applications",
+        glyph: { char: "⚙", tone: "neutral" },
+        hideWhenEmpty: true,
+        collapsible: true,
+        collapsed: true,
+      },
+    ],
+  },
+];
+
+const DATA_ROWS: Row[] = [
+  {
+    columns: [
+      {
+        key: RECORDS_KEY,
+        title: "Records",
+        glyph: { char: "⌕", tone: "info" },
+        hideWhenEmpty: true,
+      },
+    ],
+  },
+  {
+    columns: [
+      {
+        key: LEGAL_KEY,
+        title: "Legal tags",
+        glyph: { char: "§", tone: "caution" },
+        hideWhenEmpty: true,
+      },
+      {
+        key: SERVICES_KEY,
+        title: "Services",
+        glyph: { char: "⇄", tone: "neutral" },
+        hideWhenEmpty: true,
+        collapsible: true,
+      },
+    ],
+  },
+];
+
+const SEISMIC_ROWS: Row[] = [
+  {
+    columns: [
+      {
+        key: SEIS_SUBPROJECTS_KEY,
+        title: "Subprojects",
+        byline: "select one to see its members · datasets are not measured until one is opened",
+        glyph: { char: "▦", tone: "info" },
+        hideWhenEmpty: true,
+      },
+    ],
+  },
+  {
+    columns: [
+      {
+        key: SEIS_SELECTED_KEY,
+        title: "Selected subproject",
+        byline: "identifiers and members by name",
+        glyph: { char: "◎" },
+        hideWhenEmpty: true,
+      },
+      [
+        {
+          key: SEIS_CHANGE_KEY,
+          title: "Grant or revoke",
+          byline: "one plan, previewed before anything changes",
+          glyph: { char: "+", tone: "brand" },
+          hideWhenEmpty: true,
+        },
+        {
+          key: SEIS_REACH_KEY,
+          title: "What a partner can reach",
+          byline: "listing subprojects is admin only, so partners need the paths",
+          glyph: { char: "→", tone: "info" },
+          hideWhenEmpty: true,
+        },
+      ],
+    ],
+  },
+  // The only write path left, so a running plan and its history show here.
+  {
+    columns: [
+      {
+        key: OPERATION_KEY,
+        title: "Operation",
+        glyph: { char: "▶", tone: "info" },
+        hideWhenEmpty: true,
+      },
+      {
+        key: RECENT_KEY,
+        title: "Recent changes",
+        glyph: { char: "↺", tone: "neutral" },
+        hideWhenEmpty: true,
+        collapsible: true,
+        collapsed: true,
+      },
+    ],
+  },
+];
+
+const SECTION_ROWS: Record<SectionId, Row[]> = {
+  access: ACCESS_ROWS,
+  data: DATA_ROWS,
+  seismic: SEISMIC_ROWS,
 };
 
-const headMenu: RibSurfaceRegion["headActions"] = [
-  { type: REFRESH_ACTION, label: "Refresh now" },
-  { type: RETEST_ACTION, label: "Re-test connection" },
-];
+const SECTION_OF = new Map<string, SectionId>(
+  Object.entries(SECTION_ROWS).flatMap(([section, rows]) =>
+    rows.flatMap((r) =>
+      r.columns.flatMap((c) => columnRegions(c).map((x) => [x.key, section as SectionId] as const)),
+    ),
+  ),
+);
 
-// Refresh here also reads the seismic store, which the plain sweep skips.
-const seismicHeadMenu: RibSurfaceRegion["headActions"] = [
-  { type: SEIS_REFRESH_ACTION, label: "Refresh now" },
-  { type: RETEST_ACTION, label: "Re-test connection" },
-];
+// The section a region belongs to; header and inspectors belong to none.
+export function sectionOf(key: string): SectionId | undefined {
+  return SECTION_OF.get(key);
+}
 
+const header: RibSurfaceRegion = {
+  key: HEADER_KEY,
+  title: "ADME",
+  glyph: { char: "◉", tone: "accent" },
+  live: true,
+  headActions: [
+    { type: REFRESH_ACTION, label: "Refresh now" },
+    { type: RETEST_ACTION, label: "Re-test connection" },
+    { type: CONNECTION_DETAILS_ACTION, label: "Connection details" },
+  ],
+};
+
+// One nav tab; the header's switcher shows one section's regions at a time.
 // The rib drives refresh in-process, so no region declares a workflow or cadence.
 export const SURFACES: readonly RibSurfaceDescriptor[] = [
   {
-    id: ACCESS_SURFACE_ID,
-    title: "ADME Access",
-    heading: "ADME access",
-    subtitle: "Who has access to the instance, and are they using it?",
-    badgeKey: ACCESS_BADGE_KEY,
-    layout: {
-      header: {
-        key: PULSE_KEY,
-        title: "Access",
-        glyph: { char: "◉", tone: "accent" },
-        live: true,
-        headActions: headMenu,
-      },
-      rows: [
-        {
-          zoneTitle: "Now",
-          columns: [
-            {
-              key: ATTENTION_KEY,
-              title: "Follow up",
-              byline: "people who have access but cannot or do not use it yet",
-              glyph: { char: "!", tone: "caution" },
-              hideWhenEmpty: true,
-            },
-            {
-              key: ACTIVITY_KEY,
-              title: "Activity",
-              byline: "data calls from the instance audit log",
-              glyph: { char: "≋", tone: "info" },
-              hideWhenEmpty: true,
-            },
-          ],
-        },
-        {
-          zoneTitle: "Who has access",
-          columns: [
-            {
-              key: ORGS_KEY,
-              title: "Organizations",
-              byline: "one card per email domain · select one to filter People",
-              glyph: { char: "▦", tone: "info" },
-              hideWhenEmpty: true,
-            },
-          ],
-        },
-        {
-          columns: [
-            {
-              key: PEOPLE_KEY,
-              title: "People",
-              glyph: { char: "☰", tone: "info" },
-              hideWhenEmpty: true,
-              collapsible: true,
-              collapsed: true,
-              headActions: [{ type: EXPORT_GUIDE_ACTION, label: "Export who has access" }],
-            },
-          ],
-        },
-        {
-          columns: [
-            {
-              key: PRINCIPALS_KEY,
-              title: "Applications",
-              glyph: { char: "⚙", tone: "neutral" },
-              hideWhenEmpty: true,
-              collapsible: true,
-              collapsed: true,
-            },
-          ],
-        },
-      ],
-      footer: connectionFooter,
-    },
-  },
-  {
-    id: DATA_SURFACE_ID,
-    title: "ADME Data",
-    heading: "Data and governance",
+    id: SURFACE_ID,
+    title: "ADME",
+    heading: "ADME",
     subtitle:
-      "Which services answer, which legal tags hold, how much data is in the partition, and a record search. Read only.",
-    badgeKey: DATA_BADGE_KEY,
+      "Who has access to the instance, what data is in it, and who can reach each seismic subproject.",
+    badgeKey: BADGE_KEY,
     layout: {
-      header: {
-        key: DATA_PULSE_KEY,
-        title: "Data",
-        glyph: { char: "◉", tone: "accent" },
-        live: true,
-        headActions: headMenu,
-      },
-      rows: [
-        {
-          zoneTitle: "Records",
-          columns: [
-            {
-              key: RECORDS_KEY,
-              title: "Records",
-              glyph: { char: "⌕", tone: "info" },
-              hideWhenEmpty: true,
-            },
-          ],
-        },
-        {
-          zoneTitle: "Governance",
-          columns: [
-            {
-              key: LEGAL_KEY,
-              title: "Legal tags",
-              glyph: { char: "§", tone: "caution" },
-              hideWhenEmpty: true,
-            },
-            {
-              key: SERVICES_KEY,
-              title: "Services",
-              glyph: { char: "⇄", tone: "neutral" },
-              hideWhenEmpty: true,
-              collapsible: true,
-            },
-          ],
-        },
-      ],
-      footer: connectionFooter,
-    },
-  },
-  {
-    id: SEISMIC_SURFACE_ID,
-    title: "ADME Seismic",
-    heading: "Seismic store",
-    subtitle: "Subprojects in the tenant, and who is in each, by name.",
-    layout: {
-      header: {
-        key: SEIS_PULSE_KEY,
-        title: "Seismic store",
-        byline: "subprojects in the partition's seismic tenant",
-        glyph: { char: "◉", tone: "accent" },
-        live: true,
-        headActions: seismicHeadMenu,
-      },
-      rows: [
-        {
-          columns: [
-            {
-              key: SEIS_SUBPROJECTS_KEY,
-              title: "Subprojects",
-              byline:
-                "select one to see its members · datasets are not measured until one is opened",
-              glyph: { char: "▦", tone: "info" },
-              hideWhenEmpty: true,
-            },
-          ],
-        },
-        {
-          columns: [
-            {
-              key: SEIS_SELECTED_KEY,
-              title: "Selected subproject",
-              byline: "identifiers and members by name",
-              glyph: { char: "◎" },
-              hideWhenEmpty: true,
-            },
-            [
-              {
-                key: SEIS_CHANGE_KEY,
-                title: "Grant or revoke",
-                byline: "one plan, previewed before anything changes",
-                glyph: { char: "+", tone: "brand" },
-                hideWhenEmpty: true,
-              },
-              {
-                key: SEIS_REACH_KEY,
-                title: "What a partner can reach",
-                byline: "listing subprojects is admin only, so partners need the paths",
-                glyph: { char: "→", tone: "info" },
-                hideWhenEmpty: true,
-              },
-            ],
-          ],
-        },
-        // The only write path left, so a running plan and its history show here.
-        {
-          columns: [
-            {
-              key: OPERATION_KEY,
-              title: "Operation",
-              glyph: { char: "▶", tone: "info" },
-              hideWhenEmpty: true,
-            },
-            {
-              key: RECENT_KEY,
-              title: "Recent changes",
-              glyph: { char: "↺", tone: "neutral" },
-              hideWhenEmpty: true,
-              collapsible: true,
-              collapsed: true,
-            },
-          ],
-        },
-      ],
-      footer: connectionFooter,
+      header,
+      rows: [...ACCESS_ROWS, ...DATA_ROWS, ...SEISMIC_ROWS],
     },
   },
 ];

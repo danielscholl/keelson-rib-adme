@@ -51,20 +51,19 @@ import {
   REFRESH_PERSON_ACTION,
 } from "../boards/person.ts";
 import {
-  ACCESS_BADGE_KEY,
-  ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
   ATTENTION_KEY,
+  BADGE_KEY,
   COHORTS_KEY,
   ORGS_KEY,
   PEOPLE_KEY,
   PERSON_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
-  surfaceTab,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
+import { focusRegion } from "../section.ts";
 
 const slug = (name: string) =>
   name
@@ -131,15 +130,8 @@ function selectedIdentity(rt: Runtime, payload: unknown): Identity | string {
 }
 
 // A handled effect suppresses the success toast a plain view switch would raise.
-function stayOnPeople(): RibActionResult {
-  return {
-    ok: true,
-    data: {
-      effect: "open-surface",
-      surfaceId: surfaceTab(ACCESS_SURFACE_ID),
-      regionKey: PEOPLE_KEY,
-    },
-  };
+function stayOnPeople(rt: Runtime): RibActionResult {
+  return focusRegion(rt, "access", PEOPLE_KEY);
 }
 
 export const accessModule: RegionModule = {
@@ -193,7 +185,7 @@ export const accessModule: RegionModule = {
         return { ok: false, error: "Pick Roster, Roles matrix or Seismic grants." };
       peopleState(rt).view = view;
       rt.recompose([PEOPLE_KEY]);
-      return stayOnPeople();
+      return stayOnPeople(rt);
     },
     [PEOPLE_FILTER_ACTION]: async (rt, payload) => {
       const filter = (payload as { filter?: unknown } | undefined)?.filter;
@@ -209,7 +201,7 @@ export const accessModule: RegionModule = {
       const s = peopleState(rt);
       s.filter = filter.startsWith(ORG_FILTER) && s.filter === filter ? "all" : filter;
       rt.recompose([PEOPLE_KEY, ORGS_KEY]);
-      return stayOnPeople();
+      return stayOnPeople(rt);
     },
     [IMPORT_COHORTS_ACTION]: async (rt, payload) => {
       const csv = (payload as { csv?: unknown } | undefined)?.csv;
@@ -248,7 +240,7 @@ export const accessModule: RegionModule = {
     },
   },
   badges: {
-    [ACCESS_BADGE_KEY]: (rt) => {
+    [BADGE_KEY]: (rt) => {
       const m = measuredAccess(rt);
       return m ? followUpCount(m) : 0;
     },

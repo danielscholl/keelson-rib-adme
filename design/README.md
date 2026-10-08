@@ -4,9 +4,9 @@ A Keelson rib that gives one operator an admin surface for an Azure Data Manager
 
 **Today.** An ADME instance is typically run with ad hoc scripts, `az` and Graph calls, and a tracker kept by hand. An invitation to a new address can resolve to an existing guest and return that guest's object id; acting on that mistaken identity can strip access from the wrong person. Seismic access sits in groups named by UUID (`data.sdms.opendes.alpha.3f9a…e1.admin`), acceptance state lives only in Graph, and no batch change has a dry run.
 
-**The rib.** Three tabs. The ADME Access tab lists who needs attention and why, shows every person against roles and seismic grants by name, and routes every write through one plan: a form produces a dry run, the plan sheet classifies each identity before any invitation, and Apply re-checks, writes serially, verifies the effective group count and appends to a tracker. The rib works from the operator's Azure CLI sign-in, so it holds no secret.
+**The rib.** One ADME tab with three sections, Access, Data and Seismic, picked in its header. The Access section lists who needs attention and why, shows every person against roles and seismic grants by name, and routes every write through one plan: a form produces a dry run, the plan sheet classifies each identity before any invitation, and Apply re-checks, writes serially, verifies the effective group count and appends to a tracker. The rib works from the operator's Azure CLI sign-in, so it holds no secret.
 
-**Limits.** This is a design. Nothing is built and nothing was called live. Every name, count and id here and in the mockup is sample data. Shelling `az` from the rib through `ctx.getExec()` is unverified, and the whole design rests on it. The identity collision can be detected and halted, not prevented, once an invitation email is sent. ADME Data is read-only in the first take.
+**Limits.** This is a design. Nothing is built and nothing was called live. Every name, count and id here and in the mockup is sample data. Shelling `az` from the rib through `ctx.getExec()` is unverified, and the whole design rests on it. The identity collision can be detected and halted, not prevented, once an invitation email is sent. The Data section is read-only in the first take.
 
 The interactive companion is [adme-access-desk.html](adme-access-desk.html). The working notes behind it, including the canonical sample data, are in [spec.md](spec.md).
 
@@ -14,17 +14,17 @@ The interactive companion is [adme-access-desk.html](adme-access-desk.html). The
 
 The sample instance has 36 identities (32 people and 4 applications) and 13 seismic subprojects. "Applications" is the UI word for service principals.
 
-| Tab | Scope | Badge in the sample |
+| Section | Scope | Count in the sample |
 |---|---|---|
-| ADME Access | Managing people and applications. | 5 (3 pending, 2 broken) |
-| ADME Data | Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only. | 2 (1 invalid tag, 1 expiring) |
-| ADME Seismic | Seismic subprojects: who is in each by name, grant and revoke. | none |
+| Access | Managing people and applications. | 5 (3 pending, 2 broken) |
+| Data | Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only. | 2 (1 invalid tag, 1 expiring) |
+| Seismic | Seismic subprojects: who is in each by name, grant and revoke. | none |
 
-The tab labels carry the rib name because the top bar has no overflow rule and other ribs sit beside them. A Connection region is the footer of all three tabs.
+Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, whose badge sums the counts. Its header holds the section switcher, the connection line (instance, partition and who is signed in) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
 
 Out of the first take: creating, extending or deleting legal tags, removing a whole cohort, agent tools, and everything under [Later and Not planned yet](#build-order).
 
-## ADME Access
+## Access section
 
 ![ADME Access tab](screens/access.png)
 
@@ -39,7 +39,7 @@ Question it answers: who has access, are they using it, and who do I need to fol
 | People | `rib:adme:people` | Three views (Roster, Roles matrix, Seismic grants) and filter chips (All, cohorts, Applications, Invited, Gaps, the picked organization). The roster groups by usage. Head menu: "Export who has access" as Markdown. Collapsed. |
 | Applications | `rib:adme:principals` | 4 cards keyed by app id; the legacy root app is flagged. Collapsed. |
 
-Change access and Cohorts still compose but are not on the tab while it is a viewer. Operation and Recent changes sit on ADME Seismic, the one tab that still plans a change.
+Change access and Cohorts still compose but are not in the section while it is a viewer. Operation and Recent changes sit in the Seismic section, the one section that still plans a change.
 
 The Roster view is a list of rows; clicking a row opens the person inspector. The Roles matrix and Seismic grants views are read-only tables, so each ends with a one-line "Open person" form.
 
@@ -47,7 +47,7 @@ The Roster view is a list of rows; clicking a row opens the person inspector. Th
 
 The matrix shows one row per person against Entra state, roster group, `users@`, the four role groups and the effective group count (for example 32/33 where a group is missing). It is drawn in chunks of at most 15 rows with a "Showing 10 of 32" caption.
 
-## ADME Data
+## Data section
 
 ![ADME Data tab](screens/data.png)
 
@@ -62,7 +62,7 @@ Question it answers: which services answer, which legal tags hold, how much data
 
 An unmeasured value is drawn as "?" and worded "not measured". Dataset counts, schemas and the records affected by an invalid legal tag all appear that way.
 
-## ADME Seismic
+## Seismic section
 
 ![ADME Seismic tab](screens/seismic.png)
 
@@ -78,12 +78,12 @@ Question it answers: who is in each subproject, by name, and what can a given pa
 
 ## Inspectors
 
-The canvas drawer holds one document and has no back stack, so each inspector replaces the last. That is why a running plan also shows in the Operation region on the ADME Seismic tab, and why Recent changes lists every plan.
+The canvas drawer holds one document and has no back stack, so each inspector replaces the last. That is why a running plan also shows in the Operation region in the Seismic section, and why Recent changes lists every plan.
 
 | Inspector | Key | Opened from | What it holds |
 |---|---|---|---|
 | Person | `rib:adme:person` | Follow up rows, Roster rows, subproject member rows, the "Open person" form | Identity card with copyable fields, access checks in order, seismic reach, effective groups, usage, history. Reads only: Why 401/403 and Re-read groups. |
-| Plan sheet | `rib:adme:plan` | A "Preview plan" on ADME Seismic | What Apply does in order (5 steps), 4 stats (Will change, Already true, Blocked, People), protected or excluded rows, one card of exact calls per person, the dry run as CSV. Actions: Apply N changes, Recheck, Discard plan. |
+| Plan sheet | `rib:adme:plan` | A "Preview plan" in the Seismic section | What Apply does in order (5 steps), 4 stats (Will change, Already true, Blocked, People), protected or excluded rows, one card of exact calls per person, the dry run as CSV. Actions: Apply N changes, Recheck, Discard plan. |
 | Why 401/403 | `rib:adme:explain` | Person inspector | 7 checks in the order the platform applies them, the verdict, the fix described (not planned), a plain-text note to copy for the person, and recent answers. Read-only. The rib does not send mail. |
 
 Person inspector, for a person missing from `users@`:
@@ -145,7 +145,7 @@ The connection profile is six non-secret values: host, partition, entitlements d
 
 ### Sign-in needed
 
-This is the only sign-in state the operator sees. Once connected, the Connection footer is collapsed and shows "connected" and `contoso-adme · opendes`, nothing else.
+This is the only sign-in state the operator sees. Once connected, the header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example", nothing else.
 
 ![Sign-in needed state](screens/expired.png)
 
@@ -156,13 +156,13 @@ This is the only sign-in state the operator sees. Once connected, the Connection
 | Card | The command `az login --tenant 1f2e…9a00` to copy, with "Run this in a terminal, then Re-test." |
 | Buttons that change something | Disabled, with the reason "sign-in needed: run az login, then Re-test" |
 | Running plan | Pauses at its step and resumes after sign-in |
-| Connection footer | Open, with the same card, the instance profile and "Re-test connection" |
+| Connection line | "Sign-in needed for contoso-adme · opendes"; Connection details holds the same card, the instance profile and "Re-test connection" |
 
 ### First run
 
 ![First run](screens/firstrun.png)
 
-The ADME Access tab shows only the connect journey; the other two tabs read "not connected".
+The ADME header shows only the connect journey under the section switcher, whichever section is picked, and every region is hidden.
 
 1. Sign in with Azure CLI. Run `az login` in a terminal.
 2. Pick the instance. The rib lists the ADME instances the sign-in can see in Azure; picking one fills the profile values, none secret. They can also be entered by hand.
@@ -196,7 +196,7 @@ Calls are tiered so that opening a tab never triggers the expensive reads. Timer
 |---|---|---|---|
 | 0 | Every paint | 0 | The disk cache of the last sweep, with a "cached from HH:MMZ" chip |
 | 1 | On open, and on Refresh now | about 12 | `users@` members, 4 role groups, roster group (Graph), legal tags valid and invalid, search total and aggregate by kind, seismic status and subproject list |
-| 2 | When a People view or the ADME Seismic tab is opened | 22 to 26 | Member lists of the 22 `data.sdms` groups, inverted into the matrix; Graph `$batch` for names and acceptance state, 20 per batch |
+| 2 | When a People view or the Seismic section is opened | 22 to 26 | Member lists of the 22 `data.sdms` groups, inverted into the matrix; Graph `$batch` for names and acceptance state, 20 per batch |
 | 3 | On demand only | 1 per person | Effective groups when an inspector opens or after a mutation; "Verify all" runs as a registered op |
 
 ## What Keelson's surfaces constrain
@@ -213,7 +213,7 @@ A rib publishes board snapshots; it does not author UI. These limits were read f
 | An always-open form does not show the query just run | The active query sits in the region chip and the section title, with a Clear action. |
 | The drawer holds one document and has no back stack | One snapshot key per inspector, an inline Operation region for the running plan, and "Recent answers" rows in the explainer. |
 | Regions share a row equally; stats never wrap | At most 5 stat tiles. Unequal splits are a columns section inside one region. Card grids get a full-width row. |
-| Navigation is top tabs only, with no overflow | Three tabs. A fourth waits for evidence that the top bar handles overflow. |
+| Navigation is top tabs only, with no overflow and no nesting | One tab, with a section switcher in its header. |
 | An in-process region gets no host "updated" label | The rib prints "measured 14:05Z" in the header chip. |
 | Copy exists only on card fields | The dry run CSV, the access note and `az login` are card fields with a copy button. |
 
@@ -270,11 +270,10 @@ None is assumed by the first take. Each removes a workaround above.
 | A masked or typeahead form field | Person and subproject selects, which stop working at a few hundred entries |
 | A confirm that is not destructive | Marking a routine add as destructive to get a dialog |
 | Sticky table header and clickable table rows | 15-row chunks and the "Open person" form under each table |
-| Region max-height with scroll | A long ADME Access tab when the People region is on a table view |
+| Region max-height with scroll | A long Access section when the People region is on a table view |
 | A drawer back stack | "Recent answers" rows and the inline Operation region |
-| open-surface from drawer boards | Closing the inspector to jump to the ADME Seismic tab |
-| Top bar overflow | The three-tab ceiling |
-| A nav group, so one rib's surfaces nest under one tab | Repeating "ADME" in every tab label |
+| open-surface from drawer boards | Closing the inspector to jump to the Seismic section |
+| A nav group, so one rib's surfaces nest under one tab | The header's section switcher, and hiding the other sections' regions by publishing them empty |
 
 ## Viewing and rebuilding the mockup
 

@@ -27,9 +27,8 @@ import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
 import { findAuditWorkspace } from "../src/discover";
 import {
-  ACCESS_BADGE_KEY,
-  ACCESS_SURFACE_ID,
   ACTIVITY_KEY,
+  BADGE_KEY,
   CHANGE_KEY,
   COHORTS_KEY,
   OPERATION_KEY,
@@ -37,10 +36,9 @@ import {
   PEOPLE_KEY,
   PULSE_KEY,
   RECENT_KEY,
-  SEISMIC_SURFACE_ID,
 } from "../src/keys";
 import { accessModule } from "../src/modules/access";
-import { SURFACES } from "../src/surfaces";
+import { SURFACES, sectionOf } from "../src/surfaces";
 import { sampleAccess } from "./fixtures/access";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { azExec, routeTransport, seededRuntime } from "./harness";
@@ -229,7 +227,7 @@ describe("boards with the audit log read", () => {
       ok: true,
       data: {
         effect: "open-surface",
-        surfaceId: "surface:adme:adme-access",
+        surfaceId: "surface:adme:adme",
         regionKey: PEOPLE_KEY,
       },
     });
@@ -243,7 +241,7 @@ describe("boards with the audit log read", () => {
 
   test("the tab badge counts the same people as the follow up pill", () => {
     const runtime = rt();
-    expect(accessModule.badges?.[ACCESS_BADGE_KEY]?.(runtime)).toBe(29);
+    expect(accessModule.badges?.[BADGE_KEY]?.(runtime)).toBe(29);
     expect(JSON.stringify(composeAccessPulse(runtime))).toContain('"label":"29 to follow up"');
   });
 
@@ -341,19 +339,17 @@ describe("finding the audit log", () => {
   });
 });
 
-describe("the access tab is a viewer", () => {
-  test("no region on ADME Access plans or applies a change", () => {
-    const access = SURFACES.find((s) => s.id === ACCESS_SURFACE_ID);
-    const keys = JSON.stringify(access?.layout);
+describe("the access section is a viewer", () => {
+  test("no region in the Access section plans or applies a change", () => {
     for (const key of [CHANGE_KEY, COHORTS_KEY, OPERATION_KEY, RECENT_KEY]) {
-      expect(keys).not.toContain(`"${key}"`);
+      expect(sectionOf(key)).not.toBe("access");
     }
-    const people = access?.layout.rows
+    const people = SURFACES[0]?.layout.rows
       .flatMap((r) => r.columns.flat())
       .find((c) => c.key === PEOPLE_KEY);
     expect(people).toMatchObject({ collapsible: true, collapsed: true });
-    const seismic = JSON.stringify(SURFACES.find((s) => s.id === SEISMIC_SURFACE_ID)?.layout);
-    expect(seismic).toContain(`"${OPERATION_KEY}"`);
+    expect(sectionOf(PEOPLE_KEY)).toBe("access");
+    expect(sectionOf(OPERATION_KEY)).toBe("seismic");
   });
 });
 

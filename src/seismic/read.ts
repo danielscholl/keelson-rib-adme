@@ -16,7 +16,7 @@ import {
   SEIS_SUBPROJECTS_KEY,
 } from "../keys.ts";
 
-// Tier 2: read only when the ADME Seismic tab is used, never on the sweep.
+// Tier 2: read only when the Seismic section is used, never on the sweep.
 export const SEISMIC_AREA = "seismic";
 export const SEISMIC_KEYS = [
   SEIS_PULSE_KEY,

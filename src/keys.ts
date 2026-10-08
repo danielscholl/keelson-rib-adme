@@ -8,7 +8,10 @@
 
 export const RIB_ID = "adme";
 
-// ADME Access
+// The one surface's header: section switcher, connection and the section's pulse.
+export const HEADER_KEY = "rib:adme:header";
+
+// Access section
 export const PULSE_KEY = "rib:adme:pulse";
 export const ATTENTION_KEY = "rib:adme:attention";
 export const ACTIVITY_KEY = "rib:adme:activity";
@@ -20,32 +23,30 @@ export const PEOPLE_KEY = "rib:adme:people";
 export const COHORTS_KEY = "rib:adme:cohorts";
 export const PRINCIPALS_KEY = "rib:adme:principals";
 
-// ADME Data
+// Data section
 export const DATA_PULSE_KEY = "rib:adme:data-pulse";
 export const RECORDS_KEY = "rib:adme:records";
 export const LEGAL_KEY = "rib:adme:legal";
 export const SERVICES_KEY = "rib:adme:services";
 
-// ADME Seismic
+// Seismic section
 export const SEIS_PULSE_KEY = "rib:adme:seis-pulse";
 export const SEIS_SUBPROJECTS_KEY = "rib:adme:seis-subprojects";
 export const SEIS_SELECTED_KEY = "rib:adme:seis-selected";
 export const SEIS_CHANGE_KEY = "rib:adme:seis-change";
 export const SEIS_REACH_KEY = "rib:adme:seis-reach";
 
-// The footer of all three surfaces, under one key.
-export const CONNECTION_KEY = "rib:adme:connection";
-
 // Drawer inspectors: no region, opened in the canvas drawer.
+export const CONNECTION_KEY = "rib:adme:connection";
 export const PERSON_KEY = "rib:adme:person";
 export const PLAN_KEY = "rib:adme:plan";
 export const EXPLAIN_KEY = "rib:adme:explain";
 
-// Tab badges carry a RibSurfaceBadge, not a board.
-export const ACCESS_BADGE_KEY = "rib:adme:access-badge";
-export const DATA_BADGE_KEY = "rib:adme:data-badge";
+// The tab badge carries a RibSurfaceBadge, not a board.
+export const BADGE_KEY = "rib:adme:badge";
 
 export const BOARD_KEYS = [
+  HEADER_KEY,
   PULSE_KEY,
   ATTENTION_KEY,
   ACTIVITY_KEY,
@@ -71,11 +72,9 @@ export const BOARD_KEYS = [
   EXPLAIN_KEY,
 ] as const;
 
-export const BADGE_KEYS = [ACCESS_BADGE_KEY, DATA_BADGE_KEY] as const;
+export const BADGE_KEYS = [BADGE_KEY] as const;
 
-export const ACCESS_SURFACE_ID = "adme-access";
-export const DATA_SURFACE_ID = "adme-data";
-export const SEISMIC_SURFACE_ID = "adme-seismic";
+export const SURFACE_ID = "adme";
 
 // The host names a surface tab "surface:<rib id>:<surface id>"; open-surface takes that form.
 export function surfaceTab(surfaceId: string): string {

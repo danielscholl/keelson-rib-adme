@@ -84,7 +84,7 @@ export function composeChange(rt: Runtime): CanvasBoardView {
       binding,
       ...gate,
       ...(subprojects.length === 0 || people.length === 0
-        ? { disabled: true, reason: "read the subprojects on the ADME Seismic tab first" }
+        ? { disabled: true, reason: "read the subprojects in the Seismic section first" }
         : {}),
       fields: [
         ...(people.length > 0
