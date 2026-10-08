@@ -11,7 +11,6 @@ import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
   CLEAR_ACTION,
   composeRecords,
-  LEGAL_BROWSE_ACTION,
   NEXT_ACTION,
   PREV_ACTION,
   SEARCH_ACTIONS,
@@ -32,7 +31,6 @@ import {
 import { RECORDS_KEY } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
-import { focusRegion } from "../section.ts";
 
 const NOT_CONNECTED = "not connected: finish the connect steps in the header";
 
@@ -109,13 +107,6 @@ export const recordsModule: RegionModule = {
       const prev = pageInfo(s.result.total, s.page).prev;
       if (!prev.ok) return { ok: false, error: prev.reason };
       return loadSearch(rt, s.query, s.page - 1);
-    },
-    // A legal tag's Browse records lists the records that carry it, with the visible count.
-    [LEGAL_BROWSE_ACTION]: async (rt, payload) => {
-      const built = buildQuery("legal", (payload ?? {}) as Record<string, unknown>);
-      if (!built.ok) return { ok: false, error: built.error };
-      const res = await loadSearch(rt, built.query, 0);
-      return res.ok ? focusRegion(rt, "data", RECORDS_KEY) : res;
     },
     [CLEAR_ACTION]: async (rt) => {
       clearSearch(rt);

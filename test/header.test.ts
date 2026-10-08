@@ -57,7 +57,7 @@ describe("ADME header", () => {
     const view = header(rt);
     expect(switcher(view).items.find((i) => i.selected)?.label).toBe("Data");
     expect(view.header?.chip).toContain("opendes ·");
-    expect(JSON.stringify(view)).toContain("Legal tags valid");
+    expect(JSON.stringify(view)).toContain("ACL groups");
   });
 
   test("an unknown section fails closed", async () => {

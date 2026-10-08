@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { composeDataPulse } from "../src/boards/data-pulse";
 import { KINDS_AREA, LEGAL_AREA } from "../src/data/areas";
+import { FACETS_AREA } from "../src/data/map";
 import { DATA_PULSE_KEY } from "../src/keys";
 import { dataPulseModule } from "../src/modules/data";
-import { NOW, SAMPLE_KINDS, SAMPLE_LEGAL } from "./fixtures/data";
+import { NOW, SAMPLE_FACETS, SAMPLE_KINDS, SAMPLE_LEGAL } from "./fixtures/data";
 import { seededRuntime } from "./harness";
 
 const pulseBoard = expectView(DATA_PULSE_KEY, "board");
@@ -12,6 +13,7 @@ const pulseBoard = expectView(DATA_PULSE_KEY, "board");
 const SEED = {
   [LEGAL_AREA]: SAMPLE_LEGAL,
   [KINDS_AREA]: SAMPLE_KINDS,
+  [FACETS_AREA]: SAMPLE_FACETS,
 };
 
 type Section = CanvasBoardView["sections"][number];
@@ -38,10 +40,10 @@ describe("data pulse, connected", () => {
     expect(tiles(view)).toEqual({
       Records: { value: "1,284,512", sub: "summed over kinds, may be incomplete" },
       Kinds: { value: "214", sub: "214 families · 1 authority" },
-      "Legal tags valid": { value: "14", sub: "of 15 tags" },
-      "Invalid or expiring": { value: "2", sub: "1 invalid, 1 within 30 days" },
+      "Legal tags": { value: "15", sub: "1 invalid · 1 within 30 days" },
+      "ACL groups": { value: "6", sub: "4 read · 2 own, on records" },
     });
-    const needs = section(view, "stats")?.items.find((t) => t.label === "Invalid or expiring");
+    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags");
     expect(needs?.tone).toBe("caution");
   });
 
@@ -66,8 +68,8 @@ describe("data pulse, connected", () => {
     const legal = { valid: SAMPLE_LEGAL.valid.slice(1), invalid: [] };
     const view = pulse(seededRuntime({ ...SEED, [LEGAL_AREA]: legal }, { now: NOW }));
     expect(view.header?.status?.tone).toBe("ok");
-    const needs = section(view, "stats")?.items.find((t) => t.label === "Invalid or expiring");
-    expect(needs).toMatchObject({ value: "0" });
+    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags");
+    expect(needs).toMatchObject({ value: "13", sub: "all valid, none expire within 30 days" });
     expect(needs?.tone).toBeUndefined();
   });
 
@@ -76,7 +78,8 @@ describe("data pulse, connected", () => {
     const t = tiles(view);
     expect(t.Records).toEqual({ value: null, sub: "not measured" });
     expect(t.Kinds).toEqual({ value: null, sub: "not measured" });
-    expect(t["Legal tags valid"]?.value).toBe("14");
+    expect(t["Legal tags"]?.value).toBe("15");
+    expect(t["ACL groups"]).toEqual({ value: null, sub: "not measured" });
   });
 
   test("tiles read sensibly with many invalid tags", () => {
@@ -86,7 +89,10 @@ describe("data pulse, connected", () => {
     };
     const view = pulse(seededRuntime({ ...SEED, [LEGAL_AREA]: many }, { now: NOW }));
     expect(view.header?.status?.label).toBe("46 tags invalid");
-    expect(tiles(view)["Legal tags valid"]).toEqual({ value: "13", sub: "of 59 tags" });
+    expect(tiles(view)["Legal tags"]).toEqual({
+      value: "59",
+      sub: "46 invalid · 0 within 30 days",
+    });
   });
 });
 

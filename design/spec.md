@@ -281,32 +281,26 @@ Screen: [data.png](screens/data.png).
 
 This section is read-only in the first take. There is no "Extend expiry" and no create or delete of legal tags.
 
-**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 tag invalid · 1 expiring" (caution). Chip `opendes · measured 14:05Z`. Stats, 5 tiles:
+**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 tag invalid · 1 expiring" (caution). Chip `opendes · measured counts 14:05Z, legal 14:05Z`. Stats, 4 tiles:
 
-1. Records 1,284,512, delta up 3,180, sub "since yesterday", spark.
-2. Kinds 214, sub "from search aggregateBy kind".
-3. Legal tags valid 14, sub "of 15 tags".
-4. Invalid or expiring 2 (caution), sub "1 invalid, 1 within 30 days".
-5. Schemas "?", sub "schema service not probed".
+1. Records 1,284,512, sub "indexed, visible to this sign-in".
+2. Kinds 214, sub "N families · N authorities".
+3. Legal tags 15 (caution), sub "1 invalid · 1 within 30 days".
+4. ACL groups, the distinct groups in `acl.viewers` and `acl.owners` on records, sub "N read · N own, on records". "?" when search refuses either aggregate.
 
-**Row 1**, one full-width region `rib:adme:records`, title "Records", chip "kind: osdu:wks:master-data--Well:* · 88,104 hits". A columns section with weights 1:2.
+**Row 1**, one full-width region `rib:adme:map`, title "Partition map", byline "what is in the partition, who can reach it and which legal tag governs it · select a row", chip "measured 14:05Z". A columns section with weights 5:7.
 
 - Left column:
-  - "Find records", tabbed actions: **By kind** (open), By id, Lucene, By ACL group, By legal tag. The open form has Kind (text, `osdu:wks:master-data--Well:*`), Query (text, placeholder `data.FacilityName:"NO 15/9*" (Lucene, optional)`), "Search" (brand) and Cancel.
-  - Bars "Top kinds · share of 1,284,512 records": the 6 kinds and "208 more kinds" from the cast, mono labels, trailing counts. The `Well` bar is accented because it matches the active query.
-- Right column:
-  - Section title "88,104 records · kind osdu:wks:master-data--Well:* · page 1 of 3,525". The active query sits in the region chip and this title because an always-open form does not show the query just run.
-  - 8 selectable rows. Each: chip `compliant` (ok), the record id in mono (`opendes:master-data--Well:8690` and so on), trailing `NO 15/9-F-1 · modified 2026-09-30 · v3`.
-  - Caption "Showing 8 of 25 on this page · 25 per page, paged by the server".
-  - Actions: "Prev" (disabled, reason "first page"), "Next 25", "Clear".
+  - Lens strip: **Legal tags · 15** (selected on open), Readers · N, Owners · N, Kinds · 214. Kinds adds the group strip (Family, Authority, Namespace, Schema version).
+  - Rows titled for the lens ("Records per legal tag · attention first"), at most 12 then "… N more". Each row has its chip or glyph, the name, the record count and a bar of its share of visible records, and selects the row. Legal tags sort invalid first, then expiring soonest, then tags that records carry but the legal service does not list (chip `not listed`, caution), then valid tags by count. Group names drop the `@<entitlements domain>` suffix.
+  - Caption: "A record can carry several tags and groups, so rows overlap and do not add up to 1,284,512."
+  - When search refuses an aggregate, that lens's counts are "?" with the reason; tags still list from the legal service.
+- Right column, the selected row's profile ("Select a row …" until one is picked):
+  - One card with Browse records. A tag: records, expiry, countries, classification, data type, personal data, export; "Why invalid" on an invalid tag. A group: records, members ("1 group · 3 people or applications"), name (copyable); pill `not in entitlements` (caution) when entitlements answers 404. A kind group: records, kinds, schema versions, pattern.
+  - The slice, read when the row is selected: for a tag, "Who can read it", "Who owns it" and bars "What it covers" (by family); for a group, "Under which legal tags", "What it covers" and "Member groups"; for a kind, "Governed by" and "Who can read it".
+- Browse records runs the slice as a search (legal tag, ACL group or kind) and jumps to Records.
 
-**Row 2**, two columns.
-
-- `rib:adme:legal`, title "Legal tags", status "2 need a look" (caution), chip "15 tags". Segments "14 valid · 1 invalid". Cards in two sections, none with an action:
-  - "Needs a look · 2":
-    - `opendes-legacy-training`, error edge, pill `invalid`. Fields: expired 2026-08-31, records affected "not measured", name (copyable). Why invalid: "the contract expiry date has passed. Records that carry only this tag are dropped from search and cannot be read until the tag is valid again."
-    - `opendes-pilot-trial`, warn edge, pill `expires`. Fields: expires in "22 d", on 2026-10-24, countries US, classification Private. Note: "Expires 4 days before the Pilot pass ends on 2026-10-28."
-  - "Valid, no expiry within 30 days · 13": `opendes-public-usa-dataset` and `opendes-public-norway` (pill `valid`, expires 2099-12-31, Public Domain Data), then "… 11 more valid tags · none expire within 30 days".
+**Row 2**, `rib:adme:records`, title "Records", collapsible and folded while no search is active (the board raises `defaultCollapsed`). A columns section with weights 1:2: "Find records" tabs (**By kind**, By id, Lucene, By ACL group, By legal tag) on the left; on the right the result title "88,104 records · kind osdu:wks:master-data--Well:* · page 1 of 3,525", up to 25 rows (chip `compliant`, record id, trailing name, short kind and modified date) that open the record drawer, and Prev, Next 25, Clear.
 
 ### Seismic section
 

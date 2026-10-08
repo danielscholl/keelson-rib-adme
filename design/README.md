@@ -53,15 +53,16 @@ The matrix shows one row per person against Entra state, roster group, `users@`,
 
 ![ADME Data tab](screens/data.png)
 
-Question it answers: what records are in the partition, which legal tags need a look and which records carry them, and can I find and inspect a record? Nothing on this section changes the instance.
+Question it answers: what is in the partition, who can reach it (the ACL groups on its records) and which legal tag governs it, and can I find and inspect a record? Nothing on this section changes the instance.
 
 | Region | Key | What it holds |
 |---|---|---|
-| Data | `rib:adme:data-pulse` | 4 stat tiles in the header: Records (search's tracked total, visible to this sign-in), Kinds with families and authorities, Legal tags valid, Invalid or expiring. The chip carries each area's measured time. |
-| Inventory | `rib:adme:inventory` | Records grouped by family, authority, namespace or schema version from the one kind aggregate, 8 rows with bars and the rest. A row lists that group in Records. |
-| Legal watch | `rib:adme:legal` | Tags that need a look as cards with Browse records, tags by expiry band, then tag properties counted over tags. |
-| Records | `rib:adme:records` | Find tabs (By kind, By id, Lucene, By ACL group, By legal tag) and results, 25 per page, paged by the server. A row opens the record drawer. |
+| Data | `rib:adme:data-pulse` | 4 stat tiles in the header: Records (search's tracked total, visible to this sign-in), Kinds with families and authorities, Legal tags (invalid and expiring in its sub), ACL groups found on records. The chip carries each area's measured time. |
+| Partition map | `rib:adme:map` | Columns 5:7. Left: a lens strip (Legal tags, Readers, Owners, Kinds) and the ranked rows for that lens, each with a bar of its share of visible records. Tags that need a look sort first, including tags on records that the legal service does not list. Kinds keep the family, authority, namespace and version grouping. Right: the selected row's profile, a card with its facts and Browse records, then the other dimensions for that slice: readers, owners and kinds for a tag; tags, kinds and member groups for a group; tags and readers for a kind. A group that entitlements does not know is flagged. |
+| Records | `rib:adme:records` | Folded until a search runs. Find tabs (By kind, By id, Lucene, By ACL group, By legal tag) and results, 25 per page, paged by the server. Browse records on the map opens it with the selected slice. A row opens the record drawer. |
 | Record | `rib:adme:record` | Drawer: one storage read of the latest version, allowlisted fields, ancestry parents and the JSON size. The body is not kept. |
+
+Counts per tag and per group come from search aggregates on `legal.legaltags`, `acl.viewers` and `acl.owners`, three calls beside the kind aggregate. Selecting a row costs the same aggregates filtered to that slice, plus one entitlements read for a group's members. A record can carry several tags and groups, so a lens's rows overlap and are never summed.
 
 An unmeasured value is drawn as "?" and worded "not measured". Counts come from search, so they cover indexed records this sign-in can see. What happens to records once their tag goes invalid is not measured and not claimed.
 

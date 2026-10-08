@@ -30,8 +30,7 @@ import { connectionModule } from "./modules/connection.ts";
 import { dataPulseModule } from "./modules/data.ts";
 import { explainModule } from "./modules/explain.ts";
 import { headerModule } from "./modules/header.ts";
-import { inventoryModule } from "./modules/inventory.ts";
-import { legalModule } from "./modules/legal.ts";
+import { mapModule } from "./modules/map.ts";
 import { planModule } from "./modules/plan.ts";
 import { recordModule } from "./modules/record.ts";
 import { recordsModule } from "./modules/records.ts";
@@ -48,9 +47,8 @@ const MODULES: readonly RegionModule[] = [
   connectionModule,
   accessModule,
   dataPulseModule,
-  legalModule,
   recordsModule,
-  inventoryModule,
+  mapModule,
   recordModule,
   planModule,
   seismicModule,

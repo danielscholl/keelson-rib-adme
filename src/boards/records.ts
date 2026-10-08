@@ -37,7 +37,6 @@ export const SEARCH_ACTIONS: Record<FindMode, string> = {
 export const NEXT_ACTION = "records-next";
 export const PREV_ACTION = "records-prev";
 export const CLEAR_ACTION = "records-clear";
-export const LEGAL_BROWSE_ACTION = "records-browse-legal";
 
 export const DEFAULT_KIND = "osdu:wks:master-data--Well:*";
 
@@ -226,6 +225,7 @@ export function composeRecords(input: RecordsInput): CanvasBoardView {
   return {
     view: "board",
     header: {
+      defaultCollapsed: !input.search,
       ...(locked ? { status: phasePill(input.status) } : {}),
       ...(head ? { chip: head } : {}),
     },
