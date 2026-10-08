@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.2.0...v1.3.0) (2026-10-08)
+
+
+### Added
+
+* one ADME tab with Access, Data and Seismic sections ([#28](https://github.com/danielscholl/keelson-rib-adme/issues/28)) ([f70c931](https://github.com/danielscholl/keelson-rib-adme/commit/f70c931d094fbc18faf891facf63f6cd181ea1a1))
+
 ## [1.2.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.1.1...v1.2.0) (2026-10-07)
 
 
