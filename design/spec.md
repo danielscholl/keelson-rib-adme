@@ -167,7 +167,7 @@ Heading "ADME", subtitle "Who has access to the instance, what data is in it, an
 **Header region `rib:adme:header`**, title "ADME", live dot, head menu: Refresh now, Re-test connection, Connection details. Its board is, top to bottom:
 
 1. The section switcher: one toggle per section, "Access · 5", "Data · 2", "Seismic", the showing one selected. A count shows only while connected and above zero.
-2. The connection line: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example" (ok), or "Sign-in needed for contoso-adme · opendes" (error), trailing "details". Clicking it, or Connection details in the head menu, opens the Connection inspector in the drawer. Absent before the first connection.
+2. The connection line: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin" (ok). The role is the operator's highest `users.datalake` group (Ops, Admin, Editor, Viewer), "no role group" when they are in none, and "role ?" before it is read, or "Sign-in needed for contoso-adme · opendes" (error), trailing "details". Clicking it, or Connection details in the head menu, opens the Connection inspector in the drawer. Absent before the first connection.
 3. The showing section's pulse, with its status pill and chip as the header's own. Before the rib connects, the connect journey stands in for every section's pulse.
 
 Conventions in every section:
@@ -352,7 +352,7 @@ The canvas drawer holds one document and has no back stack. Each inspector has i
 
 ### Connection inspector `rib:adme:connection`
 
-Opened from the header's connection line or Connection details in its head menu, docked at the side. Status pill by phase ("connected", "sign-in needed", "check the connection"), chip `contoso-adme · opendes`. It holds the "Sign in again" card while sign-in is needed, the actions Re-test connection, Find the audit log (while no workspace is set) and Edit profile, the instance profile, the roster group suggestion, and "What this sign-in can do", captioned "Tested as ingrid.halvorsen@contoso.example".
+Opened from the header's connection line or Connection details in its head menu, docked at the side. Status pill by phase ("connected", "sign-in needed", "check the connection"), chip `contoso-adme · opendes`. It holds the "Sign in again" card while sign-in is needed, the actions Re-test connection, Find the audit log (while no workspace is set) and Edit profile, "Your access" (Role "Admin", Seismic tenant admin "yes", From groups "users, users.datalake.admins"), the instance profile, the roster group suggestion, and "What this sign-in can do", captioned "Tested as ingrid.halvorsen@contoso.example".
 
 ### Person inspector `rib:adme:person`
 
@@ -454,7 +454,7 @@ Three states are drawn. In the mockup they are selected by the buttons above the
 
 ### Connected
 
-The default. Everything above describes this state. The header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example".
+The default. Everything above describes this state. The header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin".
 
 A "measured 14:05Z" chip names the time of the reading. A reading from an earlier day also names the day, "measured 2026-09-27 22:13Z". This matters for seismic, which is read on first use rather than on every sweep, so a reading cached before a restart never passes as today's.
 
@@ -530,7 +530,7 @@ Limits:
 
 The rib uses the operator's Azure CLI sign-in. It runs in-process in the Keelson server and stores no credential. The connection profile is up to six non-secret values: host, partition, entitlements domain, tenant id, ADME app id and, optionally, roster group id.
 
-The operator does not type them. On first run the rib asks Azure Resource Graph, through `az rest`, for every `Microsoft.OpenEnergyPlatform/energyServices` resource the sign-in can read. That covers all subscriptions, not only the selected one, and needs no `az` extension. The chosen instance supplies host, tenant id, ADME app id and partition. Test connection reads the entitlements domain from the operator's own groups. The roster group is optional: when exactly one Entra group carries the instance's name, the Connection inspector offers it and the operator confirms. An operator who has data access but no Azure role on the instance sees an empty list and enters the values by hand.
+The operator does not type them. On first run the rib asks Azure Resource Graph, through `az rest`, for every `Microsoft.OpenEnergyPlatform/energyServices` resource the sign-in can read. That covers all subscriptions, not only the selected one, and needs no `az` extension. The chosen instance supplies host, tenant id, ADME app id and partition. Test connection reads the entitlements domain and the operator's role from their own groups. The roster group is optional: when exactly one Entra group carries the instance's name, the Connection inspector offers it and the operator confirms. An operator who has data access but no Azure role on the instance sees an empty list and enters the values by hand.
 
 Before each batch of calls the rib asks `az` for a token again through `ctx.getExec()`:
 
@@ -544,7 +544,7 @@ az account get-access-token --resource https://graph.microsoft.com
 
 Every ADME request sends `Authorization: Bearer` and `data-partition-id: opendes`. The rib calls ADME services (entitlements, legal, storage, search, seismic) and Entra Graph (users, invitations, deleted items, the roster group) directly. ADME does not read the roster group; it is kept for tracking only.
 
-Because the token is fetched again before each batch, token lifetime is never the operator's concern, and the UI shows nothing about tokens: no token tile, no countdown, no token wording in any check. While the connection works the header's connection line says "Connected to" and names the instance, partition and who is signed in. The only other state the operator sees is "sign-in needed", described under [States](#states).
+Because the token is fetched again before each batch, token lifetime is never the operator's concern, and the UI shows nothing about tokens: no token tile, no countdown, no token wording in any check. While the connection works the header's connection line says "Connected to" and names the instance, partition, who is signed in and their role. The only other state the operator sees is "sign-in needed", described under [States](#states).
 
 Limits:
 

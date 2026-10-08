@@ -11,6 +11,8 @@ import {
   CAPABILITY_IDS,
   CAPABILITY_LABELS,
   type ConnectionStatus,
+  isTenantAdmin,
+  operatorRole,
   signinCommand,
 } from "../connection.ts";
 import type { Discovery, Instance } from "../discover.ts";
@@ -241,7 +243,32 @@ export function capabilityTable(status: ConnectionStatus): Section | undefined {
   };
 }
 
-// The header's one-line connection: which instance, as whom, and a way into the details.
+function roleLabel(status: ConnectionStatus): string {
+  const role = operatorRole(status.test);
+  return role === undefined ? "role ?" : (role ?? "no role group");
+}
+
+function yourAccess(status: ConnectionStatus): Section | undefined {
+  const test = status.test;
+  if (!test) return undefined;
+  const role = operatorRole(test);
+  const groups = test.roleGroups;
+  return {
+    kind: "rows",
+    title: "Your access",
+    boxed: true,
+    items: [
+      { text: "Role", trailing: roleLabel(status) },
+      {
+        text: "Seismic tenant admin",
+        trailing: role === undefined ? "?" : isTenantAdmin(role) ? "yes" : "no",
+      },
+      { text: "From groups", trailing: groups ? groups.join(", ") || "none" : "?" },
+    ],
+  };
+}
+
+// The header's one-line connection: which instance, as whom with what role, and a way into the details.
 export function connectionLine(status: ConnectionStatus): Section | undefined {
   const profile = status.profile;
   if (!profile || status.phase === "firstrun") return undefined;
@@ -249,7 +276,7 @@ export function connectionLine(status: ConnectionStatus): Section | undefined {
   const who = status.test?.signedInAs;
   const text =
     status.phase === "connected"
-      ? `Connected to ${where}${who ? ` as ${who}` : ""}`
+      ? `Connected to ${where}${who ? ` as ${who}` : ""} · ${roleLabel(status)}`
       : status.phase === "signin"
         ? `Sign-in needed for ${where}`
         : `Check the connection to ${where}`;
@@ -297,6 +324,8 @@ export function composeConnection(status: ConnectionStatus): CanvasBoardView {
       profileForm(status.profile, false),
     ],
   });
+  const access = yourAccess(status);
+  if (access) sections.push(access);
   sections.push(profileCard(status.profile));
   const roster = rosterSuggestion(status);
   if (roster) sections.push(roster);

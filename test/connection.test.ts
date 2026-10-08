@@ -263,7 +263,7 @@ describe("test connection", () => {
       items: [
         {
           glyph: "ok",
-          text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example",
+          text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · no role group",
           action: { type: CONNECTION_DETAILS_ACTION },
         },
       ],
@@ -316,6 +316,57 @@ describe("test connection", () => {
       (r) => r.method !== "GET" && !r.url.endsWith("/api/search/v2/query"),
     );
     expect(writes).toEqual([]);
+  });
+
+  test("the operator's own groups give their role and seismic tenant admin", async () => {
+    const domain = "opendes.dataservices.energy";
+    const { rt } = runtime({
+      routes: sampleRoutes({
+        "GET /api/entitlements/v2/groups": () => ({
+          status: 200,
+          body: {
+            groups: [
+              "users",
+              "users.datalake.editors",
+              "users.datalake.admins",
+              "data.default.viewers",
+            ].map((n) => ({ email: `${n}@${domain}` })),
+          },
+        }),
+      }),
+    });
+    await rt.saveProfile(SAMPLE_PROFILE);
+    expect(rt.status.test?.roleGroups).toEqual([
+      "users",
+      "users.datalake.admins",
+      "users.datalake.editors",
+    ]);
+    expect(connectionLine(rt.status)).toMatchObject({
+      items: [
+        { text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin" },
+      ],
+    });
+    const access = composeConnection(rt.status).sections.find((s) => s.title === "Your access");
+    expect(access).toMatchObject({
+      items: [
+        { text: "Role", trailing: "Admin" },
+        { text: "Seismic tenant admin", trailing: "yes" },
+        { text: "From groups", trailing: "users, users.datalake.admins, users.datalake.editors" },
+      ],
+    });
+  });
+
+  test("a test recorded before roles were read shows the role as unknown", () => {
+    const line = connectionLine({
+      phase: "connected",
+      profile: SAMPLE_PROFILE,
+      test: {
+        testedAt: "2026-10-02T14:05:00Z",
+        signedInAs: "ingrid.halvorsen@contoso.example",
+        capabilities: [],
+      },
+    });
+    expect(line).toMatchObject({ items: [{ text: expect.stringContaining("· role ?") }] });
   });
 });
 

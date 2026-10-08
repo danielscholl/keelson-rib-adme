@@ -166,6 +166,7 @@ export function seededRuntime(
     store.write("test.json", {
       testedAt: now.toISOString(),
       signedInAs: "ingrid.halvorsen@contoso.example",
+      roleGroups: ["users", "users.datalake.admins"],
       capabilities: [],
     });
   }
