@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.3.0...v1.4.0) (2026-10-08)
+
+
+### Added
+
+* **data:** record inventory, legal watch and a record drawer ([#33](https://github.com/danielscholl/keelson-rib-adme/issues/33)) ([fcad5b6](https://github.com/danielscholl/keelson-rib-adme/commit/fcad5b66d2d036153188de56864724eb27d14ed8))
+* show the operator's role on the connection line ([#32](https://github.com/danielscholl/keelson-rib-adme/issues/32)) ([fff6c2b](https://github.com/danielscholl/keelson-rib-adme/commit/fff6c2b07811c9989102bce5c744c21eb37a81e5))
+
+
+### Fixed
+
+* drop the ADME tab badge ([#30](https://github.com/danielscholl/keelson-rib-adme/issues/30)) ([14c9a70](https://github.com/danielscholl/keelson-rib-adme/commit/14c9a70452cf5522018bbcaeb7feda861639720a))
+
 ## [1.3.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.2.0...v1.3.0) (2026-10-08)
 
 
