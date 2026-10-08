@@ -146,17 +146,18 @@ Top kinds (sums to 1,284,512):
 | `osdu:wks:reference-data--UnitOfMeasure:1.0.0` | 21,330 |
 | 208 more kinds | 393,216 |
 
-Services, from `GET /info` per service: 5 answered, 1 not permitted, 4 not probed.
+Health: Azure Resource Health "Available" since 2026-09-12 08:00Z. Services, one probe each: 17 enabled, 2 not enabled, all answering, release 0.28.
 
-| Service | Result |
-|---|---|
-| entitlements | ok, 0.28.2 |
-| legal | ok, 0.28.0 |
-| storage | ok, 0.28.1 |
-| search | ok, 0.28.1 |
-| seismic | ok (service status) |
-| partition | 403, not permitted (service principal only) |
-| schema, workflow, file, indexer | `?`, not probed |
+| Group | Service | Result |
+|---|---|---|
+| Core | entitlements, legal, storage, search, indexer, schema | up, 0.28.x |
+| Core | partition | up, 403 without a version (service principals only) |
+| Files and ingestion | file, dataset, workflow, register, notification | up, 0.28.x |
+| Reference | unit, CRS catalog, CRS conversion | up, 0.28.0 |
+| Reference | policy | not enabled (404) |
+| Domain data (DDMS) | seismic | up (service status, no version) |
+| Domain data (DDMS) | wellbore | up, 0.28.0 |
+| Domain data (DDMS) | reservoir | not enabled (404) |
 
 ## The ADME tab
 
@@ -167,7 +168,7 @@ Heading "ADME", subtitle "Who has access to the instance, what data is in it, an
 **Header region `rib:adme:header`**, title "ADME", live dot, head menu: Refresh now, Re-test connection, Connection details. Its board is, top to bottom:
 
 1. The section switcher: one toggle per section, "Access · 5", "Data · 2", "Seismic", the showing one selected. A count shows only while connected and above zero.
-2. The connection line: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin" (ok). The role is the operator's highest `users.datalake` group (Ops, Admin, Editor, Viewer), "no role group" when they are in none, and "role ?" before it is read, or "Sign-in needed for contoso-adme · opendes" (error), trailing "details". Clicking it, or Connection details in the head menu, opens the Connection inspector in the drawer. Absent before the first connection.
+2. The connection line: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin" (ok). The role is the operator's highest `users.datalake` group (Ops, Admin, Editor, Viewer), "no role group" when they are in none, and "role ?" before it is read, or "Sign-in needed for contoso-adme · opendes" (error), trailing "details". While connected the line ends in a health chip instead of "details": "healthy · 0.28" (ok), "search not answering · 0.28" or "Azure: degraded · 0.28" (caution), "Azure: unavailable" (error), "health ?" (neutral) before the first check, "mixed versions" in place of the release when services disagree. Any HTTP answer but 404 counts as up, so a 403 is a live service; 5xx, a timeout or no answer is down; 404 is not enabled on the instance. Clicking it, or Connection details in the head menu, opens the Connection inspector in the drawer. Absent before the first connection.
 3. The showing section's pulse, with its status pill and chip as the header's own. Before the rib connects, the connect journey stands in for every section's pulse.
 
 Conventions in every section:
@@ -306,9 +307,6 @@ This section is read-only in the first take. There is no "Extend expiry" and no 
     - `opendes-legacy-training`, error edge, pill `invalid`. Fields: expired 2026-08-31, records affected "not measured", name (copyable). Why invalid: "the contract expiry date has passed. Records that carry only this tag are dropped from search and cannot be read until the tag is valid again."
     - `opendes-pilot-trial`, warn edge, pill `expires`. Fields: expires in "22 d", on 2026-10-24, countries US, classification Private. Note: "Expires 4 days before the Pilot pass ends on 2026-10-28."
   - "Valid, no expiry within 30 days · 13": `opendes-public-usa-dataset` and `opendes-public-norway` (pill `valid`, expires 2099-12-31, Public Domain Data), then "… 11 more valid tags · none expire within 30 days".
-- `rib:adme:services`, title "Services", byline "GET /info per service", chip "5 answered · 1 not permitted · 4 not probed", collapsible.
-  - Grid "Probe result, by service": entitlements, legal, storage, search and seismic `ok`; partition `403` (caution); schema, workflow, file and indexer `?` (neutral).
-  - Rows "Versions from GET /info, and the sweep": entitlements 0.28.2, legal 0.28.0, storage 0.28.1, search 0.28.1, partition "403, not permitted (service principal only)", "API calls, last sweep" 12, and "Audit log · OEPAuditLogs · 2.4M calls in 30 days (from the tracker, not measured here)".
 
 ### Seismic section
 
@@ -352,7 +350,7 @@ The canvas drawer holds one document and has no back stack. Each inspector has i
 
 ### Connection inspector `rib:adme:connection`
 
-Opened from the header's connection line or Connection details in its head menu, docked at the side. Status pill by phase ("connected", "sign-in needed", "check the connection"), chip `contoso-adme · opendes`. It holds the "Sign in again" card while sign-in is needed, the actions Re-test connection, Find the audit log (while no workspace is set) and Edit profile, "Your access" (Role "Admin", Seismic tenant admin "yes", From groups "users, users.datalake.admins"), the instance profile, the roster group suggestion, and "What this sign-in can do", captioned "Tested as ingrid.halvorsen@contoso.example".
+Opened from the header's connection line or Connection details in its head menu, docked at the side. Status pill by phase ("connected", "sign-in needed", "check the connection"), chip `contoso-adme · opendes`. It holds the "Sign in again" card while sign-in is needed, the actions Re-test connection, Find the audit log (while no workspace is set) and Edit profile, "Platform" (rows: "All 17 enabled services answer" trailing "measured 14:05Z", Azure Resource Health "Available since 2026-09-12 08:00Z", Release "0.28 on 15 of 17"), a table "Services · 17 enabled · 2 not enabled" with Group, Service and Version or result for every service in the catalog, checked at most hourly, "Your access" (Role "Admin", Seismic tenant admin "yes", From groups "users, users.datalake.admins"), the instance profile, the roster group suggestion, and "What this sign-in can do", captioned "Tested as ingrid.halvorsen@contoso.example".
 
 ### Person inspector `rib:adme:person`
 

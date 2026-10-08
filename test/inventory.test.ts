@@ -3,7 +3,8 @@ import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { INVENTORY_GROUP_ACTION, INVENTORY_OPEN_ACTION } from "../src/boards/inventory";
 import { formatBytes, RECORD_OPEN_ACTION } from "../src/boards/record";
 import { createClient, MAX_BODY_BYTES, readCapped } from "../src/client";
-import { KINDS_AREA, readKinds, SERVICES_AREA } from "../src/data/areas";
+import { KINDS_AREA, readKinds } from "../src/data/areas";
+import { HEALTH_AREA } from "../src/data/health";
 import { groupKinds } from "../src/data/inventory";
 import { activeSearch } from "../src/data/records";
 import { INVENTORY_KEY, RECORD_KEY } from "../src/keys";
@@ -306,7 +307,7 @@ describe("area intervals", () => {
       },
       ...(everyMs ? { everyMs } : {}),
     });
-    rt.addArea(area(SERVICES_AREA, 60 * 60_000));
+    rt.addArea(area(HEALTH_AREA, 60 * 60_000));
     rt.addArea(area("other"));
     await rt.sweep();
     now = new Date("2026-10-02T14:35:00Z");
@@ -315,12 +316,12 @@ describe("area intervals", () => {
     now = new Date("2026-10-02T16:00:00Z");
     await rt.sweep();
     expect(reads).toEqual([
-      SERVICES_AREA,
+      HEALTH_AREA,
       "other",
       "other",
-      SERVICES_AREA,
+      HEALTH_AREA,
       "other",
-      SERVICES_AREA,
+      HEALTH_AREA,
       "other",
     ]);
   });

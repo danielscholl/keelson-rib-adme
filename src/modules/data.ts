@@ -7,16 +7,14 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import { composeDataPulse, legalAttention } from "../boards/data-pulse.ts";
-import { composeServices } from "../boards/services.ts";
 import { DATA_AREAS, LEGAL_AREA, type LegalTags } from "../data/areas.ts";
-import { DATA_PULSE_KEY, SERVICES_KEY } from "../keys.ts";
+import { DATA_PULSE_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 
 export const dataPulseModule: RegionModule = {
   areas: DATA_AREAS,
   composers: {
     [DATA_PULSE_KEY]: composeDataPulse,
-    [SERVICES_KEY]: composeServices,
   },
   counts: {
     data: (rt) => {

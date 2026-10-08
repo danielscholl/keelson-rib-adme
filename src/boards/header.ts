@@ -7,6 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasBoardView } from "@keelson/shared";
+import { HEALTH_AREA, type Health, verdict } from "../data/health.ts";
 import type { Runtime } from "../runtime.ts";
 import {
   activeSection,
@@ -16,6 +17,7 @@ import {
   type SectionId,
 } from "../section.ts";
 import { connectionLine } from "./connection.ts";
+import { healthChip } from "./health.ts";
 
 type Section = CanvasBoardView["sections"][number];
 
@@ -48,7 +50,8 @@ export function composeHeader(rt: Runtime, parts: HeaderParts): CanvasBoardView 
   const phase = rt.status.phase;
   const unconnected = phase === "firstrun" || phase === "profile-error";
   const pulse = parts.pulses[unconnected ? "access" : activeSection(rt)](rt);
-  const line = connectionLine(rt.status);
+  const health = healthChip(verdict(rt.cache.get<Health>(HEALTH_AREA).data));
+  const line = connectionLine(rt.status, health);
   return {
     ...pulse,
     sections: [switcher(rt, parts.counts), ...(line ? [line] : []), ...pulse.sections],

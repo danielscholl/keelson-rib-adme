@@ -11,6 +11,7 @@ import type { Profile } from "./profile.ts";
 
 export const GRAPH_RESOURCE = "https://graph.microsoft.com";
 export const LOGS_RESOURCE = "https://api.loganalytics.io";
+export const ARM_RESOURCE = "https://management.azure.com";
 
 export type TokenFailure =
   | { kind: "signin"; message: string }

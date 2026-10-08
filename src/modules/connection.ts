@@ -16,14 +16,23 @@ import {
   SAVE_PROFILE_ACTION,
   USE_ROSTER_ACTION,
 } from "../boards/connection.ts";
+import { platformSections } from "../boards/health.ts";
+import { HEALTH_AREA, HEALTH_AREAS, type Health } from "../data/health.ts";
 import { CONNECTION_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 import { composeRestingHeader } from "../resting.ts";
 import { REFRESH_ACTION } from "../surfaces.ts";
 
 export const connectionModule: RegionModule = {
+  areas: HEALTH_AREAS,
   composers: {
-    [CONNECTION_KEY]: (rt) => composeConnection(rt.status),
+    [CONNECTION_KEY]: (rt) =>
+      composeConnection(
+        rt.status,
+        rt.status.profile
+          ? platformSections(rt.cache.get<Health>(HEALTH_AREA), rt.freshness(HEALTH_AREA))
+          : [],
+      ),
     [DATA_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
     [SEIS_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
   },

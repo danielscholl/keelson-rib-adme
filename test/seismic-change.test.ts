@@ -13,7 +13,7 @@ import {
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
 import { composeSeismicChange, composeSeismicReach } from "../src/boards/seismic-change";
-import { SERVICES_AREA } from "../src/data/areas";
+import { HEALTH_AREA } from "../src/data/health";
 import { PLAN_KEY, SEIS_CHANGE_KEY, SEIS_REACH_KEY, SEIS_SELECTED_KEY } from "../src/keys";
 import { planModule } from "../src/modules/plan";
 import { seismicModule } from "../src/modules/seismic";
@@ -23,7 +23,7 @@ import { planState } from "../src/plan/state";
 import type { Runtime } from "../src/runtime";
 import { SEISMIC_AREA, type SeismicRead } from "../src/seismic/read";
 import { sampleAccess } from "./fixtures/access";
-import { NOW, SAMPLE_SERVICES } from "./fixtures/data";
+import { NOW, SAMPLE_HEALTH } from "./fixtures/data";
 import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { groupEmail, sampleGroupMembers, sampleSeismic } from "./fixtures/seismic";
 import { routeTransport, type SentRequest, seededRuntime } from "./harness";
@@ -91,7 +91,7 @@ function runtime(
   const rt = seededRuntime(
     {
       [ACCESS_AREA]: sampleAccess(),
-      [SERVICES_AREA]: SAMPLE_SERVICES,
+      [HEALTH_AREA]: SAMPLE_HEALTH,
       [SEISMIC_AREA]: o.seismic ?? sampleSeismic(),
     },
     { now: NOW, transport: w.transport, ...(o.phase ? { phase: o.phase } : {}) },

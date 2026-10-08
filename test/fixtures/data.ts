@@ -1,25 +1,35 @@
-import type { KindCounts, LegalTag, LegalTags, ServiceProbe } from "../../src/data/areas";
+import type { KindCounts, LegalTag, LegalTags } from "../../src/data/areas";
+import type { Health } from "../../src/data/health";
 
 // The ADME Data cast from design/spec.md. "Now" is 2026-10-02 14:05 UTC.
 export const NOW = new Date("2026-10-02T14:05:00Z");
 
-export const SAMPLE_SERVICES: ServiceProbe[] = [
-  { service: "entitlements", state: "ok", version: "0.28.2" },
-  { service: "legal", state: "ok", version: "0.28.0" },
-  { service: "storage", state: "ok", version: "0.28.1" },
-  { service: "search", state: "ok", version: "0.28.1" },
-  { service: "schema", state: "unprobed" },
-  { service: "workflow", state: "unprobed" },
-  { service: "file", state: "unprobed" },
-  { service: "indexer", state: "unprobed" },
-  {
-    service: "partition",
-    state: "forbidden",
-    status: 403,
-    message: "not permitted (service principal only)",
-  },
-  { service: "seismic", state: "ok" },
-];
+const v28 = (service: string, version: string) => ({ service, state: "up" as const, version });
+
+export const SAMPLE_HEALTH: Health = {
+  services: [
+    v28("entitlements", "0.28.2"),
+    v28("legal", "0.28.0"),
+    v28("storage", "0.28.1"),
+    v28("search", "0.28.1"),
+    v28("indexer", "0.28.1"),
+    v28("schema", "0.28.0"),
+    { service: "partition", state: "up", status: 403, message: "service principals only" },
+    v28("file", "0.28.0"),
+    v28("dataset", "0.28.0"),
+    v28("workflow", "0.28.1"),
+    v28("register", "0.28.0"),
+    v28("notification", "0.28.0"),
+    v28("unit", "0.28.0"),
+    v28("crs-catalog", "0.28.0"),
+    v28("crs-conversion", "0.28.0"),
+    { service: "policy", state: "off", status: 404 },
+    { service: "seismic", state: "up" },
+    v28("wellbore", "0.28.0"),
+    { service: "reservoir", state: "off", status: 404 },
+  ],
+  azure: { state: "Available", since: "2026-09-12T08:00:00Z" },
+};
 
 const publicTag = (name: string, country: string): LegalTag => ({
   name,

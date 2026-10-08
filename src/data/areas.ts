@@ -6,72 +6,12 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { Batch, CallResult, Service } from "../client.ts";
-import {
-  DATA_PULSE_KEY,
-  INVENTORY_KEY,
-  LEGAL_KEY,
-  RECORDS_KEY,
-  SEIS_PULSE_KEY,
-  SERVICES_KEY,
-} from "../keys.ts";
+import type { Batch, CallResult } from "../client.ts";
+import { DATA_PULSE_KEY, INVENTORY_KEY, LEGAL_KEY, RECORDS_KEY } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
-export const SERVICES_AREA = "services";
 export const LEGAL_AREA = "legal";
 export const KINDS_AREA = "kinds";
-
-// ---- Services: GET /info per service ----
-
-export type ProbeState = "ok" | "forbidden" | "error" | "unprobed";
-
-export interface ServiceProbe {
-  service: string;
-  state: ProbeState;
-  version?: string;
-  status?: number;
-  message?: string;
-}
-
-// Probed at most hourly unless the operator refreshes. Others are listed as not probed so the gap is visible.
-export const PROBED_SERVICES: readonly Service[] = [
-  "entitlements",
-  "legal",
-  "storage",
-  "search",
-  "schema",
-  "workflow",
-  "file",
-  "indexer",
-  "partition",
-];
-
-export async function readServices(batch: Batch): Promise<CallResult<ServiceProbe[]>> {
-  const infos = await Promise.all(
-    PROBED_SERVICES.map((s) => batch.adme<{ version?: string }>(s, "/info")),
-  );
-  const seismic = await batch.adme<string>("seismic", "/svcstatus");
-  for (const res of [...infos, seismic]) {
-    if (!res.ok && res.failure.status === null && res.failure.kind === "signin") return res;
-  }
-  const probes: ServiceProbe[] = infos.map((res, i) => probe(PROBED_SERVICES[i] as string, res));
-  probes.push(probe("seismic", seismic));
-  return { ok: true, status: 200, data: probes };
-}
-
-function probe(service: string, res: CallResult<{ version?: string } | string>): ServiceProbe {
-  if (res.ok) {
-    const version = typeof res.data === "object" ? res.data?.version : undefined;
-    return { service, state: "ok", ...(version ? { version } : {}) };
-  }
-  const f = res.failure;
-  return {
-    service,
-    state: f.kind === "forbidden" ? "forbidden" : "error",
-    ...(f.status !== null ? { status: f.status } : {}),
-    message: f.message,
-  };
-}
 
 // ---- Legal tags: valid and invalid lists ----
 
@@ -185,15 +125,7 @@ export async function readKinds(batch: Batch): Promise<CallResult<KindCounts>> {
   };
 }
 
-export const SERVICES_EVERY_MS = 60 * 60_000;
-
 export const DATA_AREAS: readonly Area[] = [
-  {
-    name: SERVICES_AREA,
-    keys: [SERVICES_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY],
-    read: readServices,
-    everyMs: SERVICES_EVERY_MS,
-  },
   { name: LEGAL_AREA, keys: [LEGAL_KEY, DATA_PULSE_KEY], read: readLegal },
   { name: KINDS_AREA, keys: [INVENTORY_KEY, RECORDS_KEY, DATA_PULSE_KEY], read: readKinds },
 ];

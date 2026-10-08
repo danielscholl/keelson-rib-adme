@@ -22,7 +22,7 @@ The sample instance has 36 identities (32 people and 4 applications) and 13 seis
 | Data | Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only. | 2 (1 invalid tag, 1 expiring) |
 | Seismic | Seismic subprojects: who is in each by name, grant and revoke. | none |
 
-Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, with no tab badge; each section's count sits on its switcher button. Its header holds the section switcher, the connection line (instance, partition, who is signed in and their role) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
+Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, with no tab badge; each section's count sits on its switcher button. Its header holds the section switcher, the connection line (instance, partition, who is signed in and their role, ending in a health chip such as "healthy · 0.28" that opens the Connection inspector with every service and its version) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
 
 Out of the first take: creating, extending or deleting legal tags, removing a whole cohort, agent tools, and everything under [Later and Not planned yet](#build-order).
 
@@ -53,7 +53,7 @@ The matrix shows one row per person against Entra state, roster group, `users@`,
 
 ![ADME Data tab](screens/data.png)
 
-Question it answers: what records are in the partition, which legal tags need a look and which records carry them, can I find and inspect a record, and which services answer? Nothing on this section changes the instance.
+Question it answers: what records are in the partition, which legal tags need a look and which records carry them, and can I find and inspect a record? Nothing on this section changes the instance.
 
 | Region | Key | What it holds |
 |---|---|---|
@@ -62,7 +62,6 @@ Question it answers: what records are in the partition, which legal tags need a 
 | Legal watch | `rib:adme:legal` | Tags that need a look as cards with Browse records, tags by expiry band, then tag properties counted over tags. |
 | Records | `rib:adme:records` | Find tabs (By kind, By id, Lucene, By ACL group, By legal tag) and results, 25 per page, paged by the server. A row opens the record drawer. |
 | Record | `rib:adme:record` | Drawer: one storage read of the latest version, allowlisted fields, ancestry parents and the JSON size. The body is not kept. |
-| Services | `rib:adme:services` | Probe result and version per service, probed at most hourly unless Refresh now. Collapsed. |
 
 An unmeasured value is drawn as "?" and worded "not measured". Counts come from search, so they cover indexed records this sign-in can see. What happens to records once their tag goes invalid is not measured and not claimed.
 
