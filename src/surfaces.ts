@@ -12,7 +12,6 @@ import { EXPORT_GUIDE_ACTION } from "./boards/people.ts";
 import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
-  BADGE_KEY,
   HEADER_KEY,
   LEGAL_KEY,
   OPERATION_KEY,
@@ -222,7 +221,6 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
     heading: "ADME",
     subtitle:
       "Who has access to the instance, what data is in it, and who can reach each seismic subproject.",
-    badgeKey: BADGE_KEY,
     layout: {
       header,
       rows: [...ACCESS_ROWS, ...DATA_ROWS, ...SEISMIC_ROWS],

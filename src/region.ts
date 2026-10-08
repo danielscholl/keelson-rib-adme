@@ -8,15 +8,16 @@
 
 import type { CanvasBoardView, RibActionResult } from "@keelson/shared";
 import type { Area, Runtime } from "./runtime.ts";
+import type { SectionId } from "./section.ts";
 
 export type ActionHandler = (rt: Runtime, payload: unknown) => Promise<RibActionResult>;
 
 // One slice of the rib: its tier-1 reads, the boards it composes, the board
-// actions it handles, and what it adds to a tab badge. index.ts wires a list
+// actions it handles, and the count it adds to its section's switcher button. index.ts wires a list
 // of these, so a new region is one module and one line.
 export interface RegionModule {
   areas?: readonly Area[];
   composers?: Readonly<Record<string, (rt: Runtime) => CanvasBoardView>>;
   actions?: Readonly<Record<string, ActionHandler>>;
-  badges?: Readonly<Record<string, (rt: Runtime) => number>>;
+  counts?: Partial<Record<SectionId, (rt: Runtime) => number>>;
 }

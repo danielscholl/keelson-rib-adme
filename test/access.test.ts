@@ -16,14 +16,7 @@ import {
 import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
-import {
-  ATTENTION_KEY,
-  BADGE_KEY,
-  COHORTS_KEY,
-  PEOPLE_KEY,
-  PRINCIPALS_KEY,
-  PULSE_KEY,
-} from "../src/keys";
+import { ATTENTION_KEY, COHORTS_KEY, PEOPLE_KEY, PRINCIPALS_KEY, PULSE_KEY } from "../src/keys";
 import { accessModule } from "../src/modules/access";
 import { planModule } from "../src/modules/plan";
 import { planState } from "../src/plan/state";
@@ -157,7 +150,7 @@ describe("access boards", () => {
     expect(composeAttention(first).sections).toEqual([]);
     expect(composePeople(first).sections).toEqual([]);
     expect(JSON.stringify(composeAccessPulse(first))).toContain("Step 2: pick the instance");
-    expect(accessModule.badges?.[BADGE_KEY]?.(first)).toBe(0);
+    expect(accessModule.counts?.access?.(first)).toBe(0);
   });
 
   test("a lapsed sign-in keeps the last sweep and says cached", () => {
@@ -168,11 +161,11 @@ describe("access boards", () => {
   });
 
   test("the badge counts pending, broken and unknown principals", () => {
-    expect(accessModule.badges?.[BADGE_KEY]?.(rt())).toBe(5);
+    expect(accessModule.counts?.access?.(rt())).toBe(5);
     const read = sampleAccess();
     read.groups.editors.push({ id: "ffffffff-0000-4000-8000-000000000000", owner: false });
     const withUnknown = seededRuntime({ [ACCESS_AREA]: read });
-    expect(accessModule.badges?.[BADGE_KEY]?.(withUnknown)).toBe(6);
+    expect(accessModule.counts?.access?.(withUnknown)).toBe(6);
     expect(JSON.stringify(composeAttention(withUnknown))).toContain("not found in Entra");
   });
 

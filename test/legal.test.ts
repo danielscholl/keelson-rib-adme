@@ -188,9 +188,9 @@ describe("other phases", () => {
     expect(validate(composeLegal(rt)).sections).toEqual([]);
   });
 
-  test("the module composes the legal key and registers no areas or badges", () => {
+  test("the module composes the legal key and registers no areas or counts", () => {
     expect(Object.keys(legalModule.composers ?? {})).toEqual([LEGAL_KEY]);
     expect(legalModule.areas).toBeUndefined();
-    expect(legalModule.badges).toBeUndefined();
+    expect(legalModule.counts).toBeUndefined();
   });
 });

@@ -53,7 +53,6 @@ import {
 import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
-  BADGE_KEY,
   COHORTS_KEY,
   ORGS_KEY,
   PEOPLE_KEY,
@@ -239,8 +238,8 @@ export const accessModule: RegionModule = {
       return { ok: true, data: { message: `Wrote ${path}` } };
     },
   },
-  badges: {
-    [BADGE_KEY]: (rt) => {
+  counts: {
+    access: (rt) => {
       const m = measuredAccess(rt);
       return m ? followUpCount(m) : 0;
     },

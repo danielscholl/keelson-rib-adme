@@ -16,7 +16,7 @@ The first take is one tab, ADME (surface id `adme`), with three sections picked 
 | Data | 2 | Whether each service answers, legal tags, how much data is in the partition, record search. Read-only. |
 | Seismic | none | Seismic subprojects: who is in each by name, grant and revoke. |
 
-The tab badge is the sum of the counts, 7.
+The tab carries no badge: the counts live on the switcher, where they name their section.
 
 How it runs:
 
@@ -160,7 +160,7 @@ Services, from `GET /info` per service: 5 answered, 1 not permitted, 4 not probe
 
 ## The ADME tab
 
-The top bar reads: Chat, Workflows, a divider, ADME (badge 7), Beads, Swarms. Only the ADME tab belongs to this rib. Keelson draws one tab per surface and cannot nest them, so the rib declares one surface and switches sections inside it.
+The top bar reads: Chat, Workflows, a divider, ADME (no badge), Beads, Swarms. Only the ADME tab belongs to this rib. Keelson draws one tab per surface and cannot nest them, so the rib declares one surface and switches sections inside it.
 
 Heading "ADME", subtitle "Who has access to the instance, what data is in it, and who can reach each seismic subproject."
 

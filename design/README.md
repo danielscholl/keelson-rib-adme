@@ -20,7 +20,7 @@ The sample instance has 36 identities (32 people and 4 applications) and 13 seis
 | Data | Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only. | 2 (1 invalid tag, 1 expiring) |
 | Seismic | Seismic subprojects: who is in each by name, grant and revoke. | none |
 
-Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, whose badge sums the counts. Its header holds the section switcher, the connection line (instance, partition and who is signed in) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
+Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, with no tab badge; each section's count sits on its switcher button. Its header holds the section switcher, the connection line (instance, partition and who is signed in) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
 
 Out of the first take: creating, extending or deleting legal tags, removing a whole cohort, agent tools, and everything under [Later and Not planned yet](#build-order).
 
@@ -32,7 +32,7 @@ Question it answers: who has access, are they using it, and who do I need to fol
 
 | Region | Key | What it holds |
 |---|---|---|
-| Access | `rib:adme:pulse` | Status "N to follow up"; an adoption strip in the access guide's words (Invited, Not used, Idle, Active); one sentence that says it all; 5 tiles (People with organizations and role mix, Active this week with a spark, Not accepted, Accepted not used, Access gaps). The tab badge counts the same N. |
+| Access | `rib:adme:pulse` | Status "N to follow up"; an adoption strip in the access guide's words (Invited, Not used, Idle, Active); one sentence that says it all; 5 tiles (People with organizations and role mix, Active this week with a spark, Not accepted, Accepted not used, Access gaps). The Access switcher button counts the same N. |
 | Follow up | `rib:adme:attention` | Rows, oldest first: who cannot use it (401, duplicate entry), who has not accepted, who accepted but made no data call in the log. Rows open the person; nothing here changes the instance. Then the checks that found nothing. |
 | Activity | `rib:adme:activity` | People who made a data call per day, and calls by organization, over 14 days, from the audit log. Offers "Find the audit log" when no workspace is set. |
 | Organizations | `rib:adme:orgs` | One card per email domain with everyone named in their usage tone and a usage bar. Selecting one filters People. |

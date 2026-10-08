@@ -42,9 +42,6 @@ export const PERSON_KEY = "rib:adme:person";
 export const PLAN_KEY = "rib:adme:plan";
 export const EXPLAIN_KEY = "rib:adme:explain";
 
-// The tab badge carries a RibSurfaceBadge, not a board.
-export const BADGE_KEY = "rib:adme:badge";
-
 export const BOARD_KEYS = [
   HEADER_KEY,
   PULSE_KEY,
@@ -71,8 +68,6 @@ export const BOARD_KEYS = [
   PLAN_KEY,
   EXPLAIN_KEY,
 ] as const;
-
-export const BADGE_KEYS = [BADGE_KEY] as const;
 
 export const SURFACE_ID = "adme";
 
