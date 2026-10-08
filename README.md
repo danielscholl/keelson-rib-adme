@@ -13,7 +13,8 @@ being proven.
 ## What the first take covers
 
 One ADME tab. Its header picks one of three sections and carries the
-connection: the instance, who is signed in, and Connection details.
+connection: the instance, who is signed in with their role, and Connection
+details.
 
 - **Access.** People and applications: who needs attention and why, every
   person against roles and seismic grants, and who uses the instance.
@@ -24,6 +25,12 @@ connection: the instance, who is signed in, and Connection details.
 
 The rib works from the operator's Azure CLI sign-in and stores no secret. Every
 change is a dry-run plan first; nothing is written until the plan is applied.
+
+The rib is built around one instance and the way it is run: cohorts of people
+from partner organizations, a roster group, and seismic subprojects granted per
+person. Connecting is a one-time setup that records that instance's profile.
+Another ADME instance run differently may not fit, and multiple instances are
+not planned.
 
 ## Install
 

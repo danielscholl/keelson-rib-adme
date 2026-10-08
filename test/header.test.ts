@@ -34,11 +34,13 @@ describe("ADME header", () => {
     expect(items.every((i) => i.type === SECTION_ACTION)).toBe(true);
   });
 
-  test("the connection line names the instance and who is signed in", () => {
+  test("the connection line names the instance, who is signed in and their role", () => {
     const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() });
     expect(header(rt).sections[1]).toMatchObject({
       kind: "rows",
-      items: [{ text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example" }],
+      items: [
+        { text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin" },
+      ],
     });
   });
 

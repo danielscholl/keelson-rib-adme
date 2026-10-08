@@ -6,6 +6,8 @@ A Keelson rib that gives one operator an admin surface for an Azure Data Manager
 
 **The rib.** One ADME tab with three sections, Access, Data and Seismic, picked in its header. The Access section lists who needs attention and why, shows every person against roles and seismic grants by name, and routes every write through one plan: a form produces a dry run, the plan sheet classifies each identity before any invitation, and Apply re-checks, writes serially, verifies the effective group count and appends to a tracker. The rib works from the operator's Azure CLI sign-in, so it holds no secret.
 
+**One instance.** The rib is shaped around one instance and how it is run (cohorts from partner organizations, a roster group, seismic grants per person). Connecting is a one-time setup, not a way to move between instances; multiple instances are not planned.
+
 **Limits.** This is a design. Nothing is built and nothing was called live. Every name, count and id here and in the mockup is sample data. Shelling `az` from the rib through `ctx.getExec()` is unverified, and the whole design rests on it. The identity collision can be detected and halted, not prevented, once an invitation email is sent. The Data section is read-only in the first take.
 
 The interactive companion is [adme-access-desk.html](adme-access-desk.html). The working notes behind it, including the canonical sample data, are in [spec.md](spec.md).
@@ -20,7 +22,7 @@ The sample instance has 36 identities (32 people and 4 applications) and 13 seis
 | Data | Whether each service can be reached, legal tags, how much data is in the system, and record search. Read-only. | 2 (1 invalid tag, 1 expiring) |
 | Seismic | Seismic subprojects: who is in each by name, grant and revoke. | none |
 
-Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, with no tab badge; each section's count sits on its switcher button. Its header holds the section switcher, the connection line (instance, partition and who is signed in) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
+Keelson draws one top-bar tab per surface and cannot nest them, so the rib declares one surface, ADME, with no tab badge; each section's count sits on its switcher button. Its header holds the section switcher, the connection line (instance, partition, who is signed in and their role) and the showing section's pulse. A region outside the showing section publishes nothing and hides. Connection details open in the drawer.
 
 Out of the first take: creating, extending or deleting legal tags, removing a whole cohort, agent tools, and everything under [Later and Not planned yet](#build-order).
 
@@ -145,7 +147,7 @@ The connection profile is six non-secret values: host, partition, entitlements d
 
 ### Sign-in needed
 
-This is the only sign-in state the operator sees. Once connected, the header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example", nothing else.
+This is the only sign-in state the operator sees. Once connected, the header's connection line reads "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example · Admin", nothing else.
 
 ![Sign-in needed state](screens/expired.png)
 

@@ -108,6 +108,10 @@ function bind(ctx: RibContext): void {
   }
   recompose(ALL_KEYS);
   rt.sweep().catch(() => undefined);
+  // A test saved before roles were recorded is re-run once so the header can show the role.
+  if (rt.status.phase === "connected" && !rt.status.test?.roleGroups) {
+    rt.testConnection().catch(() => undefined);
+  }
   if (rt.status.phase !== "connected") rt.discover().catch(() => undefined);
   ticker = setInterval(() => {
     if (rt.shouldTick()) rt.sweep().catch(() => undefined);

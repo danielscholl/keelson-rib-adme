@@ -7,6 +7,8 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import { z } from "zod";
+import type { Role } from "./access/model.ts";
+import { GROUP_NAMES } from "./access/read.ts";
 import type { Batch, CallFailure, CallResult } from "./client.ts";
 import { instanceName, type Profile } from "./profile.ts";
 
@@ -33,6 +35,8 @@ export type Capability = z.infer<typeof capabilitySchema>;
 export const testResultSchema = z.object({
   testedAt: z.string(),
   signedInAs: z.string().optional(),
+  // The operator's own access groups (users and users.datalake.*), by name.
+  roleGroups: z.array(z.string()).optional(),
   rosterSuggestion: z.object({ id: z.string(), name: z.string() }).optional(),
   capabilities: z.array(capabilitySchema),
 });
@@ -64,6 +68,31 @@ export function signinCommand(profile: Profile | undefined): string {
 
 export function capability(test: TestResult | undefined, id: CapabilityId): string | undefined {
   return test?.capabilities.find((c) => c.id === id)?.result;
+}
+
+const ROLE_GROUPS: [string, Role][] = [
+  [GROUP_NAMES.ops, "Ops"],
+  [GROUP_NAMES.admins, "Admin"],
+  [GROUP_NAMES.editors, "Editor"],
+  [GROUP_NAMES.viewers, "Viewer"],
+];
+const ACCESS_GROUPS = new Set<string>(Object.values(GROUP_NAMES));
+
+// The operator's highest data role: undefined when unmeasured, null when in no role group.
+export function operatorRole(test: TestResult | undefined): Role | null | undefined {
+  const groups = test?.roleGroups;
+  if (!groups) return undefined;
+  return ROLE_GROUPS.find(([name]) => groups.includes(name))?.[1] ?? null;
+}
+
+// Ops and admins manage every seismic subproject in the tenant.
+export function isTenantAdmin(role: Role | null | undefined): boolean {
+  return role === "Ops" || role === "Admin";
+}
+
+export function roleGroupsOf(groups: OwnGroups | undefined): string[] {
+  const names = (groups?.groups ?? []).map((g) => g.email?.split("@")[0] ?? "");
+  return [...new Set(names.filter((n) => ACCESS_GROUPS.has(n)))].sort();
 }
 
 export type ProbeOutcome =
@@ -181,6 +210,7 @@ export async function probeConnection(batch: Batch, now: () => Date): Promise<Pr
   const result: TestResult = {
     testedAt: now().toISOString(),
     ...(me.ok ? { signedInAs: me.data.mail ?? me.data.userPrincipalName } : {}),
+    ...(ownGroups.ok ? { roleGroups: roleGroupsOf(ownGroups.data) } : {}),
     ...(match?.id
       ? { rosterSuggestion: { id: match.id, name: match.displayName ?? match.id } }
       : {}),
