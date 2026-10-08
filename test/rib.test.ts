@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   columnRegions,
   ribIdSchema,
@@ -6,7 +9,19 @@ import {
   ribViewDescriptorSchema,
 } from "@keelson/shared";
 import rib from "../src/index";
-import { BADGE_KEYS, BOARD_KEYS, CONNECTION_KEY, PERSON_KEY } from "../src/keys";
+import {
+  BADGE_KEYS,
+  BOARD_KEYS,
+  CONNECTION_KEY,
+  HEADER_KEY,
+  PERSON_KEY,
+  RECORDS_KEY,
+  SERVICES_KEY,
+} from "../src/keys";
+import { SECTION_ACTION } from "../src/section";
+import { Store } from "../src/store";
+import { sectionOf } from "../src/surfaces";
+import { SAMPLE_PROFILE } from "./fixtures/profile";
 import { fakeContext } from "./harness";
 
 afterEach(async () => {
@@ -31,14 +46,29 @@ describe("rib contract shape", () => {
     for (const surface of rib.surfaces ?? []) ribSurfaceDescriptorSchema.parse(surface);
   });
 
-  test("three surfaces, labelled with the rib name, share one connection footer", () => {
+  test("one ADME surface whose header carries the sections and the connection", () => {
     const surfaces = rib.surfaces ?? [];
-    expect(surfaces.map((s) => s.title)).toEqual(["ADME Access", "ADME Data", "ADME Seismic"]);
-    expect(surfaces.map((s) => s.layout.footer?.key)).toEqual([
-      CONNECTION_KEY,
-      CONNECTION_KEY,
-      CONNECTION_KEY,
-    ]);
+    expect(surfaces.map((s) => s.title)).toEqual(["ADME"]);
+    const layout = surfaces[0]?.layout;
+    expect(layout?.header?.key).toBe(HEADER_KEY);
+    expect(layout?.footer).toBeUndefined();
+    expect(regionKeys()).not.toContain(CONNECTION_KEY);
+  });
+
+  test("every row region belongs to a section and hides when that section is not showing", () => {
+    const rows = (rib.surfaces ?? []).flatMap((s) =>
+      s.layout.rows.flatMap((r) => r.columns.flatMap((c) => columnRegions(c))),
+    );
+    for (const region of rows) {
+      expect(sectionOf(region.key)).toBeDefined();
+      expect(region.hideWhenEmpty).toBe(true);
+    }
+    expect(rows.some((r) => sectionOf(r.key) === "access")).toBe(true);
+    expect(rows.some((r) => sectionOf(r.key) === "data")).toBe(true);
+    expect(rows.some((r) => sectionOf(r.key) === "seismic")).toBe(true);
+    for (const row of (rib.surfaces ?? []).flatMap((s) => s.layout.rows)) {
+      expect(row.zoneTitle).toBeUndefined();
+    }
   });
 
   test("every key lives under the rib namespace", () => {
@@ -69,6 +99,27 @@ describe("binding", () => {
     expect(snapshots.keys().sort()).toEqual([...BOARD_KEYS, ...BADGE_KEYS].sort());
     const frames = await snapshots.composeAll();
     expect(frames.size).toBe(BOARD_KEYS.length + BADGE_KEYS.length);
+  });
+
+  test("only the showing section's regions publish", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "adme-rib-"));
+    const store = new Store(dir);
+    store.write("profile.json", SAMPLE_PROFILE);
+    store.write("test.json", { testedAt: "2026-10-02T14:05:00Z", capabilities: [] });
+    const { ctx, snapshots } = fakeContext({ getDataDir: () => dir });
+    rib.registerTools?.(ctx);
+    const sections = async (key: string) => {
+      const frame = await snapshots.recompose(key);
+      return (frame.data as { sections: unknown[] }).sections.length;
+    };
+    expect(await sections(RECORDS_KEY)).toBe(0);
+    expect(await sections(SERVICES_KEY)).toBe(0);
+    const res = await rib.onAction?.(
+      { type: SECTION_ACTION, payload: { section: "data" } },
+      fakeContext().ctx,
+    );
+    expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
+    expect(await sections(RECORDS_KEY)).toBeGreaterThan(0);
   });
 
   test("binding twice replaces the registrations instead of throwing", () => {

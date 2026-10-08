@@ -192,7 +192,7 @@ describe("person inspector", () => {
     );
     expect(sent).toEqual([]);
     expect(JSON.stringify(person(composePerson(rt)))).toContain(
-      "Pick a person on the ADME Access tab.",
+      "Pick a person in the Access section.",
     );
     expect(
       await act(REFRESH_PERSON_ACTION, { id: "ffffffff-0000-4000-8000-000000000000" }),

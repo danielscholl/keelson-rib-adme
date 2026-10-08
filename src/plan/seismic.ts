@@ -234,7 +234,7 @@ export function seismicPlan(
 ): Promise<CallResult<SeismicDraft>> {
   const seismic = ctx.seismic;
   if (!seismic) {
-    return Promise.resolve(fail("Seismic subprojects are not read yet. Open the Seismic tab."));
+    return Promise.resolve(fail("Seismic subprojects are not read yet. Open the Seismic section."));
   }
   return inputs.kind === "seismic-copy"
     ? copy(batch, inputs, ctx, seismic)

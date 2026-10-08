@@ -110,7 +110,7 @@ export function composeDataPulse(rt: Runtime): CanvasBoardView {
       view: "board",
       header: {
         status: {
-          label: "not connected, finish the steps on the ADME Access tab",
+          label: "not connected, finish the connect steps in the header",
           tone: "neutral",
         },
       },

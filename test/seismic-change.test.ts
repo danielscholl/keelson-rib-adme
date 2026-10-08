@@ -511,7 +511,7 @@ describe("grant seismic from the access tab", () => {
     expect(JSON.stringify(composePerson(rt))).not.toContain('"type":"preview-seismic-grant"');
     const unread = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW });
     expect(JSON.stringify(composeChange(unread))).toContain(
-      "read the subprojects on the ADME Seismic tab first",
+      "read the subprojects in the Seismic section first",
     );
   });
 });

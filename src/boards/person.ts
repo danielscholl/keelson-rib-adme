@@ -433,7 +433,7 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   if (!who) {
     const text = id
       ? "This identity is not in the last read of entitlements."
-      : "Pick a person on the ADME Access tab.";
+      : "Pick a person in the Access section.";
     return { view: "board", sections: [{ kind: "rows", items: [{ glyph: "neutral", text }] }] };
   }
   const entry = read.directory[who.id];

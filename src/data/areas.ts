@@ -8,7 +8,7 @@
 
 import type { Batch, CallResult, Service } from "../client.ts";
 import {
-  DATA_BADGE_KEY,
+  BADGE_KEY,
   DATA_PULSE_KEY,
   LEGAL_KEY,
   RECORDS_KEY,
@@ -173,6 +173,6 @@ export async function readKinds(batch: Batch): Promise<CallResult<KindCounts>> {
 
 export const DATA_AREAS: readonly Area[] = [
   { name: SERVICES_AREA, keys: [SERVICES_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY], read: readServices },
-  { name: LEGAL_AREA, keys: [LEGAL_KEY, DATA_PULSE_KEY, DATA_BADGE_KEY], read: readLegal },
+  { name: LEGAL_AREA, keys: [LEGAL_KEY, DATA_PULSE_KEY, BADGE_KEY], read: readLegal },
   { name: KINDS_AREA, keys: [RECORDS_KEY, DATA_PULSE_KEY], read: readKinds },
 ];

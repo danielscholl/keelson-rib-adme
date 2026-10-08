@@ -9,7 +9,7 @@
 import { composeDataPulse, legalAttention } from "../boards/data-pulse.ts";
 import { composeServices } from "../boards/services.ts";
 import { DATA_AREAS, LEGAL_AREA, type LegalTags } from "../data/areas.ts";
-import { DATA_BADGE_KEY, DATA_PULSE_KEY, SERVICES_KEY } from "../keys.ts";
+import { BADGE_KEY, DATA_PULSE_KEY, SERVICES_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 
 export const dataPulseModule: RegionModule = {
@@ -19,7 +19,7 @@ export const dataPulseModule: RegionModule = {
     [SERVICES_KEY]: composeServices,
   },
   badges: {
-    [DATA_BADGE_KEY]: (rt) => {
+    [BADGE_KEY]: (rt) => {
       const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
       if (!legal) return 0;
       const { invalid, expiring } = legalAttention(legal, rt.now());

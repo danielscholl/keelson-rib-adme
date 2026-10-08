@@ -32,7 +32,7 @@ import { RECORDS_KEY } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
 
-const NOT_CONNECTED = "not connected: finish the steps on the ADME Access tab";
+const NOT_CONNECTED = "not connected: finish the connect steps in the header";
 
 function readable(f: CallFailure): string {
   switch (f.kind) {

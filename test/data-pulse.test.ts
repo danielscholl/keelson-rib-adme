@@ -3,7 +3,7 @@ import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { composeDataPulse } from "../src/boards/data-pulse";
 import { composeServices } from "../src/boards/services";
 import { KINDS_AREA, LEGAL_AREA, SERVICES_AREA } from "../src/data/areas";
-import { DATA_BADGE_KEY, DATA_PULSE_KEY, SERVICES_KEY } from "../src/keys";
+import { BADGE_KEY, DATA_PULSE_KEY, SERVICES_KEY } from "../src/keys";
 import { dataPulseModule } from "../src/modules/data";
 import { NOW, SAMPLE_KINDS, SAMPLE_LEGAL, SAMPLE_SERVICES } from "./fixtures/data";
 import { seededRuntime } from "./harness";
@@ -50,7 +50,7 @@ describe("data pulse, connected", () => {
   });
 
   test("the Data badge counts invalid and expiring tags", () => {
-    const badge = dataPulseModule.badges?.[DATA_BADGE_KEY];
+    const badge = dataPulseModule.badges?.[BADGE_KEY];
     expect(badge?.(seededRuntime(SEED, { now: NOW }))).toBe(2);
     expect(badge?.(seededRuntime({}, { now: NOW }))).toBe(0);
   });
@@ -92,10 +92,10 @@ describe("data pulse, other phases", () => {
     expect(tiles(view).Records?.value).toBe("1,284,512");
   });
 
-  test("first run draws ? everywhere and points at the Access tab", () => {
+  test("first run draws ? everywhere and points at the connect steps", () => {
     const view = pulse(seededRuntime({}, { now: NOW, phase: "firstrun" }));
     expect(view.header?.status?.label).toBe(
-      "not connected, finish the steps on the ADME Access tab",
+      "not connected, finish the connect steps in the header",
     );
     const items = section(view, "stats")?.items ?? [];
     expect(items).toHaveLength(5);

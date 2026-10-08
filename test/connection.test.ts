@@ -3,7 +3,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expectView } from "@keelson/shared";
-import { composeConnection, composeFirstRun } from "../src/boards/connection";
+import {
+  CONNECTION_DETAILS_ACTION,
+  composeConnection,
+  composeFirstRun,
+  connectionLine,
+} from "../src/boards/connection";
 import { parseInstances } from "../src/discover";
 import { CONNECTION_KEY } from "../src/keys";
 import { composeRestingHeader } from "../src/resting";
@@ -160,8 +165,8 @@ describe("discovery", () => {
     expect(rt.status.phase).toBe("connected");
     const { rosterGroupId, ...withoutRoster } = SAMPLE_PROFILE;
     expect(rt.profile).toEqual(withoutRoster);
-    const footer = JSON.stringify(board(composeConnection(rt.status)));
-    expect(footer).toContain("Use this group");
+    const details = JSON.stringify(board(composeConnection(rt.status)));
+    expect(details).toContain("Use this group");
     expect(rt.useSuggestedRosterGroup("stale")).toMatchObject({ ok: false });
     expect(rt.useSuggestedRosterGroup(SAMPLE_PROFILE.rosterGroupId)).toEqual({ ok: true });
     expect(rt.profile).toEqual(SAMPLE_PROFILE);
@@ -253,8 +258,16 @@ describe("test connection", () => {
       "kind-counts": "yes",
     });
     expect(rt.status.test?.signedInAs).toBe("ingrid.halvorsen@contoso.example");
-    const footer = board(composeConnection(rt.status));
-    expect(footer.view === "board" && footer.header?.defaultCollapsed).toBe(true);
+    expect(connectionLine(rt.status)).toMatchObject({
+      kind: "rows",
+      items: [
+        {
+          glyph: "ok",
+          text: "Connected to contoso-adme · opendes as ingrid.halvorsen@contoso.example",
+          action: { type: CONNECTION_DETAILS_ACTION },
+        },
+      ],
+    });
   });
 
   test("a lapsed az sign-in reads as sign-in needed, never as a token problem", async () => {
@@ -262,11 +275,12 @@ describe("test connection", () => {
     const { rt } = runtime({ exec });
     await rt.saveProfile(SAMPLE_PROFILE);
     expect(rt.status.phase).toBe("signin");
-    const footer = board(composeConnection(rt.status));
-    const text = JSON.stringify(footer);
+    const text = JSON.stringify(board(composeConnection(rt.status)));
     expect(text).toContain(`az login --tenant ${SAMPLE_PROFILE.tenantId}`);
     expect(text).not.toMatch(/token/i);
-    expect(footer.view === "board" && footer.header?.defaultCollapsed).toBe(false);
+    expect(connectionLine(rt.status)).toMatchObject({
+      items: [{ glyph: "error", text: "Sign-in needed for contoso-adme · opendes" }],
+    });
   });
 
   test("a wrong ADME app id is a profile problem, not a sign-in problem", async () => {
@@ -388,10 +402,10 @@ describe("persistence", () => {
 });
 
 describe("headers", () => {
-  test("other tabs point at the Access tab before connecting", () => {
+  test("other sections point at the connect steps before connecting", () => {
     const { rt } = runtime();
     const text = JSON.stringify(composeRestingHeader(rt.status, { connectedText: "x" }));
-    expect(text).toContain("Finish the steps on the ADME Access tab");
+    expect(text).toContain("Finish the connect steps in the header");
   });
 });
 

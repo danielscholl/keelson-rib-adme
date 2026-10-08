@@ -96,6 +96,10 @@ export class Runtime {
     this.opts.recompose(keys);
   }
 
+  recomposeAll(): void {
+    this.opts.recompose(this.opts.allKeys);
+  }
+
   sleep(ms: number): Promise<void> {
     return this.opts.sleep ? this.opts.sleep(ms) : new Promise((r) => setTimeout(r, ms));
   }

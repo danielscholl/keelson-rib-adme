@@ -19,11 +19,21 @@ import {
   type SnapshotManager,
 } from "@keelson/shared";
 import { DOCS } from "./docs.ts";
-import { BADGE_KEYS, BOARD_KEYS, RIB_ID } from "./keys.ts";
+import {
+  BADGE_KEY,
+  BADGE_KEYS,
+  BOARD_KEYS,
+  DATA_PULSE_KEY,
+  HEADER_KEY,
+  PULSE_KEY,
+  RIB_ID,
+  SEIS_PULSE_KEY,
+} from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { dataPulseModule } from "./modules/data.ts";
 import { explainModule } from "./modules/explain.ts";
+import { headerModule } from "./modules/header.ts";
 import { legalModule } from "./modules/legal.ts";
 import { planModule } from "./modules/plan.ts";
 import { recordsModule } from "./modules/records.ts";
@@ -31,8 +41,9 @@ import { seismicModule } from "./modules/seismic.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
 import { Runtime, TICK_MS } from "./runtime.ts";
+import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
-import { SURFACES } from "./surfaces.ts";
+import { SURFACES, sectionOf } from "./surfaces.ts";
 
 // Later modules override earlier ones for the same key.
 const MODULES: readonly RegionModule[] = [
@@ -44,6 +55,7 @@ const MODULES: readonly RegionModule[] = [
   planModule,
   seismicModule,
   explainModule,
+  headerModule,
 ];
 
 const ALL_KEYS = [...BOARD_KEYS, ...BADGE_KEYS];
@@ -53,8 +65,13 @@ let runtime: Runtime | undefined;
 let unregisters: Array<() => void> = [];
 let ticker: ReturnType<typeof setInterval> | undefined;
 
+// The header draws from the section pulses and the badge counts.
+const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY, BADGE_KEY]);
+
 function recompose(keys: readonly string[]): void {
-  for (const key of keys) snapshots?.recompose(key).catch(() => undefined);
+  const all = new Set(keys);
+  if (keys.some((k) => HEADER_SOURCES.has(k))) all.add(HEADER_KEY);
+  for (const key of all) snapshots?.recompose(key).catch(() => undefined);
 }
 
 function boardComposers(): Map<string, (rt: Runtime) => CanvasBoardView> {
@@ -90,8 +107,11 @@ function bind(ctx: RibContext): void {
   const byKey = boardComposers();
   for (const key of BOARD_KEYS) {
     const compose = byKey.get(key);
+    const section = sectionOf(key);
+    // A region outside the showing section publishes nothing, so hideWhenEmpty hides it.
+    const shown = (r: Runtime) => section === undefined || activeSection(r) === section;
     unregisters.push(
-      sm.register(key, async () => (compose ? compose(rt) : EMPTY_BOARD), {
+      sm.register(key, async () => (compose && shown(rt) ? compose(rt) : EMPTY_BOARD), {
         validate: expectView(key, "board"),
       }),
     );

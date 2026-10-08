@@ -17,7 +17,6 @@ import {
   measuredSeismic,
   SEIS_REACH_ACTION,
   SEIS_READ_ACTION,
-  SEIS_REFRESH_ACTION,
   SEIS_SELECT_ACTION,
   seismicState,
 } from "../boards/seismic.ts";
@@ -29,12 +28,12 @@ import {
   SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
   SEIS_SUBPROJECTS_KEY,
-  SEISMIC_SURFACE_ID,
-  surfaceTab,
 } from "../keys.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
+import { activeSection, focusRegion } from "../section.ts";
 import { readSeismic, SEISMIC_AREA, SEISMIC_KEYS } from "../seismic/read.ts";
+import { REFRESH_ACTION } from "../surfaces.ts";
 import { connectionModule } from "./connection.ts";
 
 const inflight = new WeakMap<Runtime, Promise<RibActionResult>>();
@@ -48,7 +47,7 @@ function knownIds(read: AccessRead | undefined): Set<string> {
   return ids;
 }
 
-// Tier 2: runs on Seismic tab actions and after Re-test, never on the sweep.
+// Tier 2: runs on Seismic section actions and after Re-test, never on the sweep.
 export function measureSeismic(rt: Runtime): Promise<RibActionResult> {
   const pending = inflight.get(rt);
   if (pending) return pending;
@@ -77,14 +76,17 @@ function used(rt: Runtime): boolean {
 }
 
 // A handled effect suppresses the success toast a plain selection would raise.
-function focus(regionKey: string): RibActionResult {
-  return {
-    ok: true,
-    data: { effect: "open-surface", surfaceId: surfaceTab(SEISMIC_SURFACE_ID), regionKey },
-  };
+function focus(rt: Runtime, regionKey: string): RibActionResult {
+  return focusRegion(rt, "seismic", regionKey);
 }
 
 const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;
+const refresh = connectionModule.actions?.[REFRESH_ACTION] as ActionHandler;
+
+async function refreshWithSeismic(rt: Runtime): Promise<RibActionResult> {
+  const [, res] = await Promise.all([rt.sweep(), measureSeismic(rt)]);
+  return res;
+}
 
 export const seismicModule: RegionModule = {
   composers: {
@@ -96,10 +98,9 @@ export const seismicModule: RegionModule = {
   },
   actions: {
     [SEIS_READ_ACTION]: (rt) => measureSeismic(rt),
-    [SEIS_REFRESH_ACTION]: async (rt) => {
-      const [, res] = await Promise.all([rt.sweep(), measureSeismic(rt)]);
-      return res;
-    },
+    // Refresh now also reads the seismic store while that section is showing.
+    [REFRESH_ACTION]: (rt, payload) =>
+      activeSection(rt) === "seismic" ? refreshWithSeismic(rt) : refresh(rt, payload),
     [SEIS_SELECT_ACTION]: async (rt, payload) => {
       const name = (payload as { subproject?: unknown } | undefined)?.subproject;
       if (typeof name !== "string") return { ok: false, error: "Pick a subproject." };
@@ -113,7 +114,7 @@ export const seismicModule: RegionModule = {
       }
       seismicState(rt).selected = name;
       rt.recompose([SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]);
-      return focus(SEIS_SELECTED_KEY);
+      return focus(rt, SEIS_SELECTED_KEY);
     },
     [SEIS_REACH_ACTION]: async (rt, payload) => {
       const id = (payload as { id?: unknown } | undefined)?.id;
@@ -123,9 +124,9 @@ export const seismicModule: RegionModule = {
       }
       seismicState(rt).reach = id;
       rt.recompose([SEIS_REACH_KEY]);
-      return focus(SEIS_REACH_KEY);
+      return focus(rt, SEIS_REACH_KEY);
     },
-    // Re-test sweeps tier 1; seismic follows only once the tab has been used.
+    // Re-test sweeps tier 1; seismic follows only once the section has been used.
     [RETEST_ACTION]: async (rt, payload) => {
       const res = await retest(rt, payload);
       if (res.ok && rt.status.phase === "connected" && used(rt)) await measureSeismic(rt);
