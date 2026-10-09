@@ -126,6 +126,25 @@ describe("batch", () => {
     expect(delays).toEqual([500, 1500]);
   });
 
+  test("a throttled call waits out the limit and retries twice", async () => {
+    let n = 0;
+    const { transport, sent } = routeTransport({
+      "POST /api/search/v2/query": () =>
+        ++n < 3 ? { status: 429 } : { status: 200, body: { totalCount: 1 } },
+    });
+    const delays: number[] = [];
+    const client = createClient(azExec(), SAMPLE_PROFILE, {
+      transport,
+      sleep: async (ms) => {
+        delays.push(ms);
+      },
+    });
+    const res = await client.batch((b) => b.adme("search", "/query", { method: "POST", body: {} }));
+    expect(res).toMatchObject({ ok: true, data: { totalCount: 1 } });
+    expect(sent).toHaveLength(3);
+    expect(delays).toEqual([2000, 4000]);
+  });
+
   test("a 5xx that recovers on retry succeeds", async () => {
     let n = 0;
     const { transport } = routeTransport({
