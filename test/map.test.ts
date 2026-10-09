@@ -118,6 +118,7 @@ describe("partition map, lenses", () => {
       ["Tags in use · 4", true],
       ["Readers · 4", false],
       ["Owners · 2", false],
+      ["People", false],
       ["Kinds · 214", false],
       ["Cleanup · 12", false],
     ]);

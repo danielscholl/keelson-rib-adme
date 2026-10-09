@@ -10,6 +10,7 @@ import type { Batch, CallFailure, CallResult } from "../client.ts";
 import {
   ATTENTION_KEY,
   COHORTS_KEY,
+  MAP_KEY,
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   PULSE_KEY,
@@ -277,8 +278,9 @@ export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> 
 export const ACCESS_AREAS: readonly Area[] = [
   {
     name: ACCESS_AREA,
-    // Seismic boards name members through this directory.
+    // Seismic boards and the map's People lens name members through this directory.
     keys: [
+      MAP_KEY,
       PULSE_KEY,
       ATTENTION_KEY,
       PEOPLE_KEY,

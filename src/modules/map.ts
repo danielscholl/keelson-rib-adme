@@ -6,8 +6,11 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
+import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
+import { measuredAccess } from "../boards/access.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
+  aclGroups,
   CLEANUP_SETS,
   cleanupNames,
   composeMap,
@@ -27,14 +30,18 @@ import {
   type Facets,
   FLOW_PARTS,
   type Flow,
+  type FlowLens,
+  flowLensOf,
   isLens,
   type Lens,
   mapState,
+  type ReachRead,
   readFacets,
   readFlow,
   readSlice,
   type Selection,
 } from "../data/map.ts";
+import { reachOf, readDirect, readReachCount, setKey } from "../data/reach.ts";
 import { buildQuery } from "../data/records.ts";
 import { DATA_PULSE_KEY, MAP_KEY, RECORDS_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
@@ -59,7 +66,7 @@ async function loadSlice(rt: Runtime, selection: Selection): Promise<void> {
 }
 
 // The other side of the flow: the largest groups, or for kinds the largest tags in use.
-function flowKeys(rt: Runtime, lens: Flow["lens"]): { keys: string[]; of: number } | undefined {
+function flowKeys(rt: Runtime, lens: FlowLens): { keys: string[]; of: number } | undefined {
   const facets = rt.cache.get<Facets>(FACETS_AREA).data;
   if (lens === "kinds") {
     const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
@@ -80,9 +87,46 @@ async function loadFlow(rt: Runtime, lens: Flow["lens"]): Promise<void> {
   if (!scope || scope.keys.length === 0) return;
   const res = await rt.run((b) => readFlow(b, lens, scope.keys, scope.of));
   const state = mapState(rt);
-  if (state.lens !== lens) return;
+  if (flowLensOf(state.lens) !== lens) return;
   const at = rt.now().toISOString();
   state.flow = res.ok ? { at, data: res.data } : { at, error: res.failure.message };
+  rt.recompose([MAP_KEY]);
+}
+
+// Distinct group sets past this share "?" rather than cost one more count each.
+export const REACH_SETS = 12;
+
+// Direct members of every ACL group, then one record count per distinct set of groups.
+async function loadReach(rt: Runtime): Promise<void> {
+  const facets = rt.cache.get<Facets>(FACETS_AREA).data;
+  const access = rt.cache.get<AccessRead>(ACCESS_AREA).data;
+  const model = measuredAccess(rt)?.model;
+  if (!facets || !access || !model) return;
+  const groups = aclGroups(facets);
+  const identities = [...model.people, ...model.apps.filter((a) => !a.root)];
+  const res = await rt.run(async (b) => {
+    const { direct, errors } = await readDirect(b, groups);
+    const shared = new Map<string, number>();
+    for (const p of identities) {
+      const r = reachOf(p, groups, access.closures, direct);
+      if (r.gate !== "ok") continue;
+      const key = setKey(r.paths);
+      shared.set(key, (shared.get(key) ?? 0) + 1);
+    }
+    const keys = [...shared.entries()]
+      .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))
+      .slice(0, REACH_SETS)
+      .map(([k]) => k);
+    const totals = await Promise.all(
+      keys.map((k) => readReachCount(b, k.split("\n").filter(Boolean))),
+    );
+    const counts = Object.fromEntries(keys.map((k, i) => [k, totals[i] ?? null]));
+    const data: ReachRead = { groups, direct, errors, counts };
+    return { ok: true as const, status: 200, data };
+  });
+  const state = mapState(rt);
+  const at = rt.now().toISOString();
+  state.reach = res.ok ? { at, data: res.data } : { at, error: res.failure.message };
   rt.recompose([MAP_KEY]);
 }
 
@@ -100,12 +144,19 @@ export async function focus(rt: Runtime): Promise<void> {
   if (sel && (stale || cur?.lens !== sel.lens || cur.key !== sel.key)) {
     jobs.push(loadSlice(rt, sel));
   }
-  const lens = state.lens;
-  if (lens !== "cleanup" && (stale || !state.flow)) jobs.push(loadFlow(rt, lens));
+  const fl = flowLensOf(state.lens);
+  if (fl && (stale || !state.flow)) jobs.push(loadFlow(rt, fl));
+  if (state.lens === "people") {
+    const reachAt = `${at}|${rt.cache.get(ACCESS_AREA).at}`;
+    if (state.reachAt !== reachAt || !state.reach) {
+      state.reachAt = reachAt;
+      jobs.push(loadReach(rt));
+    }
+  }
   await Promise.all(jobs);
 }
 
-const browseQuery = (lens: Lens, key: string) =>
+const browseQuery = (lens: Exclude<Lens, "people">, key: string) =>
   lens === "tags" || lens === "cleanup"
     ? buildQuery("legal", { tag: key })
     : lens === "kinds"
@@ -119,10 +170,10 @@ export const mapModule: RegionModule = {
     [MAP_LENS_ACTION]: async (rt, payload) => {
       const lens = (payload as { lens?: unknown } | undefined)?.lens;
       if (!isLens(lens)) {
-        return { ok: false, error: "Pick tags in use, readers, owners, kinds or cleanup." };
+        return { ok: false, error: "Pick tags in use, readers, owners, people, kinds or cleanup." };
       }
       const state = mapState(rt);
-      if (state.lens !== lens) delete state.flow;
+      if (flowLensOf(state.lens) !== flowLensOf(lens)) delete state.flow;
       state.lens = lens;
       rt.recompose([MAP_KEY]);
       await focus(rt);
@@ -158,7 +209,7 @@ export const mapModule: RegionModule = {
     },
     [MAP_BROWSE_ACTION]: async (rt) => {
       const sel = focusOf(rt, mapState(rt).lens);
-      if (!sel) return { ok: false, error: "Nothing to browse yet." };
+      if (!sel || sel.lens === "people") return { ok: false, error: "Nothing to browse yet." };
       const built = browseQuery(sel.lens, sel.key);
       if (!built.ok) return { ok: false, error: built.error };
       const res = await loadSearch(rt, built.query, 0);
