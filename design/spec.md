@@ -206,6 +206,7 @@ Usage uses the access guide's four words. **Invited** has not accepted the invit
 
 Left: region `rib:adme:attention`, title "Follow up", byline "people who have access but cannot or do not use it yet". Status as the header, chip "oldest first". Rows only, and no row changes anything: clicking one opens the person inspector.
 
+- "From invitation to data", a funnel of five rows, each with a bar against everyone with entitlements and a detail naming who stopped there: Have entitlements 32 of 32; Accepted the invitation 29 of 32 ("3 not accepted yet"); In users@ with a data role 27 of 32 ("2 cannot use it: missing users@, no role or a duplicate entry"); Made a data call; Active this week. Each step counts only people who passed the one before. The last two need the audit log and read "? · needs the audit log" without it. The lists below name the people at each step.
 - "Cannot use it · 2": Rachel Kim, chip `401`, "Pacrim Energy · not in users@, every call returns 401"; Dmitri Volkov, chip `duplicate`, "Baltica · listed twice in users.datalake.editors".
 - "Has not accepted the invitation · 3", oldest first: Ben Whitaker and Amara Diallo "invited 4 d ago", Jonas Lindqvist "invited 2 d ago". At most 12, then "… N more, all listed in People under Invited".
 - "Accepted, no data call since 2026-09-20 · N", oldest grant first, at most 8. Without the audit log, one row says this is not measured and why.

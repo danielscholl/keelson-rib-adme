@@ -115,6 +115,7 @@ describe("access boards", () => {
     const view = expectView(ATTENTION_KEY, "board")(composeAttention(rt()));
     const titles = view.view === "board" ? view.sections.map((s) => s.title) : [];
     expect(titles).toEqual([
+      "From invitation to data",
       "Cannot use it · 2",
       "Has not accepted the invitation · 3",
       undefined,
@@ -124,9 +125,26 @@ describe("access boards", () => {
     expect(text).toContain("Pacrim Energy · not in users@, every call returns 401");
     expect(text).toContain("Northfield · invited 4 d ago");
     expect(text).toContain("Who accepted but has not used it is not measured");
-    const invited = view.view === "board" ? view.sections[1] : undefined;
+    const invited = view.view === "board" ? view.sections[2] : undefined;
     const names = invited?.kind === "rows" ? invited.items.map((i) => i.text) : [];
     expect(names.at(-1)).toBe("Jonas Lindqvist");
+  });
+
+  test("the funnel narrows from entitlements to data, and needs the log past the role step", () => {
+    const view = expectView(ATTENTION_KEY, "board")(composeAttention(rt()));
+    const funnel = view.view === "board" ? view.sections[0] : undefined;
+    const steps = funnel?.kind === "rows" ? funnel.items : [];
+    expect(steps.map((r) => [r.text, r.trailing, r.detail])).toEqual([
+      ["Have entitlements", "32 of 32", undefined],
+      ["Accepted the invitation", "29 of 32", "3 not accepted yet"],
+      [
+        "In users@ with a data role",
+        "27 of 32",
+        "2 cannot use it: missing users@, no role or a duplicate entry",
+      ],
+      ["Made a data call", "? · needs the audit log", undefined],
+      ["Active this week", "? · needs the audit log", undefined],
+    ]);
   });
 
   test("the roster lists attention first and caps the healthy rows", () => {

@@ -480,11 +480,72 @@ function roleGroup(p: Identity): "ops" | "admins" | "editors" | "viewers" {
   return "viewers";
 }
 
+// Each step keeps only the people who passed the one before, so the counts never rise.
+export function funnelRows(m: Measured): Section {
+  const { people } = m.model;
+  const accepted = people.filter((p) => p.state !== "pending");
+  const ready = accepted.filter((p) => p.state === "healthy" && p.role);
+  const measured = m.activity.kind === "measured";
+  const called = measured
+    ? ready.filter((p) => ["idle", "active"].includes(m.usage.get(p.id) ?? ""))
+    : null;
+  const active = called ? called.filter((p) => m.usage.get(p.id) === "active") : null;
+  const total = people.length;
+  const step = (
+    text: string,
+    n: number | null,
+    lost: number | null,
+    why: string,
+    tone: Row["glyph"],
+  ): Row => ({
+    glyph: tone,
+    text,
+    trailing: n === null ? "? · needs the audit log" : `${n} of ${total}`,
+    bar: { value: n, total: Math.max(1, total) },
+    ...(lost ? { detail: `${lost} ${why}` } : {}),
+  });
+  return {
+    kind: "rows",
+    title: "From invitation to data",
+    items: [
+      step("Have entitlements", total, null, "", "info"),
+      step(
+        "Accepted the invitation",
+        accepted.length,
+        total - accepted.length,
+        "not accepted yet",
+        "info",
+      ),
+      step(
+        "In users@ with a data role",
+        ready.length,
+        accepted.length - ready.length,
+        "cannot use it: missing users@, no role or a duplicate entry",
+        "info",
+      ),
+      step(
+        "Made a data call",
+        called?.length ?? null,
+        called ? ready.length - called.length : null,
+        "with no data call in the log",
+        "ok",
+      ),
+      step(
+        "Active this week",
+        active?.length ?? null,
+        active && called ? called.length - active.length : null,
+        "idle, no call in 7 days",
+        "ok",
+      ),
+    ],
+  };
+}
+
 export function composeAttention(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   if (!measured) return EMPTY_BOARD;
   const { model, counts } = measured;
-  const sections = followRows(measured, rt.now(), selectedId(rt));
+  const sections = [funnelRows(measured), ...followRows(measured, rt.now(), selectedId(rt))];
   const deleted = model.unknown.filter((u) => u.deleted);
   const unknown = model.unknown.filter((u) => !u.deleted);
   if (deleted.length > 0) {
