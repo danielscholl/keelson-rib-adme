@@ -8,6 +8,7 @@
 
 import type { Batch, CallFailure, CallResult } from "../client.ts";
 import type { Runtime } from "../runtime.ts";
+import type { DirectMembers } from "./reach.ts";
 import { ALL_KINDS, instanceOf } from "./records.ts";
 
 export const FACETS_AREA = "facets";
@@ -22,12 +23,13 @@ export const FACET_FIELDS: Record<Facet, string> = {
   owners: "acl.owners",
 };
 
-export const LENSES = ["tags", "viewers", "owners", "kinds", "cleanup"] as const;
+export const LENSES = ["tags", "viewers", "owners", "people", "kinds", "cleanup"] as const;
 export type Lens = (typeof LENSES)[number];
 
 // The search field a lens's rows are keys of; Cleanup lists tags too.
 export function lensField(lens: Lens): string {
   if (lens === "kinds") return "kind";
+  if (lens === "people") return "acl.viewers, acl.owners";
   return FACET_FIELDS[lens === "cleanup" ? "tags" : lens];
 }
 
@@ -102,9 +104,10 @@ export interface Selection {
 }
 
 export interface Members {
-  // Nested groups by email; people and applications are object ids and only counted.
+  // Nested groups by email; people and applications by object or app id, lowercased.
   groups: string[];
   others: number;
+  ids: string[];
 }
 
 export interface Slice {
@@ -132,6 +135,7 @@ const SLICE_FIELDS: Record<Lens, ("kinds" | Facet)[]> = {
   tags: ["kinds", "owners"],
   viewers: ["kinds"],
   owners: ["kinds"],
+  people: [],
   kinds: ["viewers"],
   cleanup: ["kinds", "viewers", "owners"],
 };
@@ -148,9 +152,10 @@ async function readMembers(batch: Batch, group: string): Promise<CallResult<Memb
   if (!res.ok) {
     return res.failure.kind === "not-found" ? { ok: true, status: 404, data: null } : res;
   }
-  const emails = (res.data.members ?? []).map((m) => m.email ?? "").filter(Boolean);
+  const emails = (res.data.members ?? []).map((m) => (m.email ?? "").toLowerCase()).filter(Boolean);
   const groups = emails.filter((e) => e.includes("@")).sort();
-  return { ok: true, status: res.status, data: { groups, others: emails.length - groups.length } };
+  const ids = emails.filter((e) => !e.includes("@"));
+  return { ok: true, status: res.status, data: { groups, others: ids.length, ids } };
 }
 
 export async function readSlice(batch: Batch, sel: Selection): Promise<CallResult<Slice>> {
@@ -188,6 +193,14 @@ export async function readSlice(batch: Batch, sel: Selection): Promise<CallResul
 // Readers and owners: per group, records by legal tag. Kinds: per tag in use, records by kind.
 export const FLOW_PARTS = { groups: 8, tags: 5 } as const;
 
+export type FlowLens = Exclude<Lens, "cleanup" | "people">;
+
+// People light up the readers flow, so they share its read.
+export function flowLensOf(lens: Lens): FlowLens | undefined {
+  if (lens === "cleanup") return undefined;
+  return lens === "people" ? "viewers" : lens;
+}
+
 export interface FlowPart {
   key: string;
   buckets: Bucket[] | null;
@@ -195,7 +208,7 @@ export interface FlowPart {
 }
 
 export interface Flow {
-  lens: Exclude<Lens, "cleanup">;
+  lens: FlowLens;
   parts: FlowPart[];
   // How many keys the side had before the cap, so the board can say "showing N of M".
   of: number;
@@ -229,6 +242,16 @@ export async function readFlow(
 
 type Read<T> = { at: string; data: T } | { at: string; error: string };
 
+// Who reaches which ACL group: direct members per group, and records per distinct group set.
+export interface ReachRead {
+  groups: string[];
+  direct: DirectMembers;
+  // Groups whose members were not read, with the reason.
+  errors: string[];
+  // Records per distinct set of groups (setKey), null where search refused the count.
+  counts: Record<string, number | null>;
+}
+
 export interface MapState {
   instance: string;
   lens: Lens;
@@ -237,6 +260,9 @@ export interface MapState {
   picks?: Partial<Record<Lens, string>>;
   slice?: Read<Slice>;
   flow?: Read<Flow>;
+  reach?: Read<ReachRead>;
+  // The facet and access reads the reach was last loaded against.
+  reachAt?: string;
   // The facet read the selection and flow were last loaded against.
   readAt?: string;
 }

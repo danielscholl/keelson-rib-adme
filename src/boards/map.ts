@@ -7,6 +7,8 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasBoardView } from "@keelson/shared";
+import type { Identity } from "../access/model.ts";
+import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
 import {
   KIND_BUCKET_LIMIT,
   KINDS_AREA,
@@ -22,6 +24,7 @@ import {
   FACETS_AREA,
   type Facets,
   type Flow,
+  flowLensOf,
   LENSES,
   type Lens,
   lensField,
@@ -29,9 +32,11 @@ import {
   type Selection,
   type Slice,
 } from "../data/map.ts";
+import { type PersonReach, reachOf, rolesHeld, setKey } from "../data/reach.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
+import { measuredAccess } from "./access.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -50,6 +55,8 @@ export const MAP_COPY_ACTION = "map-copy";
 
 export const MAP_ROWS = 12;
 export const PROFILE_ROWS = 8;
+// People are picked by name, so the lens lists more of them than other lenses list rows.
+export const PEOPLE_ROWS = 25;
 // Nodes the flow draws on each side before it folds the rest into one.
 export const FLOW_NODES = { left: 6, right: 4 } as const;
 
@@ -60,6 +67,7 @@ const LENS_LABELS: Record<Lens, string> = {
   tags: "Tags in use",
   viewers: "Readers",
   owners: "Owners",
+  people: "People",
   kinds: "Kinds",
   cleanup: "Cleanup",
 };
@@ -68,6 +76,7 @@ const LENS_TITLES: Record<Exclude<Lens, "kinds">, string> = {
   tags: "Tags holding records · largest first",
   viewers: "Records per reader group · acl.viewers",
   owners: "Records per owner group · acl.owners",
+  people: "People and apps · stopped first, then by records they reach",
   cleanup: "Hold records, need a decision",
 };
 
@@ -90,6 +99,8 @@ export interface Entry {
   trailing?: string;
   // Summary rows ("… 3 more") select nothing.
   summary?: boolean;
+  // People a gate stops: listed first, never the default pick, and drawn as reaching nothing.
+  stopped?: boolean;
 }
 
 interface Inputs {
@@ -234,12 +245,89 @@ function kindEntries(rt: Runtime, kinds: KindCounts): Entry[] {
   );
 }
 
+// ---- People: who reaches which ACL group ----
+
+// Every group records name in acl.viewers or acl.owners, readers first.
+export function aclGroups(facets: Facets): string[] {
+  const keys = [...(facets.viewers ?? []), ...(facets.owners ?? [])].map((b) => b.key);
+  return [...new Set(keys)];
+}
+
+export interface Reacher {
+  who: Identity;
+  reach: PersonReach;
+  // Records the identity's groups open; null while not counted.
+  count: number | null;
+}
+
+// Each person and application, except the instance's own app, with the groups it reaches.
+export function reachers(rt: Runtime, i: Inputs): Reacher[] | undefined {
+  const model = measuredAccess(rt)?.model;
+  const access = rt.cache.get<AccessRead>(ACCESS_AREA).data;
+  if (!model || !access || !i.facets) return undefined;
+  const groups = aclGroups(i.facets);
+  const read = mapState(rt).reach;
+  const data = read && "data" in read ? read.data : undefined;
+  const direct = data?.direct ?? {};
+  return [...model.people, ...model.apps.filter((a) => !a.root)].map((who) => {
+    const reach = reachOf(who, groups, access.closures, direct);
+    const count = reach.gate !== "ok" ? 0 : (data?.counts[setKey(reach.paths)] ?? null);
+    return { who, reach, count };
+  });
+}
+
+function whoLabel(p: Identity): string {
+  return p.you ? `${p.name} (you)` : p.name;
+}
+
+function roleText(p: Identity): string {
+  return p.kind === "app" ? "app" : (p.role ?? "no role");
+}
+
+function gateChip(r: Reacher): Row["chip"] | undefined {
+  if (r.reach.gate === "no-users") return { label: "no users@", tone: "error" };
+  if (r.reach.gate === "no-role") return { label: "no role", tone: "warn" };
+  if (r.who.state === "pending") return { label: "pending", tone: "warn" };
+  return undefined;
+}
+
+function peopleEntries(rt: Runtime, i: Inputs): Entry[] {
+  const all = reachers(rt, i);
+  if (!all) return [];
+  const stopped = (r: Reacher) => (r.reach.gate === "ok" ? 1 : 0);
+  const order = [...all].sort(
+    (a, b) =>
+      stopped(a) - stopped(b) ||
+      (b.count ?? -1) - (a.count ?? -1) ||
+      b.reach.paths.length - a.reach.paths.length ||
+      a.who.name.localeCompare(b.who.name),
+  );
+  return capped(
+    order.map((r) => {
+      const chip = gateChip(r);
+      return {
+        key: r.who.id,
+        label: whoLabel(r.who),
+        count: r.count,
+        trailing: roleText(r.who),
+        ...(r.reach.gate === "ok" ? {} : { stopped: true }),
+        ...(chip
+          ? { chip }
+          : { glyph: r.who.kind === "app" ? ("info" as const) : ("ok" as const) }),
+      };
+    }),
+    PEOPLE_ROWS,
+    "people and apps",
+  );
+}
+
 // The rows a lens draws; also what a select action is checked against.
 export function lensEntries(rt: Runtime, lens: Lens): Entry[] {
   const i = inputs(rt);
   if (lens === "tags") return tagEntries(i);
   if (lens === "cleanup") return cleanupEntries(i);
   if (lens === "kinds") return i.kinds ? kindEntries(rt, i.kinds) : [];
+  if (lens === "people") return peopleEntries(rt, i);
   const buckets = i.facets?.[lens];
   return buckets ? groupEntries(buckets, i.domain) : [];
 }
@@ -250,7 +338,7 @@ export function focusOf(rt: Runtime, lens: Lens): Selection | undefined {
   const state = mapState(rt);
   const key = state.selection?.lens === lens ? state.selection.key : state.picks?.[lens];
   const kept = key === undefined ? undefined : entries.find((e) => e.key === key);
-  const pick = kept ?? entries[0];
+  const pick = kept ?? entries.find((e) => !e.stopped) ?? entries[0];
   return pick ? { lens, key: pick.key, label: pick.label } : undefined;
 }
 
@@ -265,12 +353,13 @@ function totalOf(i: Inputs): number {
   return i.kinds?.visible ?? i.kinds?.total ?? 0;
 }
 
-function lensStrip(active: Lens, i: Inputs): Leaf {
+function lensStrip(rt: Runtime, active: Lens, i: Inputs): Leaf {
   const u = i.usage;
   const counts: Record<Lens, number | null> = {
     tags: u ? u.inUse.length : (i.legal?.valid.length ?? i.facets?.tags?.length ?? null),
     viewers: i.facets?.viewers?.length ?? null,
     owners: i.facets?.owners?.length ?? null,
+    people: reachers(rt, i)?.length ?? null,
     kinds: i.kinds?.kinds.length ?? null,
     cleanup: u
       ? u.invalidHeld.length + u.unlisted.length + u.invalidEmpty.length + u.validEmpty.length
@@ -341,7 +430,7 @@ function lensRows(rt: Runtime, lens: Lens, i: Inputs): Leaf[] {
   const max = Math.max(1, ...entries.filter((e) => !e.summary).map((e) => e.count ?? 0));
   const items: Row[] = entries.map((e) => {
     const pct = lens === "cleanup" || e.summary ? "" : share(e.count, total);
-    const count = pct ? `${n(e.count)} · ${pct}` : n(e.count);
+    const count = e.stopped ? "reaches nothing" : pct ? `${n(e.count)} · ${pct}` : n(e.count);
     return {
       ...(e.chip ? { chip: e.chip } : { glyph: e.glyph ?? "neutral" }),
       text: e.label,
@@ -358,6 +447,14 @@ function lensRows(rt: Runtime, lens: Lens, i: Inputs): Leaf[] {
 }
 
 function lensMissing(rt: Runtime, lens: Lens, i: Inputs): Row | undefined {
+  if (lens === "people") {
+    if (reachers(rt, i)) return undefined;
+    const err = rt.cache.get(ACCESS_AREA).error ?? rt.cache.get(FACETS_AREA).error;
+    return {
+      glyph: err ? "error" : "neutral",
+      text: err ? `Not measured: ${err}` : "People and ACL groups are not read yet.",
+    };
+  }
   if (lens === "kinds") {
     if (i.kinds) return undefined;
     const err = rt.cache.get(KINDS_AREA).error;
@@ -397,15 +494,20 @@ function caption(rt: Runtime, lens: Lens, i: Inputs, locked: boolean): Leaf {
   rows.push(
     locked
       ? { glyph: "neutral", text: SIGNIN_REASON }
-      : lens === "cleanup"
+      : lens === "people"
         ? {
             glyph: "neutral",
-            text: "Counts are records this sign-in can see. Deleting or extending a tag happens outside the rib.",
+            text: "Counts are records any of their groups can read or own. Records under an invalid legal tag stay closed to everyone.",
           }
-        : {
-            glyph: "neutral",
-            text: "Bars scale to the largest row. A record can carry several tags and groups, so shares can add up past 100%.",
-          },
+        : lens === "cleanup"
+          ? {
+              glyph: "neutral",
+              text: "Counts are records this sign-in can see. Deleting or extending a tag happens outside the rib.",
+            }
+          : {
+              glyph: "neutral",
+              text: "Bars scale to the largest row. A record can carry several tags and groups, so shares can add up past 100%.",
+            },
   );
   return { kind: "rows", items: rows };
 }
@@ -507,17 +609,18 @@ function plan(rt: Runtime, flow: Flow, i: Inputs): FlowPlan {
   };
 }
 
-// Keeps the largest `cap` keys on a side, always keeping the selected one, and folds the rest.
+// Keeps the largest `cap` keys on a side, always keeping the selected ones, and folds the rest.
 function fold(
   totals: Map<string, number>,
   cap: number,
-  keep: string | undefined,
+  keep: ReadonlySet<string>,
 ): { kept: string[]; folded: string[] } {
   const order = [...totals.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   if (order.length <= cap + 1) return { kept: order.map(([k]) => k), folded: [] };
-  let kept = order.slice(0, cap).map(([k]) => k);
-  if (keep && totals.has(keep) && !kept.includes(keep)) kept = [...kept.slice(0, cap - 1), keep];
-  const set = new Set(kept);
+  const lit = order.filter(([k]) => keep.has(k)).slice(0, cap);
+  const rest = order.filter(([k]) => !keep.has(k)).slice(0, cap - lit.length);
+  const set = new Set([...lit, ...rest].map(([k]) => k));
+  const kept = order.map(([k]) => k).filter((k) => set.has(k));
   return { kept, folded: order.map(([k]) => k).filter((k) => !set.has(k)) };
 }
 
@@ -530,7 +633,7 @@ function flowLeaf(
 ): Leaf[] {
   const read = mapState(rt).flow;
   const title = "Where the records sit";
-  if (!read || ("data" in read && read.data.lens !== lens)) {
+  if (!read || ("data" in read && read.data.lens !== flowLensOf(lens))) {
     return [
       {
         kind: "rows",
@@ -553,8 +656,16 @@ function flowLeaf(
     for (const link of p.links) m.set(link[side], (m.get(link[side]) ?? 0) + link.n);
     return m;
   };
-  const selLeft = sel && (lens === "tags" || lens === "kinds") ? sel.key : undefined;
-  const selRight = sel && (lens === "viewers" || lens === "owners") ? sel.key : undefined;
+  const selLeft = new Set(sel && (lens === "tags" || lens === "kinds") ? [sel.key] : []);
+  const selRight = new Set(
+    sel && (lens === "viewers" || lens === "owners")
+      ? [sel.key]
+      : sel && lens === "people"
+        ? (reachers(rt, i)
+            ?.find((r) => r.who.id === sel.key)
+            ?.reach.paths.map((x) => x.group) ?? [])
+        : [],
+  );
   const left = fold(sum("l"), FLOW_NODES.left, selLeft);
   const right = fold(sum("r"), FLOW_NODES.right, selRight);
   const total = totalOf(i);
@@ -596,9 +707,9 @@ function flowLeaf(
   const lTotals = sum("l");
   const rTotals = sum("r");
   const nodes: FlowNode[] = [
-    ...left.kept.map((k) => node(p.lefts.get(k) as Side, L(k), "left", k === selLeft)),
+    ...left.kept.map((k) => node(p.lefts.get(k) as Side, L(k), "left", selLeft.has(k))),
     ...foldNode(left.folded, p.lefts, lTotals, MORE_L, "left", leftNoun),
-    ...right.kept.map((k) => node(p.rights.get(k) as Side, R(k), "right", k === selRight)),
+    ...right.kept.map((k) => node(p.rights.get(k) as Side, R(k), "right", selRight.has(k))),
     ...foldNode(right.folded, p.rights, rTotals, MORE_R, "right", rightNoun),
   ];
   const lSet = new Set(left.kept);
@@ -751,6 +862,148 @@ function kindCard(rt: Runtime, sel: Selection, i: Inputs, locked: boolean): Card
   };
 }
 
+function personLeaves(rt: Runtime, sel: Selection, i: Inputs): Leaf[] {
+  const r = reachers(rt, i)?.find((x) => x.who.id === sel.key);
+  if (!r) return [{ kind: "rows", items: [{ glyph: "neutral", text: "No longer listed." }] }];
+  const { who, reach } = r;
+  const counts = new Map(
+    [...(i.facets?.viewers ?? []), ...(i.facets?.owners ?? [])].map((b) => [b.key, b.count]),
+  );
+  const chip = gateChip(r);
+  const read = mapState(rt).reach;
+  const card: Card = {
+    title: whoLabel(who),
+    edge: chip?.tone ?? (who.kind === "app" ? "info" : "ok"),
+    pill: chip ?? { label: roleText(who), tone: who.kind === "app" ? "info" : "accent" },
+    fields: [
+      { label: "records", value: n(r.count) },
+      { label: "role", value: roleText(who) },
+      { label: "ACL groups", value: n(reach.gate === "ok" ? reach.paths.length : 0) },
+      ...(who.email ? [{ label: "email", value: who.email, copyable: true }] : []),
+      {
+        label: who.kind === "app" ? "app id" : "object id",
+        value: who.appId ?? who.id,
+        copyable: true,
+      },
+    ],
+    ...(reach.gate === "no-users"
+      ? {
+          reason: {
+            label: "Reaches nothing",
+            text: "not in users@, so entitlements turns every call away before any ACL is read.",
+          },
+        }
+      : reach.gate === "no-role"
+        ? {
+            reason: {
+              label: "Reaches nothing",
+              text: "in users@ but in no role group, so storage and search refuse the calls that would read a record.",
+            },
+          }
+        : {}),
+  };
+  const leaves: Leaf[] = [{ kind: "cards", items: [card] }];
+  const via = (v: string) => (v === "direct" ? "direct member" : `through ${v}`);
+  if (reach.paths.length > 0) {
+    leaves.push({
+      kind: "rows",
+      title: `Paths in · ${n(reach.paths.length)}`,
+      items: reach.paths.slice(0, PROFILE_ROWS).map((x) => ({
+        glyph: reach.gate === "ok" ? (x.via === "direct" ? "accent" : "info") : "neutral",
+        text: shortGroup(x.group, i.domain),
+        trailing: `${via(x.via)} · ${n(counts.get(x.group) ?? null)}`,
+      })),
+    });
+  }
+  const held = new Set(reach.paths.map((x) => x.group));
+  const out = aclGroups(i.facets ?? { tags: null, viewers: null, owners: null, errors: {} }).filter(
+    (g) => !held.has(g),
+  );
+  if (out.length > 0 && reach.gate === "ok") {
+    leaves.push({
+      kind: "rows",
+      title: `Cannot reach · ${n(out.length)}`,
+      items: out.slice(0, PROFILE_ROWS).map((g) => ({
+        glyph: "neutral" as const,
+        text: shortGroup(g, i.domain),
+        trailing: n(counts.get(g) ?? null),
+      })),
+    });
+  }
+  const notes: Row[] = [];
+  if (!read) notes.push({ glyph: "neutral", text: "Reading direct members and counts…" });
+  else if ("error" in read) notes.push({ glyph: "error", text: `Not read: ${read.error}` });
+  else if (read.data.errors.length > 0) {
+    notes.push({
+      glyph: "warn",
+      text: `Direct members not read for ${n(read.data.errors.length)} groups: ${read.data.errors[0]}`,
+    });
+  }
+  if (reach.gate === "ok") {
+    notes.push({
+      glyph: "neutral",
+      text: "Paths come from role groups nested in each ACL group and from direct grants. Records under an invalid legal tag stay closed whatever the groups say.",
+    });
+  }
+  if (notes.length > 0) leaves.push({ kind: "rows", items: notes });
+  return leaves;
+}
+
+// Who is behind an ACL group: role groups nested in it, then its direct members by name.
+function reachRows(rt: Runtime, sel: Selection, slice: Slice, i: Inputs): Leaf | undefined {
+  const all = reachers(rt, i);
+  const access = rt.cache.get<AccessRead>(ACCESS_AREA).data;
+  if (!all || !access) return undefined;
+  const g = sel.key.toLowerCase();
+  const items: Row[] = [];
+  if (access.closures) {
+    for (const key of ["viewers", "editors", "admins", "ops"] as const) {
+      if (!access.closures[key].includes(g)) continue;
+      const holders = all.filter((r) => rolesHeld(r.who).includes(key));
+      items.push({
+        glyph: "info",
+        text: GROUP_NAMES[key],
+        trailing: `${n(holders.length)} ${holders.length === 1 ? "member" : "members"} · nested`,
+      });
+    }
+  }
+  const ids = new Set(slice.members?.ids ?? []);
+  const named = all.filter(
+    (r) => ids.has(r.who.id) || (r.who.appId ? ids.has(r.who.appId) : false),
+  );
+  for (const r of named.slice(0, PROFILE_ROWS)) {
+    const chip = gateChip(r);
+    items.push({
+      ...(chip ? { chip } : { glyph: "accent" as const }),
+      text: whoLabel(r.who),
+      trailing: `${roleText(r.who)} · direct`,
+    });
+  }
+  if (named.length > PROFILE_ROWS) {
+    items.push({
+      glyph: "neutral",
+      text: `… ${n(named.length - PROFILE_ROWS)} more direct members`,
+    });
+  }
+  const known = new Set(all.flatMap((r) => [r.who.id, ...(r.who.appId ? [r.who.appId] : [])]));
+  const strangers = [...ids].filter((id) => !known.has(id)).length;
+  if (strangers > 0) {
+    items.push({
+      glyph: "neutral",
+      text: `${n(strangers)} ${strangers === 1 ? "principal" : "principals"} not on the access list`,
+    });
+  }
+  const reaching = all.filter((r) => r.reach.paths.some((x) => x.group === sel.key));
+  const usable = reaching.filter((r) => r.reach.gate === "ok").length;
+  if (items.length === 0)
+    items.push({ glyph: "neutral", text: "No role group or person reaches it." });
+  return {
+    kind: "rows",
+    title: `Who can reach it · ${n(usable)} ${usable === 1 ? "person or app" : "people and apps"}`,
+    items,
+  };
+}
+
 function bucketRows(
   title: string,
   buckets: Bucket[] | null | undefined,
@@ -809,6 +1062,7 @@ function coverBars(slice: Slice, total: number | null): Leaf {
 
 function profile(rt: Runtime, sel: Selection | undefined, i: Inputs, locked: boolean): Leaf[] {
   if (!sel) return [];
+  if (sel.lens === "people") return personLeaves(rt, sel, i);
   const state = mapState(rt);
   const mine = state.selection?.lens === sel.lens && state.selection.key === sel.key;
   const read = mine ? state.slice : undefined;
@@ -846,8 +1100,9 @@ function profile(rt: Runtime, sel: Selection | undefined, i: Inputs, locked: boo
   } else if (sel.lens === "kinds") {
     leaves.push(bucketRows("Who can read it", slice.viewers, slice.errors.viewers, groupRow));
   } else {
-    leaves.push(coverBars(slice, count));
-    if (slice.members && slice.members.groups.length > 0) {
+    const who = reachRows(rt, sel, slice, i);
+    if (who) leaves.push(who);
+    else if (slice.members && slice.members.groups.length > 0) {
       leaves.push({
         kind: "rows",
         title: "Member groups",
@@ -856,6 +1111,7 @@ function profile(rt: Runtime, sel: Selection | undefined, i: Inputs, locked: boo
           .map((g) => ({ glyph: "info" as const, text: shortGroup(g, i.domain) })),
       });
     }
+    leaves.push(coverBars(slice, count));
   }
   const at = clock(read?.at);
   if (at) leaves.push({ kind: "rows", items: [{ glyph: "neutral", text: `Slice read ${at}.` }] });
@@ -944,7 +1200,7 @@ export function composeMap(rt: Runtime): CanvasBoardView {
   const locked = phase === "signin";
   const i = inputs(rt);
   const lens = mapState(rt).lens;
-  const left: Leaf[] = [lensStrip(lens, i)];
+  const left: Leaf[] = [lensStrip(rt, lens, i)];
   if (lens === "kinds") left.push(groupStrip(rt));
   left.push(...lensRows(rt, lens, i), caption(rt, lens, i, locked));
   const sel = focusOf(rt, lens);
