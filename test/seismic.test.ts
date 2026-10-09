@@ -8,8 +8,10 @@ import {
   composeSeismicSelected,
   composeSeismicSubprojects,
   FLOW_SUBPROJECTS,
+  measuredSeismic,
   SEIS_READ_ACTION,
   SEIS_SELECT_ACTION,
+  seismicHeadline,
 } from "../src/boards/seismic";
 import { DATA_AREAS } from "../src/data/areas";
 import { HEALTH_AREA } from "../src/data/health";
@@ -232,6 +234,8 @@ describe("seismic read", () => {
     const alpha = model.subprojects.find((s) => s.name === "alpha");
     expect(alpha?.admins.kind).toBe("members");
     expect(alpha?.viewers).toMatchObject({ kind: "unread", reason: "group not known" });
+    const view = pulse(seededRuntime({ ...SEED, [SEISMIC_AREA]: read }, { now: NOW }));
+    expect(section(view, "rows")?.items[0]?.text).toStartWith("at least 2 subprojects; at least ");
   });
 
   test("the parser ignores other tenants and non-seismic groups", () => {
@@ -319,6 +323,14 @@ describe("seismic pulse", () => {
     expect(section(view, "rows")?.items[0]?.text).toBe(
       "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members.",
     );
+  });
+
+  test("the headline agrees with one grant holder", () => {
+    const rt = seededRuntime(SEED, { now: NOW });
+    const m = measuredSeismic(rt);
+    if (!m) throw new Error("not measured");
+    const one = { ...m, counts: { ...m.counts, peopleWithGrants: 1 } };
+    expect(seismicHeadline(rt, one)).toStartWith("13 subprojects; 1 of 32 people holds a grant;");
   });
 
   test("not measured yet: a header that reads on first use, other regions hidden", () => {

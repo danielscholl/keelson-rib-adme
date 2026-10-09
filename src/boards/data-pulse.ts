@@ -118,25 +118,29 @@ export function dataHeadline(rt: Runtime): string | undefined {
   const k = rt.cache.get<KindCounts>(KINDS_AREA).data;
   if (!k) return undefined;
   const records = k.visible ?? k.total;
+  // Summed over a truncated kind list, the total is only a floor, so no share is drawn from it.
+  const floor = k.visible == null && k.kinds.length >= KIND_BUCKET_LIMIT;
+  const amount = `${floor ? "at least " : ""}${fmt(records)}`;
   const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
   const facets = rt.cache.get<Facets>(FACETS_AREA).data;
   const use = legal && facets?.tags ? tagUsage(legal, facets.tags, rt.now()) : undefined;
   const parts = [
     use
-      ? `${fmt(records)} records under ${fmt(use.inUse.length)} legal ${plural(use.inUse.length, "tag", "tags")}`
-      : `${fmt(records)} records`,
+      ? `${amount} records under ${fmt(use.inUse.length)} legal ${plural(use.inUse.length, "tag", "tags")}`
+      : `${amount} records`,
   ];
   const top = facets?.viewers?.[0];
-  if (top && records > 0) {
+  if (top && records > 0 && !floor) {
     const group = shortGroup(top.key, rt.profile?.entitlementsDomain);
     parts.push(`${share(Math.min(top.count, records), records)} readable through ${group}`);
   }
   const held = use?.invalidHeld ?? [];
-  if (held.length > 0) {
-    const n = held.reduce((sum, u) => sum + u.count, 0);
-    parts.push(
-      `${fmt(held.length)} invalid ${plural(held.length, "tag holds", "tags hold")} ${fmt(n)} ${plural(n, "record", "records")}`,
-    );
+  // A record can carry several tags, so only one tag's count is a distinct total.
+  const [only] = held;
+  if (held.length === 1 && only) {
+    parts.push(`1 invalid tag holds ${fmt(only.count)} ${plural(only.count, "record", "records")}`);
+  } else if (held.length > 1) {
+    parts.push(`${fmt(held.length)} invalid tags hold records`);
   }
   return `${parts.join("; ")}.`;
 }

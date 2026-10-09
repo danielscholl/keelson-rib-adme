@@ -281,7 +281,7 @@ Screen: [data.png](screens/data.png).
 
 This section is read-only in the first take. There is no "Extend expiry" and no create or delete of legal tags.
 
-**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 expiring" (caution); with an invalid tag that holds records it reads "1 invalid tag holds records · 1 expiring". Chip `opendes · measured counts 14:05Z, legal 14:05Z`. One sentence above the tiles, from measured values only, leaving out any part not measured: "1,284,512 records under 4 legal tags; 93% readable through data.default.viewers." With an invalid tag that holds records it adds "; 1 invalid tag holds 40 records". Stats, 4 tiles:
+**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 expiring" (caution); with an invalid tag that holds records it reads "1 invalid tag holds records · 1 expiring". Chip `opendes · measured counts 14:05Z, legal 14:05Z`. One sentence above the tiles, from measured values only, leaving out any part not measured: "1,284,512 records under 4 legal tags; 93% readable through data.default.viewers." With an invalid tag that holds records it adds "; 1 invalid tag holds 40 records"; with several it says "N invalid tags hold records", since a record can carry more than one tag. When the record total is only a floor (no tracked total and a truncated kind list) it reads "at least" and drops the share. Stats, 4 tiles:
 
 1. Records 1,284,512, sub "indexed, visible to this sign-in".
 2. Kinds 214, sub "N families · N authorities".
@@ -316,7 +316,7 @@ This section is read-only in the first take. There is no "Extend expiry" and no 
 
 Screen: [seismic.png](screens/seismic.png).
 
-**Pulse `rib:adme:seis-pulse`**, drawn in the header while Seismic shows. Status "13 subprojects · service ok" (ok). Chip `sd://opendes · measured 14:05Z`. One sentence above the tiles: "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members." A partial read says "at least 9". Stats, 4 tiles:
+**Pulse `rib:adme:seis-pulse`**, drawn in the header while Seismic shows. Status "13 subprojects · service ok" (ok). Chip `sd://opendes · measured 14:05Z`. One sentence above the tiles: "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members." A partial read says "at least 9", and subprojects found only through your own groups say "at least 2 subprojects". Stats, 4 tiles:
 
 1. Subprojects 13, sub "11 own ACL, 2 default".
 2. People with grants 9, sub "of 32 people".

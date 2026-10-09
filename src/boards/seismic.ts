@@ -164,10 +164,14 @@ export function seismicHeadline(rt: Runtime, m: MeasuredSeismic): string {
   const { counts, model } = m;
   const people = measuredAccess(rt)?.counts.people;
   const least = model.partial ? "at least " : "";
-  const holders = `${least}${counts.peopleWithGrants}${people === undefined ? "" : ` of ${people}`}`;
+  const n = counts.peopleWithGrants;
+  const holders =
+    people === undefined
+      ? plural(n, "person", "people")
+      : `${n} of ${plural(people, "person", "people")}`;
   const parts = [
-    plural(counts.subprojects, "subproject", "subprojects"),
-    `${holders} ${counts.peopleWithGrants === 1 && people === undefined ? "person holds" : "people hold"} a grant`,
+    `${model.source === "own-groups" ? "at least " : ""}${plural(counts.subprojects, "subproject", "subprojects")}`,
+    `${least}${holders} ${n === 1 ? "holds" : "hold"} a grant`,
   ];
   const gaps = [
     ...(counts.defaults.length > 0
