@@ -273,6 +273,7 @@ function yourAccess(status: ConnectionStatus): Section | undefined {
 export function connectionLine(
   status: ConnectionStatus,
   health?: { label: string; tone: "ok" | "caution" | "error" | "neutral" },
+  sample = false,
 ): Section | undefined {
   const profile = status.profile;
   if (!profile || status.phase === "firstrun") return undefined;
@@ -280,7 +281,7 @@ export function connectionLine(
   const who = status.test?.signedInAs;
   const text =
     status.phase === "connected"
-      ? `Connected to ${where}${who ? ` as ${who}` : ""} · ${roleLabel(status)}`
+      ? `${sample ? "Sample instance" : "Connected to"} ${where}${who ? ` as ${who}` : ""} · ${roleLabel(status)}`
       : status.phase === "signin"
         ? `Sign-in needed for ${where}`
         : `Check the connection to ${where}`;
@@ -302,8 +303,10 @@ export function connectionLine(
 export function composeConnection(
   status: ConnectionStatus,
   platform: readonly Section[] = [],
+  sample = false,
 ): CanvasBoardView {
-  const chip = instanceChip(status.profile);
+  const instance = instanceChip(status.profile);
+  const chip = instance && sample ? `${instance} · sample data` : instance;
   const header = { status: phasePill(status), ...(chip ? { chip } : {}) };
   if (!status.profile) {
     return {

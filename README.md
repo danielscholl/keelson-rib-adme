@@ -83,6 +83,17 @@ bun test && bun run typecheck && bun run check
 keelson rib add "$PWD" && keelson restart
 ```
 
+### Sample instance
+
+Start the server with `KEELSON_ADME_SAMPLE=1` and the rib serves the made-up
+`contoso-adme` instance from [design/spec.md](design/spec.md) instead of a live
+one: 32 people from 12 organizations, 4 applications, 13 seismic subprojects,
+15 legal tags, 1,284,512 records and an audit log. Every read goes through the
+real composers. Nothing calls `az` or the network, every write is refused, and
+the header says "Sample instance". Its clock starts at the spec's 2026-10-02
+14:05Z, and it keeps its own store in `rib-adme/sample`, so a real profile is
+never touched. Use it for demos, recordings and screenshots.
+
 ## Design
 
 - [design/README.md](design/README.md): the design document.

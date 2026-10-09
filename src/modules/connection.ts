@@ -32,6 +32,7 @@ export const connectionModule: RegionModule = {
         rt.status.profile
           ? platformSections(rt.cache.get<Health>(HEALTH_AREA), rt.freshness(HEALTH_AREA))
           : [],
+        rt.sample,
       ),
     [DATA_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
     [SEIS_PULSE_KEY]: (rt) => composeRestingHeader(rt.status, { connectedText: "Connected." }),
