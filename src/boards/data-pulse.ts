@@ -19,6 +19,7 @@ import { EXPIRY_WINDOW_DAYS, legalAttention, tagUsage } from "../data/legal.ts";
 import { FACETS_AREA, type Facets } from "../data/map.ts";
 import type { Runtime } from "../runtime.ts";
 import { phasePill, signinCard } from "./connection.ts";
+import { shortGroup } from "./map.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
@@ -107,6 +108,39 @@ function stats(rt: Runtime): Section {
   return { kind: "stats", items };
 }
 
+function share(part: number, whole: number): string {
+  const pct = (part / whole) * 100;
+  return pct > 0 && pct < 1 ? "under 1%" : `${Math.round(pct)}%`;
+}
+
+// One sentence from measured values only; a part that is not measured is left out.
+export function dataHeadline(rt: Runtime): string | undefined {
+  const k = rt.cache.get<KindCounts>(KINDS_AREA).data;
+  if (!k) return undefined;
+  const records = k.visible ?? k.total;
+  const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
+  const facets = rt.cache.get<Facets>(FACETS_AREA).data;
+  const use = legal && facets?.tags ? tagUsage(legal, facets.tags, rt.now()) : undefined;
+  const parts = [
+    use
+      ? `${fmt(records)} records under ${fmt(use.inUse.length)} legal ${plural(use.inUse.length, "tag", "tags")}`
+      : `${fmt(records)} records`,
+  ];
+  const top = facets?.viewers?.[0];
+  if (top && records > 0) {
+    const group = shortGroup(top.key, rt.profile?.entitlementsDomain);
+    parts.push(`${share(Math.min(top.count, records), records)} readable through ${group}`);
+  }
+  const held = use?.invalidHeld ?? [];
+  if (held.length > 0) {
+    const n = held.reduce((sum, u) => sum + u.count, 0);
+    parts.push(
+      `${fmt(held.length)} invalid ${plural(held.length, "tag holds", "tags hold")} ${fmt(n)} ${plural(n, "record", "records")}`,
+    );
+  }
+  return `${parts.join("; ")}.`;
+}
+
 function status(rt: Runtime): NonNullable<CanvasBoardView["header"]>["status"] {
   const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
   if (rt.status.phase !== "connected" || !legal) return phasePill(rt.status);
@@ -169,6 +203,8 @@ export function composeDataPulse(rt: Runtime): CanvasBoardView {
   const c = chip(rt);
   const sections: Section[] = [];
   if (phase === "signin") sections.push(signinCard(rt.status));
+  const line = dataHeadline(rt);
+  if (line) sections.push({ kind: "rows", items: [{ text: line }] });
   sections.push(stats(rt));
   return {
     view: "board",

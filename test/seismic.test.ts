@@ -315,6 +315,9 @@ describe("seismic pulse", () => {
     expect(section(view, "stats")?.items.find((t) => t.label === "No members")?.tone).toBe(
       "caution",
     );
+    expect(section(view, "rows")?.items[0]?.text).toBe(
+      "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members.",
+    );
   });
 
   test("not measured yet: a header that reads on first use, other regions hidden", () => {

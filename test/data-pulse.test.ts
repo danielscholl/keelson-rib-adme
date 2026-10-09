@@ -47,6 +47,23 @@ describe("data pulse, connected", () => {
     expect(needs?.tone).toBe("caution");
   });
 
+  test("a headline sentence leads, built only from measured values", () => {
+    const headline = (seed: Record<string, unknown>) =>
+      section(pulse(seededRuntime(seed, { now: NOW })), "rows")?.items[0]?.text;
+    expect(headline(SEED)).toBe(
+      "1,284,512 records under 4 legal tags; 93% readable through data.default.viewers.",
+    );
+    const held = {
+      ...SAMPLE_FACETS,
+      tags: [...(SAMPLE_FACETS.tags ?? []), { key: "opendes-legacy-training", count: 40 }],
+    };
+    expect(headline({ ...SEED, [FACETS_AREA]: held })).toEndWith(
+      "; 1 invalid tag holds 40 records.",
+    );
+    expect(headline({ [KINDS_AREA]: SAMPLE_KINDS })).toBe("1,284,512 records.");
+    expect(headline({ [LEGAL_AREA]: SAMPLE_LEGAL })).toBeUndefined();
+  });
+
   test("the tracked total is the visible count; past the bucket limit kinds say so", () => {
     const many = Array.from({ length: 1000 }, (_, i) => ({
       kind: `osdu:wks:reference-data--Sample${i}:1.0.0`,

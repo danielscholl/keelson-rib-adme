@@ -157,6 +157,30 @@ function tiles(rt: Runtime, m: MeasuredSeismic): Section {
   return { kind: "stats", items };
 }
 
+// One sentence from measured values only; partial reads say "at least".
+export function seismicHeadline(rt: Runtime, m: MeasuredSeismic): string {
+  const { counts, model } = m;
+  const people = measuredAccess(rt)?.counts.people;
+  const least = model.partial ? "at least " : "";
+  const holders = `${least}${counts.peopleWithGrants}${people === undefined ? "" : ` of ${people}`}`;
+  const parts = [
+    plural(counts.subprojects, "subproject", "subprojects"),
+    `${holders} ${counts.peopleWithGrants === 1 && people === undefined ? "person holds" : "people hold"} a grant`,
+  ];
+  const gaps = [
+    ...(counts.defaults.length > 0
+      ? [
+          `${counts.defaults.length} ${counts.defaults.length === 1 ? "relies" : "rely"} on the default ACL`,
+        ]
+      : []),
+    ...(counts.empty.length > 0
+      ? [`${counts.empty.length} ${counts.empty.length === 1 ? "has" : "have"} no members`]
+      : []),
+  ];
+  if (gaps.length > 0) parts.push(gaps.join(" and "));
+  return `${parts.join("; ")}.`;
+}
+
 function partialRow(model: SeismicModel): Row | undefined {
   if (model.source === "own-groups") {
     return {
@@ -232,6 +256,7 @@ export function composeSeismicPulse(rt: Runtime): CanvasBoardView {
   }
   const service = serviceText(rt);
   const { model, counts } = measured;
+  sections.push({ kind: "rows", items: [{ text: seismicHeadline(rt, measured) }] });
   sections.push(tiles(rt, measured));
   const notes: Row[] = [];
   const partial = partialRow(model);
