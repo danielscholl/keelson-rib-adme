@@ -10,7 +10,6 @@ import type { CanvasBoardView } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { HEALTH_AREA, type Health } from "../data/health.ts";
 import { bindingOf } from "../plan/model.ts";
-import { instanceName } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import {
@@ -27,6 +26,7 @@ import {
 import { SEISMIC_AREA, type SeismicRead } from "../seismic/read.ts";
 import { measuredAccess, SELECT_PERSON_ACTION } from "./access.ts";
 import { phasePill, SIGNIN_REASON, signinCard } from "./connection.ts";
+import { fold } from "./map.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
@@ -35,6 +35,8 @@ type Field = NonNullable<Card["fields"]>[number];
 type Person = NonNullable<Field["people"]>[number];
 type Tone = NonNullable<Person["tone"]>;
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
+type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
+type FlowNode = Extract<Leaf, { kind: "flow" }>["nodes"][number];
 
 export const SEIS_READ_ACTION = "seis-read";
 export const SEIS_SELECT_ACTION = "seis-select";
@@ -157,6 +159,34 @@ function tiles(rt: Runtime, m: MeasuredSeismic): Section {
   return { kind: "stats", items };
 }
 
+// One sentence from measured values only; partial reads say "at least".
+export function seismicHeadline(rt: Runtime, m: MeasuredSeismic): string {
+  const { counts, model } = m;
+  const people = measuredAccess(rt)?.counts.people;
+  const least = model.partial ? "at least " : "";
+  const n = counts.peopleWithGrants;
+  const holders =
+    people === undefined
+      ? plural(n, "person", "people")
+      : `${n} of ${plural(people, "person", "people")}`;
+  const parts = [
+    `${model.source === "own-groups" ? "at least " : ""}${plural(counts.subprojects, "subproject", "subprojects")}`,
+    `${least}${holders} ${n === 1 ? "holds" : "hold"} a grant`,
+  ];
+  const gaps = [
+    ...(counts.defaults.length > 0
+      ? [
+          `${counts.defaults.length} ${counts.defaults.length === 1 ? "relies" : "rely"} on the default ACL`,
+        ]
+      : []),
+    ...(counts.empty.length > 0
+      ? [`${counts.empty.length} ${counts.empty.length === 1 ? "has" : "have"} no members`]
+      : []),
+  ];
+  if (gaps.length > 0) parts.push(gaps.join(" and "));
+  return `${parts.join("; ")}.`;
+}
+
 function partialRow(model: SeismicModel): Row | undefined {
   if (model.source === "own-groups") {
     return {
@@ -232,6 +262,7 @@ export function composeSeismicPulse(rt: Runtime): CanvasBoardView {
   }
   const service = serviceText(rt);
   const { model, counts } = measured;
+  sections.push({ kind: "rows", items: [{ text: seismicHeadline(rt, measured) }] });
   sections.push(tiles(rt, measured));
   const notes: Row[] = [];
   const partial = partialRow(model);
@@ -259,31 +290,10 @@ function toneOf(m: Member): Tone {
   return ID_TONES[h % ID_TONES.length] as Tone;
 }
 
-function shortName(m: Member, prefix: string | undefined): string {
-  if (m.kind === "person") return (m.name.split(/\s+/)[0] ?? m.name).toLowerCase();
-  if (m.kind === "app" && prefix && m.name.startsWith(`${prefix}-`)) {
-    return m.name.slice(prefix.length + 1);
-  }
-  return m.name;
-}
-
 const ROLE_WORD: Record<SeisRole, [string, string]> = {
   admin: ["admin", "admins"],
   viewer: ["viewer", "viewers"],
 };
-
-function roleField(role: SeisRole, s: RoleState, prefix: string | undefined): Field {
-  const [one, many] = ROLE_WORD[role];
-  if (s.kind === "default") return { label: many, value: `through ${s.group}` };
-  if (s.kind === "unread") return { label: many, value: s.you ? "? (you are one)" : null };
-  const n = s.members.length;
-  const label = plural(n, one, many);
-  if (n === 0) return { label, value: "none" };
-  const shown = n <= 3 ? s.members : s.members.slice(0, 2);
-  const people: Person[] = shown.map((m) => ({ name: shortName(m, prefix), tone: toneOf(m) }));
-  if (n > 3) people.push({ name: `${n - 2} more`, tone: "neutral" });
-  return { label, people };
-}
 
 function aclPill(s: SubprojectView): NonNullable<Card["pill"]> {
   if (s.acl === "default") return { label: "default ACL", tone: "info" };
@@ -294,52 +304,167 @@ function aclPill(s: SubprojectView): NonNullable<Card["pill"]> {
   return { label: "own ACL", tone: "neutral" };
 }
 
-function legalValue(s: SubprojectView, model: SeismicModel): string | null {
-  return s.legalTag ?? (model.source === "list" ? "none" : null);
+// Who a subproject's groups name; an unread role makes its count "?".
+interface Reached {
+  members: Member[];
+  // The default-ACL group a role comes through, which every data role reaches.
+  through?: string;
+  unread: boolean;
 }
 
-function subprojectCard(
-  s: SubprojectView,
-  model: SeismicModel,
-  people: number | undefined,
-  prefix: string | undefined,
-  selected: boolean,
-): Card {
-  const fields: Field[] = [];
-  if (s.acl === "default" && s.admins.kind === "default" && s.viewers.kind === "default") {
-    fields.push({
-      label: "Members",
-      value: people === undefined ? "everyone with a data role" : `all ${people} people`,
-    });
-    fields.push({ label: "ACL", value: s.viewers.group });
-  } else {
-    fields.push(roleField("admin", s.admins, prefix), roleField("viewer", s.viewers, prefix));
+function reachedOf(s: SubprojectView): Reached {
+  const members = new Map<string, Member>();
+  let through: string | undefined;
+  let unread = false;
+  // Viewer first, so a default ACL is named by the group that grants reading.
+  for (const role of ["viewer", "admin"] as const) {
+    const st = role === "admin" ? s.admins : s.viewers;
+    if (st.kind === "default") through ??= st.group;
+    else if (st.kind === "unread") unread = true;
+    else {
+      for (const m of st.members) members.set(m.id, m);
+    }
   }
-  fields.push(
-    { label: "Legal tag", value: legalValue(s, model) },
-    { label: "Datasets", value: null },
+  return { members: [...members.values()], ...(through ? { through } : {}), unread };
+}
+
+// People who reach a subproject: everyone with a data role through the default ACL.
+function reachCount(r: Reached, people: number | undefined): number | null {
+  if (r.unread) return null;
+  if (r.through) return people ?? null;
+  return r.members.length;
+}
+
+function reachText(n: number | null): string {
+  return n === null ? "? reach it" : n === 1 ? "1 reaches it" : `${n} reach it`;
+}
+
+function aclChip(s: SubprojectView): NonNullable<Row["chip"]> {
+  const pill = aclPill(s);
+  return { label: pill.label.replace(" ACL", ""), tone: pill.tone };
+}
+
+// The flow draws at most six left nodes; fold keeps one more when only one would fold.
+export const FLOW_SUBPROJECTS = 5;
+export const FLOW_WHO = 8;
+const MORE_SUBS = "s:more";
+const MORE_WHO = "w:more";
+
+function kindWord(m: Member): string {
+  return m.kind === "app" ? "application" : m.kind === "group" ? "group" : "person";
+}
+
+function whoFlow(
+  ranked: { s: SubprojectView; r: Reached; n: number | null }[],
+  people: number | undefined,
+  selected: SubprojectView | undefined,
+): Leaf | undefined {
+  const links: { l: string; r: string; n: number }[] = [];
+  const who = new Map<string, { label: string; sub: string }>();
+  for (const { s, r } of ranked) {
+    // Without a people count the width is unknown, so the default link is left out.
+    if (r.through && people !== undefined) {
+      const id = `d:${r.through}`;
+      who.set(id, { label: "everyone with a data role", sub: `via ${r.through}` });
+      links.push({ l: s.name, r: id, n: people });
+    }
+    for (const m of r.members) {
+      who.set(`m:${m.id}`, { label: m.you ? `${m.name} (you)` : m.name, sub: kindWord(m) });
+      links.push({ l: s.name, r: `m:${m.id}`, n: 1 });
+    }
+  }
+  if (links.length === 0) return undefined;
+  const sum = (side: "l" | "r") => {
+    // Every subproject is a candidate, so a selected one with no links still draws and lights.
+    const totals = new Map<string, number>(side === "l" ? ranked.map((x) => [x.s.name, 0]) : []);
+    for (const link of links) totals.set(link[side], (totals.get(link[side]) ?? 0) + link.n);
+    return totals;
+  };
+  const sel = selected ? ranked.find((x) => x.s.name === selected.name) : undefined;
+  const selWho = new Set(
+    sel
+      ? [...(sel.r.through ? [`d:${sel.r.through}`] : []), ...sel.r.members.map((m) => `m:${m.id}`)]
+      : [],
   );
+  const left = fold(sum("l"), FLOW_SUBPROJECTS, new Set(sel ? [sel.s.name] : []));
+  const defaults = [...who.keys()].filter((k) => k.startsWith("d:"));
+  const keepWho = new Set([...defaults, ...selWho]);
+  // The right side has no node limit, so it grows to keep every selected member lit.
+  const right = fold(sum("r"), Math.max(FLOW_WHO, keepWho.size), keepWho);
+  const subs = new Map(ranked.map((x) => [x.s.name, x]));
+  const drawn = sum("l");
+  const reaches = sum("r");
+  const nodes: FlowNode[] = [
+    ...left.kept.map((k): FlowNode => {
+      const x = subs.get(k);
+      const sub = x?.r.through ? "default ACL" : reachText(x?.n ?? null);
+      return {
+        id: `s:${k}`,
+        side: "left",
+        label: k,
+        sublabel: sub,
+        ...(k === sel?.s.name ? { selected: true } : {}),
+      };
+    }),
+    ...(left.folded.length > 0
+      ? [
+          {
+            id: MORE_SUBS,
+            side: "left" as const,
+            label: `${left.folded.length} more subprojects`,
+            folded: left.folded.map((k) => ({ label: k, n: drawn.get(k) ?? 0 })),
+          },
+        ]
+      : []),
+    ...right.kept.map((k): FlowNode => {
+      const w = who.get(k);
+      const n = reaches.get(k) ?? 0;
+      return {
+        id: k,
+        side: "right",
+        label: w?.label ?? k,
+        sublabel: k.startsWith("d:")
+          ? (w?.sub ?? "")
+          : `${w?.sub ?? ""} · ${plural(n, "subproject", "subprojects")}`,
+        ...(selWho.has(k) ? { selected: true } : {}),
+      };
+    }),
+    ...(right.folded.length > 0
+      ? [
+          {
+            id: MORE_WHO,
+            side: "right" as const,
+            label: `${right.folded.length} more`,
+            folded: right.folded.map((k) => ({
+              label: who.get(k)?.label ?? k,
+              n: reaches.get(k) ?? 0,
+            })),
+          },
+        ]
+      : []),
+  ];
+  const lSet = new Set(left.kept);
+  const rSet = new Set(right.kept);
+  const merged = new Map<string, { source: string; target: string; n: number }>();
+  for (const link of links) {
+    const source = lSet.has(link.l) ? `s:${link.l}` : MORE_SUBS;
+    const target = rSet.has(link.r) ? link.r : MORE_WHO;
+    const key = `${source}\u0000${target}`;
+    const at = merged.get(key);
+    if (at) at.n += link.n;
+    else merged.set(key, { source, target, n: link.n });
+  }
   return {
-    title: s.name,
-    mono: true,
-    stacked: true,
-    pill: aclPill(s),
-    ...(s.empty
-      ? {
-          edge: "caution" as const,
-          reason: { label: "Why flagged", text: "no members; looks abandoned." },
-        }
-      : {}),
-    fields,
-    action: { type: SEIS_SELECT_ACTION, payload: { subproject: s.name } },
-    selected,
+    kind: "flow",
+    title: "Who reaches seismic · subproject to people and applications",
+    left: "Subproject",
+    right: "Who",
+    nodes,
+    links: [...merged.values()].sort((a, b) => b.n - a.n),
   };
 }
 
-function prefixOf(rt: Runtime): string | undefined {
-  return rt.profile ? instanceName(rt.profile) : undefined;
-}
-
+// Subprojects ranked by who reaches them, beside a flow from subproject to people.
 export function composeSeismicSubprojects(rt: Runtime): CanvasBoardView {
   const measured = measuredSeismic(rt);
   if (!measured) return EMPTY_BOARD;
@@ -356,21 +481,48 @@ export function composeSeismicSubprojects(rt: Runtime): CanvasBoardView {
   }
   const selected = selectedSubproject(rt, model);
   const people = measuredAccess(rt)?.counts.people;
-  const prefix = prefixOf(rt);
+  const ranked = order
+    .map((s, i) => {
+      const r = reachedOf(s);
+      return { s, r, n: reachCount(r, people), i };
+    })
+    .sort((a, b) => (b.n ?? -1) - (a.n ?? -1) || a.i - b.i);
+  const max = Math.max(1, ...ranked.map((x) => x.n ?? 0));
+  const rows: Row[] = ranked.map(({ s, r, n }) => ({
+    chip: aclChip(s),
+    text: s.name,
+    trailing:
+      r.through && !r.unread
+        ? people === undefined
+          ? "everyone with a data role"
+          : `all ${people} people`
+        : reachText(n),
+    bar: { value: n, total: max },
+    action: { type: SEIS_SELECT_ACTION, payload: { subproject: s.name } },
+    ...(s.name === selected?.name ? { selected: true } : {}),
+  }));
+  const flow = whoFlow(ranked, people, selected);
   return {
     view: "board",
     header: {
-      status: { label: `${order.length} of ${order.length}`, tone: "neutral" },
+      status: { label: plural(order.length, "subproject", "subprojects"), tone: "neutral" },
       ...(selected ? { chip: `selected: ${selected.name}` } : {}),
     },
     sections: [
       {
-        kind: "cards",
-        grid: true,
-        columns: 4,
-        items: order.map((s) =>
-          subprojectCard(s, model, people, prefix, s.name === selected?.name),
-        ),
+        kind: "columns",
+        columns: [
+          {
+            weight: 5,
+            sections: [{ kind: "rows", title: "Subprojects by who reaches them", items: rows }],
+          },
+          {
+            weight: 7,
+            sections: flow
+              ? [flow]
+              : [{ kind: "rows", items: [{ glyph: "neutral", text: "Nobody to draw yet." }] }],
+          },
+        ],
       },
     ],
   };

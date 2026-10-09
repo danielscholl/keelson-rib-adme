@@ -124,7 +124,7 @@ const SEISMIC_ROWS: Row[] = [
       {
         key: SEIS_SUBPROJECTS_KEY,
         title: "Subprojects",
-        byline: "select one to see its members · datasets are not measured until one is opened",
+        byline: "who reaches each seismic subproject · select a row to see its members",
         glyph: { char: "▦", tone: "info" },
         hideWhenEmpty: true,
       },

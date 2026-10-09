@@ -47,6 +47,47 @@ describe("data pulse, connected", () => {
     expect(needs?.tone).toBe("caution");
   });
 
+  test("a headline sentence leads, built only from measured values", () => {
+    const headline = (seed: Record<string, unknown>) =>
+      section(pulse(seededRuntime(seed, { now: NOW })), "rows")?.items[0]?.text;
+    expect(headline(SEED)).toBe(
+      "1,284,512 records under 4 legal tags; 93% readable through data.default.viewers.",
+    );
+    const held = {
+      ...SAMPLE_FACETS,
+      tags: [...(SAMPLE_FACETS.tags ?? []), { key: "opendes-legacy-training", count: 40 }],
+    };
+    expect(headline({ ...SEED, [FACETS_AREA]: held })).toEndWith(
+      "; 1 invalid tag holds 40 records.",
+    );
+    const twoHeld = {
+      ...held,
+      tags: [...(held.tags ?? []), { key: "opendes-legacy-survey", count: 12 }],
+    };
+    const twoLegal = {
+      ...SAMPLE_LEGAL,
+      invalid: [
+        ...SAMPLE_LEGAL.invalid,
+        {
+          ...(SAMPLE_LEGAL.invalid[0] as (typeof SAMPLE_LEGAL.invalid)[number]),
+          name: "opendes-legacy-survey",
+        },
+      ],
+    };
+    expect(headline({ ...SEED, [FACETS_AREA]: twoHeld, [LEGAL_AREA]: twoLegal })).toEndWith(
+      "; 2 invalid tags hold records.",
+    );
+    const many = Array.from({ length: 1000 }, (_, i) => ({
+      kind: `osdu:wks:reference-data--Sample${i}:1.0.0`,
+      count: 1,
+    }));
+    expect(headline({ ...SEED, [KINDS_AREA]: { total: 1000, kinds: many } })).toBe(
+      "at least 1,000 records under 4 legal tags.",
+    );
+    expect(headline({ [KINDS_AREA]: SAMPLE_KINDS })).toBe("1,284,512 records.");
+    expect(headline({ [LEGAL_AREA]: SAMPLE_LEGAL })).toBeUndefined();
+  });
+
   test("the tracked total is the visible count; past the bucket limit kinds say so", () => {
     const many = Array.from({ length: 1000 }, (_, i) => ({
       kind: `osdu:wks:reference-data--Sample${i}:1.0.0`,
