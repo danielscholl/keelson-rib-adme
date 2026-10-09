@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.6.0...v1.7.0) (2026-10-09)
+
+
+### Added
+
+* **data:** rank tags in use, add Cleanup, and draw where records sit as a flow ([#38](https://github.com/danielscholl/keelson-rib-adme/issues/38)) ([1d78f39](https://github.com/danielscholl/keelson-rib-adme/commit/1d78f39e8ab93c57ed3621bcd85ff4f628744546))
+
 ## [1.6.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.5.0...v1.6.0) (2026-10-08)
 
 
