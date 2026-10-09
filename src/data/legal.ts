@@ -57,3 +57,80 @@ export function classifyTags(tags: LegalTags, now: Date): TagClassification {
 function order(a: number, b: number): number {
   return a === b ? 0 : a < b ? -1 : 1;
 }
+
+export interface TagUse {
+  tag: LegalTag;
+  count: number;
+  daysLeft?: number;
+}
+
+// Where records sit across the legal service's tags. Needs measured per-tag counts.
+export interface TagUsage {
+  inUse: TagUse[];
+  invalidHeld: TagUse[];
+  unlisted: { key: string; count: number }[];
+  invalidEmpty: LegalTag[];
+  validEmpty: LegalTag[];
+}
+
+export function tagUsage(
+  legal: LegalTags,
+  counts: readonly { key: string; count: number }[],
+  now: Date,
+): TagUsage {
+  const byName = new Map(counts.map((b) => [b.key, b.count]));
+  const most = (a: TagUse, b: TagUse) => b.count - a.count || a.tag.name.localeCompare(b.tag.name);
+  const inUse: TagUse[] = [];
+  const validEmpty: LegalTag[] = [];
+  for (const tag of legal.valid) {
+    const count = byName.get(tag.name) ?? 0;
+    if (count === 0) {
+      validEmpty.push(tag);
+      continue;
+    }
+    const days = daysUntil(tag.expirationDate, now);
+    inUse.push({
+      tag,
+      count,
+      ...(days !== undefined && days <= EXPIRY_WINDOW_DAYS ? { daysLeft: days } : {}),
+    });
+  }
+  const { invalid } = classifyTags(legal, now);
+  const invalidHeld = invalid
+    .filter((tag) => (byName.get(tag.name) ?? 0) > 0)
+    .map((tag) => ({ tag, count: byName.get(tag.name) ?? 0 }));
+  const listed = new Set([...legal.valid, ...legal.invalid].map((t) => t.name));
+  return {
+    inUse: inUse.sort(most),
+    invalidHeld: invalidHeld.sort(most),
+    unlisted: counts.filter((b) => b.count > 0 && !listed.has(b.key)),
+    invalidEmpty: invalid.filter((tag) => (byName.get(tag.name) ?? 0) === 0),
+    validEmpty: validEmpty.sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+export interface LegalAttention {
+  invalid: number;
+  expiring: number;
+  // True when both counts are tags that hold records; false when counts were not measured.
+  held: boolean;
+}
+
+// What needs a decision: invalid tags still holding records and tags in use about to expire.
+// Without per-tag counts it falls back to every invalid and expiring tag.
+export function legalAttention(
+  legal: LegalTags,
+  counts: readonly { key: string; count: number }[] | null | undefined,
+  now: Date,
+): LegalAttention {
+  if (counts) {
+    const use = tagUsage(legal, counts, now);
+    return {
+      invalid: use.invalidHeld.length,
+      expiring: use.inUse.filter((u) => u.daysLeft !== undefined).length,
+      held: true,
+    };
+  }
+  const { invalid, expiring } = classifyTags(legal, now);
+  return { invalid: invalid.length, expiring: expiring.length, held: false };
+}

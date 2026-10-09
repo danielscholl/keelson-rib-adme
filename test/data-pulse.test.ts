@@ -35,15 +35,15 @@ function pulse(rt: ReturnType<typeof seededRuntime>): CanvasBoardView {
 describe("data pulse, connected", () => {
   test("the sample cast reproduces the spec's tiles, status and chip", () => {
     const view = pulse(seededRuntime(SEED, { now: NOW }));
-    expect(view.header?.status).toEqual({ label: "1 tag invalid · 1 expiring", tone: "caution" });
+    expect(view.header?.status).toEqual({ label: "1 expiring", tone: "caution" });
     expect(view.header?.chip).toBe("opendes · measured counts 14:05Z, legal 14:05Z");
     expect(tiles(view)).toEqual({
       Records: { value: "1,284,512", sub: "summed over kinds, may be incomplete" },
       Kinds: { value: "214", sub: "214 families · 1 authority" },
-      "Legal tags": { value: "15", sub: "1 invalid · 1 within 30 days" },
+      "Legal tags in use": { value: "4 of 15", sub: "1 invalid · 1 within 30 days" },
       "ACL groups": { value: "6", sub: "4 read · 2 own, on records" },
     });
-    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags");
+    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags in use");
     expect(needs?.tone).toBe("caution");
   });
 
@@ -58,9 +58,15 @@ describe("data pulse, connected", () => {
     expect(t.Kinds).toEqual({ value: "1,000", sub: "search's 1,000 limit, may be more" });
   });
 
-  test("the Data badge counts invalid and expiring tags", () => {
+  test("the Data badge counts invalid tags holding records and expiring tags in use", () => {
     const badge = dataPulseModule.counts?.data;
-    expect(badge?.(seededRuntime(SEED, { now: NOW }))).toBe(2);
+    expect(badge?.(seededRuntime(SEED, { now: NOW }))).toBe(1);
+    const held = {
+      ...SAMPLE_FACETS,
+      tags: [...(SAMPLE_FACETS.tags ?? []), { key: "opendes-legacy-training", count: 40 }],
+    };
+    expect(badge?.(seededRuntime({ ...SEED, [FACETS_AREA]: held }, { now: NOW }))).toBe(2);
+    expect(badge?.(seededRuntime({ [LEGAL_AREA]: SAMPLE_LEGAL }, { now: NOW }))).toBe(2);
     expect(badge?.(seededRuntime({}, { now: NOW }))).toBe(0);
   });
 
@@ -68,8 +74,8 @@ describe("data pulse, connected", () => {
     const legal = { valid: SAMPLE_LEGAL.valid.slice(1), invalid: [] };
     const view = pulse(seededRuntime({ ...SEED, [LEGAL_AREA]: legal }, { now: NOW }));
     expect(view.header?.status?.tone).toBe("ok");
-    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags");
-    expect(needs).toMatchObject({ value: "13", sub: "all valid, none expire within 30 days" });
+    const needs = section(view, "stats")?.items.find((t) => t.label === "Legal tags in use");
+    expect(needs).toMatchObject({ value: "3 of 13", sub: "all valid, none expire within 30 days" });
     expect(needs?.tone).toBeUndefined();
   });
 
@@ -82,17 +88,25 @@ describe("data pulse, connected", () => {
     expect(t["ACL groups"]).toEqual({ value: null, sub: "not measured" });
   });
 
-  test("tiles read sensibly with many invalid tags", () => {
+  test("invalid tags count for attention only while they hold records", () => {
     const many = {
       valid: SAMPLE_LEGAL.valid.slice(1),
       invalid: Array.from({ length: 46 }, (_, i) => ({ name: `opendes-old-${i}`, countries: [] })),
     };
-    const view = pulse(seededRuntime({ ...SEED, [LEGAL_AREA]: many }, { now: NOW }));
-    expect(view.header?.status?.label).toBe("46 tags invalid");
-    expect(tiles(view)["Legal tags"]).toEqual({
-      value: "59",
+    const calm = pulse(seededRuntime({ ...SEED, [LEGAL_AREA]: many }, { now: NOW }));
+    expect(calm.header?.status).toEqual({ label: "legal tags hold", tone: "ok" });
+    expect(tiles(calm)["Legal tags in use"]).toEqual({
+      value: "3 of 59",
       sub: "46 invalid · 0 within 30 days",
     });
+    const facets = {
+      ...SAMPLE_FACETS,
+      tags: [...(SAMPLE_FACETS.tags ?? []), { key: "opendes-old-0", count: 40 }],
+    };
+    const held = pulse(
+      seededRuntime({ ...SEED, [LEGAL_AREA]: many, [FACETS_AREA]: facets }, { now: NOW }),
+    );
+    expect(held.header?.status).toEqual({ label: "1 invalid tag holds records", tone: "caution" });
   });
 });
 

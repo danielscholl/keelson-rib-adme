@@ -22,8 +22,14 @@ export const FACET_FIELDS: Record<Facet, string> = {
   owners: "acl.owners",
 };
 
-export const LENSES = ["tags", "viewers", "owners", "kinds"] as const;
+export const LENSES = ["tags", "viewers", "owners", "kinds", "cleanup"] as const;
 export type Lens = (typeof LENSES)[number];
+
+// The search field a lens's rows are keys of; Cleanup lists tags too.
+export function lensField(lens: Lens): string {
+  if (lens === "kinds") return "kind";
+  return FACET_FIELDS[lens === "cleanup" ? "tags" : lens];
+}
 
 export interface Bucket {
   key: string;
@@ -118,14 +124,16 @@ function quoted(value: string): string {
 // The kind pattern and query that select a slice in search.
 export function sliceScope(sel: Selection): { kind: string; query: string } {
   if (sel.lens === "kinds") return { kind: sel.key, query: "*" };
-  return { kind: ALL_KINDS, query: `${FACET_FIELDS[sel.lens]}:${quoted(sel.key)}` };
+  return { kind: ALL_KINDS, query: `${lensField(sel.lens)}:${quoted(sel.key)}` };
 }
 
+// What the profile shows beside the flow; the flow already draws the other side.
 const SLICE_FIELDS: Record<Lens, ("kinds" | Facet)[]> = {
-  tags: ["kinds", "viewers", "owners"],
-  viewers: ["kinds", "tags"],
-  owners: ["kinds", "tags"],
-  kinds: ["tags", "viewers"],
+  tags: ["kinds", "owners"],
+  viewers: ["kinds"],
+  owners: ["kinds"],
+  kinds: ["viewers"],
+  cleanup: ["kinds", "viewers", "owners"],
 };
 
 interface MemberList {
@@ -175,13 +183,62 @@ export async function readSlice(batch: Batch, sel: Selection): Promise<CallResul
   return { ok: true, status: 200, data: slice };
 }
 
+// ---- The flow: one aggregate per node on the side whose links we count ----
+
+// Readers and owners: per group, records by legal tag. Kinds: per tag in use, records by kind.
+export const FLOW_PARTS = { groups: 8, tags: 5 } as const;
+
+export interface FlowPart {
+  key: string;
+  buckets: Bucket[] | null;
+  error?: string;
+}
+
+export interface Flow {
+  lens: Exclude<Lens, "cleanup">;
+  parts: FlowPart[];
+  // How many keys the side had before the cap, so the board can say "showing N of M".
+  of: number;
+}
+
+export function flowScope(lens: Flow["lens"]): { by: string; field: string } {
+  if (lens === "kinds") return { by: "kind", field: FACET_FIELDS.tags };
+  return { by: FACET_FIELDS.tags, field: FACET_FIELDS[lens === "tags" ? "viewers" : lens] };
+}
+
+export async function readFlow(
+  batch: Batch,
+  lens: Flow["lens"],
+  keys: readonly string[],
+  of: number,
+): Promise<CallResult<Flow>> {
+  const { by, field } = flowScope(lens);
+  const results = await Promise.all(
+    keys.map((key) => aggregate(batch, by, ALL_KINDS, `${field}:${quoted(key)}`)),
+  );
+  const parts = results.map((res, i) => {
+    const key = keys[i] as string;
+    return res.ok ? { key, buckets: res.data } : { key, buckets: null, error: why(res.failure) };
+  });
+  const failed = results.find((r) => !r.ok);
+  if (failed && !failed.ok && results.every((r) => !r.ok)) return failed;
+  return { ok: true, status: 200, data: { lens, parts, of } };
+}
+
 // ---- Module state, one per runtime, dropped when the instance changes ----
+
+type Read<T> = { at: string; data: T } | { at: string; error: string };
 
 export interface MapState {
   instance: string;
   lens: Lens;
   selection?: Selection;
-  slice?: { at: string; data: Slice } | { at: string; error: string };
+  // The operator's last pick per lens, so returning through a lens restores it.
+  picks?: Partial<Record<Lens, string>>;
+  slice?: Read<Slice>;
+  flow?: Read<Flow>;
+  // The facet read the selection and flow were last loaded against.
+  readAt?: string;
 }
 
 const states = new WeakMap<Runtime, MapState>();

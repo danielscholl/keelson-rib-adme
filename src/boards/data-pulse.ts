@@ -15,23 +15,13 @@ import {
   type LegalTags,
 } from "../data/areas.ts";
 import { groupKinds } from "../data/inventory.ts";
-import { classifyTags, EXPIRY_WINDOW_DAYS } from "../data/legal.ts";
+import { EXPIRY_WINDOW_DAYS, legalAttention, tagUsage } from "../data/legal.ts";
 import { FACETS_AREA, type Facets } from "../data/map.ts";
 import type { Runtime } from "../runtime.ts";
 import { phasePill, signinCard } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Stat = Extract<Section, { kind: "stats" }>["items"][number];
-
-export interface LegalAttention {
-  invalid: number;
-  expiring: number;
-}
-
-export function legalAttention(legal: LegalTags, now: Date): LegalAttention {
-  const { invalid, expiring } = classifyTags(legal, now);
-  return { invalid: invalid.length, expiring: expiring.length };
-}
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -71,19 +61,31 @@ function stats(rt: Runtime): Section {
   } else {
     items.push(unmeasured("Records", why(kinds)), unmeasured("Kinds", why(kinds)));
   }
+  const counts = rt.cache.get<Facets>(FACETS_AREA).data?.tags;
   if (legal.data) {
-    const { invalid, expiring } = legalAttention(legal.data, rt.now());
     const total = legal.data.valid.length + legal.data.invalid.length;
-    const needs = invalid + expiring;
-    items.push({
-      label: "Legal tags",
-      value: fmt(total),
-      sub:
-        needs > 0
-          ? `${fmt(invalid)} invalid · ${fmt(expiring)} within ${EXPIRY_WINDOW_DAYS} days`
-          : `all valid, none expire within ${EXPIRY_WINDOW_DAYS} days`,
-      ...(needs > 0 ? { tone: "caution" as const } : {}),
-    });
+    const att = legalAttention(legal.data, counts, rt.now());
+    const tone = att.invalid + att.expiring > 0 ? { tone: "caution" as const } : {};
+    const sub =
+      legal.data.invalid.length + att.expiring > 0
+        ? `${fmt(legal.data.invalid.length)} invalid · ${fmt(att.expiring)} within ${EXPIRY_WINDOW_DAYS} days`
+        : `all valid, none expire within ${EXPIRY_WINDOW_DAYS} days`;
+    if (counts) {
+      const use = tagUsage(legal.data, counts, rt.now());
+      items.push({
+        label: "Legal tags in use",
+        value: `${fmt(use.inUse.length)} of ${fmt(total)}`,
+        sub,
+        ...tone,
+      });
+    } else {
+      items.push({
+        label: "Legal tags",
+        value: fmt(total),
+        sub,
+        ...tone,
+      });
+    }
   } else {
     items.push(unmeasured("Legal tags", why(legal)));
   }
@@ -108,10 +110,17 @@ function stats(rt: Runtime): Section {
 function status(rt: Runtime): NonNullable<CanvasBoardView["header"]>["status"] {
   const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
   if (rt.status.phase !== "connected" || !legal) return phasePill(rt.status);
-  const { invalid, expiring } = legalAttention(legal, rt.now());
+  const counts = rt.cache.get<Facets>(FACETS_AREA).data?.tags;
+  const { invalid, expiring, held } = legalAttention(legal, counts, rt.now());
   if (invalid + expiring === 0) return { label: "legal tags hold", tone: "ok" };
   const parts: string[] = [];
-  if (invalid > 0) parts.push(`${fmt(invalid)} ${plural(invalid, "tag", "tags")} invalid`);
+  if (invalid > 0) {
+    parts.push(
+      held
+        ? `${fmt(invalid)} invalid ${plural(invalid, "tag holds", "tags hold")} records`
+        : `${fmt(invalid)} ${plural(invalid, "tag", "tags")} invalid`,
+    );
+  }
   if (expiring > 0) parts.push(`${fmt(expiring)} expiring`);
   return { label: parts.join(" · "), tone: "caution" };
 }

@@ -6,8 +6,10 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import { composeDataPulse, legalAttention } from "../boards/data-pulse.ts";
+import { composeDataPulse } from "../boards/data-pulse.ts";
 import { DATA_AREAS, LEGAL_AREA, type LegalTags } from "../data/areas.ts";
+import { legalAttention } from "../data/legal.ts";
+import { FACETS_AREA, type Facets } from "../data/map.ts";
 import { DATA_PULSE_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 
@@ -20,7 +22,8 @@ export const dataPulseModule: RegionModule = {
     data: (rt) => {
       const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
       if (!legal) return 0;
-      const { invalid, expiring } = legalAttention(legal, rt.now());
+      const counts = rt.cache.get<Facets>(FACETS_AREA).data?.tags;
+      const { invalid, expiring } = legalAttention(legal, counts, rt.now());
       return invalid + expiring;
     },
   },

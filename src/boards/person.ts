@@ -35,7 +35,7 @@ import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
-type Leaf = Exclude<Section, { kind: "columns" }>;
+type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
 type Field = NonNullable<Card["fields"]>[number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
