@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.8.0...v1.9.0) (2026-10-09)
+
+
+### Added
+
+* lead Data and Seismic with a headline and draw Seismic as a list and flow ([#42](https://github.com/danielscholl/keelson-rib-adme/issues/42)) ([653364e](https://github.com/danielscholl/keelson-rib-adme/commit/653364e5b200ef1cf2f95e5eaa874daea92e70dc))
+
 ## [1.8.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.7.0...v1.8.0) (2026-10-09)
 
 
