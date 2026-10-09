@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.9.1...v1.10.0) (2026-10-09)
+
+
+### Added
+
+* **access:** open Follow up with a funnel from invitation to data ([#46](https://github.com/danielscholl/keelson-rib-adme/issues/46)) ([137d6e8](https://github.com/danielscholl/keelson-rib-adme/commit/137d6e83a1360b3c81e22db1cf9d3bb42a375be7))
+
 ## [1.9.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.9.0...v1.9.1) (2026-10-09)
 
 
