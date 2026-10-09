@@ -362,10 +362,11 @@ function whoFlow(
   const links: { l: string; r: string; n: number }[] = [];
   const who = new Map<string, { label: string; sub: string }>();
   for (const { s, r } of ranked) {
-    if (r.through) {
+    // Without a people count the width is unknown, so the default link is left out.
+    if (r.through && people !== undefined) {
       const id = `d:${r.through}`;
       who.set(id, { label: "everyone with a data role", sub: `via ${r.through}` });
-      links.push({ l: s.name, r: id, n: people ?? 1 });
+      links.push({ l: s.name, r: id, n: people });
     }
     for (const m of r.members) {
       who.set(`m:${m.id}`, { label: m.you ? `${m.name} (you)` : m.name, sub: kindWord(m) });
@@ -374,7 +375,8 @@ function whoFlow(
   }
   if (links.length === 0) return undefined;
   const sum = (side: "l" | "r") => {
-    const totals = new Map<string, number>();
+    // Every subproject is a candidate, so a selected one with no links still draws and lights.
+    const totals = new Map<string, number>(side === "l" ? ranked.map((x) => [x.s.name, 0]) : []);
     for (const link of links) totals.set(link[side], (totals.get(link[side]) ?? 0) + link.n);
     return totals;
   };
@@ -386,8 +388,11 @@ function whoFlow(
   );
   const left = fold(sum("l"), FLOW_SUBPROJECTS, new Set(sel ? [sel.s.name] : []));
   const defaults = [...who.keys()].filter((k) => k.startsWith("d:"));
-  const right = fold(sum("r"), FLOW_WHO, new Set([...defaults, ...selWho]));
+  const keepWho = new Set([...defaults, ...selWho]);
+  // The right side has no node limit, so it grows to keep every selected member lit.
+  const right = fold(sum("r"), Math.max(FLOW_WHO, keepWho.size), keepWho);
   const subs = new Map(ranked.map((x) => [x.s.name, x]));
+  const drawn = sum("l");
   const reaches = sum("r");
   const nodes: FlowNode[] = [
     ...left.kept.map((k): FlowNode => {
@@ -407,7 +412,7 @@ function whoFlow(
             id: MORE_SUBS,
             side: "left" as const,
             label: `${left.folded.length} more subprojects`,
-            folded: left.folded.map((k) => ({ label: k, n: subs.get(k)?.n ?? 0 })),
+            folded: left.folded.map((k) => ({ label: k, n: drawn.get(k) ?? 0 })),
           },
         ]
       : []),

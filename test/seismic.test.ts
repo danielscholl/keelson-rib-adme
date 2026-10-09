@@ -215,6 +215,15 @@ describe("seismic read", () => {
     const view = pulse(seededRuntime({ ...SEED, [SEISMIC_AREA]: read }, { now: NOW }));
     expect(view.header?.status?.tone).toBe("caution");
     expect(tiles(view)["People with grants"]?.sub).toContain("partial read");
+    const rows = all(
+      subprojects(seededRuntime({ ...SEED, [SEISMIC_AREA]: read }, { now: NOW })),
+      "rows",
+    );
+    const bravo = rows[0]?.items.find((r) => r.text === "bravo");
+    expect(bravo).toMatchObject({
+      chip: { label: "partial", tone: "warn" },
+      trailing: "? reach it",
+    });
   });
 
   test("a refused subproject list falls back to data.sdms groups you are in", async () => {
@@ -418,6 +427,21 @@ describe("subprojects and the selected subproject", () => {
       "contoso-adme-tier-viewer",
     ]);
     expect(flow?.links.find((l) => l.source === "s:volve")?.n).toBe(32);
+  });
+
+  test("the flow lights an empty selection and leaves out widths it cannot measure", async () => {
+    const rt = seededRuntime(SEED, { now: NOW });
+    await act(rt, SEIS_SELECT_ACTION, { subproject: "subproject-legacy" });
+    const lit = all(subprojects(rt), "flow")[0]?.nodes.filter((n) => n.selected);
+    expect(lit?.map((n) => n.label)).toEqual(["subproject-legacy"]);
+    const unmeasured = seededRuntime(
+      { [HEALTH_AREA]: SAMPLE_HEALTH, [SEISMIC_AREA]: sampleSeismic() },
+      { now: NOW },
+    );
+    const flow = all(subprojects(unmeasured), "flow")[0];
+    expect(flow?.nodes.some((n) => n.id.startsWith("d:"))).toBe(false);
+    const volve = all(subprojects(unmeasured), "rows")[0]?.items.find((r) => r.text === "volve");
+    expect(volve?.trailing).toBe("everyone with a data role");
   });
 
   test("the selected region names alpha's admins and viewers with copyable identifiers", () => {
