@@ -565,7 +565,22 @@ function adme(method: string, url: URL, body: unknown): Reply {
   }
 }
 
+// The only POSTs the rib sends that change nothing.
+const READ_POSTS = [
+  `${SAMPLE_PROFILE.host}${SERVICE_PATHS.search}/query`,
+  "graph.microsoft.com/v1.0/directoryObjects/getByIds",
+  "management.azure.com/providers/Microsoft.ResourceGraph/resources",
+];
+
+function readOnly(method: string, url: URL): boolean {
+  if (method === "GET") return true;
+  if (method !== "POST") return false;
+  const at = `${url.host}${url.pathname}`;
+  return READ_POSTS.includes(at) || (url.host === "api.loganalytics.io" && at.endsWith("/query"));
+}
+
 function route(method: string, url: URL, body: unknown): Reply {
+  if (!readOnly(method, url)) return { status: 403, body: { message: READ_ONLY } };
   if (url.host === SAMPLE_PROFILE.host) return adme(method, url, body);
   if (url.host === "graph.microsoft.com") return graph(method, url, body);
   if (url.host === "management.azure.com") return arm(method, url);

@@ -52,8 +52,17 @@ describe("sample instance transport", () => {
       role: "MEMBER",
     });
     expect(res).toEqual({ status: 403, body: { message: READ_ONLY } });
-    const invite = await call("POST", "https://graph.microsoft.com/v1.0/invitations", {});
-    expect(invite.status).toBe(403);
+    const writes: [string, string][] = [
+      ["POST", "https://graph.microsoft.com/v1.0/invitations"],
+      ["DELETE", `${HOST}/seistore-svc/api/v3/subproject/tenant/opendes`],
+      ["PUT", `${HOST}/api/legal/v1/legaltags`],
+      ["PATCH", `${HOST}/api/storage/v2/records`],
+      ["DELETE", "https://api.loganalytics.io/v1/workspaces/w/query"],
+      ["POST", `${HOST}/api/search/v2/query/../../storage/v2/records`],
+    ];
+    for (const [method, url] of writes) {
+      expect((await call(method, url, {})).status).toBe(403);
+    }
   });
 
   test("search counts and aggregates by kind, tag and ACL", async () => {
