@@ -51,6 +51,8 @@ export interface RuntimeOptions {
   registerOp?: ((req: RegisterOpRequest) => OpHandle) | undefined;
   // After each sweep lands, for reads that depend on more than one area.
   swept?: () => void;
+  // Serving the made-up sample instance, never a live one.
+  sample?: boolean;
 }
 
 export class Runtime {
@@ -63,9 +65,11 @@ export class Runtime {
   private lastActionAt = 0;
   private sweeping: Promise<void> | undefined;
   readonly now: () => Date;
+  readonly sample: boolean;
 
   constructor(private readonly opts: RuntimeOptions) {
     this.now = opts.now ?? (() => new Date());
+    this.sample = opts.sample ?? false;
     this.cache = new SweepCache(opts.store);
     this.tracker = new Tracker(opts.store, trackerFile(undefined));
     const profile = opts.store.read("profile.json", profileSchema);

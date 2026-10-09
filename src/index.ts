@@ -37,7 +37,14 @@ import { recordsModule } from "./modules/records.ts";
 import { seismicModule } from "./modules/seismic.ts";
 import type { ActionHandler, RegionModule } from "./region.ts";
 import { EMPTY_BOARD } from "./resting.ts";
-import { Runtime, TICK_MS } from "./runtime.ts";
+import { Runtime, type RuntimeOptions, TICK_MS } from "./runtime.ts";
+import {
+  sampleClock,
+  sampleExec,
+  sampleMode,
+  sampleStore,
+  sampleTransport,
+} from "./sample/index.ts";
 import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
 import { SURFACES, sectionOf } from "./surfaces.ts";
@@ -86,9 +93,18 @@ function bind(ctx: RibContext): void {
   unbind();
   snapshots = ctx.getSnapshotManager?.();
   const sm = snapshots;
+  const sample = sampleMode();
+  const source: Pick<RuntimeOptions, "exec" | "store" | "transport" | "now" | "sample"> = sample
+    ? {
+        exec: sampleExec,
+        store: sampleStore(ctx.getDataDir?.()),
+        transport: sampleTransport,
+        now: sampleClock(),
+        sample: true,
+      }
+    : { exec: ctx.getExec(), store: new Store(ctx.getDataDir?.()) };
   const rt = new Runtime({
-    exec: ctx.getExec(),
-    store: new Store(ctx.getDataDir?.()),
+    ...source,
     recompose,
     allKeys: ALL_KEYS,
     registerOp: ctx.registerOp,
@@ -114,10 +130,10 @@ function bind(ctx: RibContext): void {
   recompose(ALL_KEYS);
   rt.sweep().catch(() => undefined);
   // A test saved before roles were recorded is re-run once so the header can show the role.
-  if (rt.status.phase === "connected" && !rt.status.test?.roleGroups) {
+  if (sample || (rt.status.phase === "connected" && !rt.status.test?.roleGroups)) {
     rt.testConnection().catch(() => undefined);
   }
-  if (rt.status.phase !== "connected") rt.discover().catch(() => undefined);
+  if (!sample && rt.status.phase !== "connected") rt.discover().catch(() => undefined);
   ticker = setInterval(() => {
     if (rt.shouldTick()) rt.sweep().catch(() => undefined);
   }, TICK_MS);

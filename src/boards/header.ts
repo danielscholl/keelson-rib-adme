@@ -51,7 +51,7 @@ export function composeHeader(rt: Runtime, parts: HeaderParts): CanvasBoardView 
   const unconnected = phase === "firstrun" || phase === "profile-error";
   const pulse = parts.pulses[unconnected ? "access" : activeSection(rt)](rt);
   const health = healthChip(verdict(rt.cache.get<Health>(HEALTH_AREA).data));
-  const line = connectionLine(rt.status, health);
+  const line = connectionLine(rt.status, health, rt.sample);
   return {
     ...pulse,
     sections: [switcher(rt, parts.counts), ...(line ? [line] : []), ...pulse.sections],
