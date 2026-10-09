@@ -491,11 +491,12 @@ export function composeSeismicSubprojects(rt: Runtime): CanvasBoardView {
   const rows: Row[] = ranked.map(({ s, r, n }) => ({
     chip: aclChip(s),
     text: s.name,
-    trailing: r.through
-      ? people === undefined
-        ? "everyone with a data role"
-        : `all ${people} people`
-      : reachText(n),
+    trailing:
+      r.through && !r.unread
+        ? people === undefined
+          ? "everyone with a data role"
+          : `all ${people} people`
+        : reachText(n),
     bar: { value: n, total: max },
     action: { type: SEIS_SELECT_ACTION, payload: { subproject: s.name } },
     ...(s.name === selected?.name ? { selected: true } : {}),
