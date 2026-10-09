@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.10.0...v1.11.0) (2026-10-09)
+
+
+### Added
+
+* **sample:** serve a made-up ADME instance with KEELSON_ADME_SAMPLE ([#48](https://github.com/danielscholl/keelson-rib-adme/issues/48)) ([86ac598](https://github.com/danielscholl/keelson-rib-adme/commit/86ac598f9820bd35d007cf5e81289c99ecac142b))
+
 ## [1.10.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.9.1...v1.10.0) (2026-10-09)
 
 
