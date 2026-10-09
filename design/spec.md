@@ -13,7 +13,7 @@ The first take is one tab, ADME (surface id `adme`), with three sections picked 
 | Section | Count on its switcher button | Covers |
 |---|---|---|
 | Access | 5 | Managing people and applications. |
-| Data | 2 | Whether each service answers, legal tags, how much data is in the partition, record search. Read-only. |
+| Data | 1 | Whether each service answers, legal tags, how much data is in the partition, record search. Read-only. |
 | Seismic | none | Seismic subprojects: who is in each by name, grant and revoke. |
 
 The tab carries no badge: the counts live on the switcher, where they name their section.
@@ -121,14 +121,14 @@ Tenant `opendes`, 13 subprojects, service status ok. 2 are on the default ACL (`
 
 - Records 1,284,512, up 3,180 since yesterday, with a rising spark.
 - Kinds 214.
-- Legal tags 15 = 14 valid + 1 invalid. 1 valid tag expires within 30 days. The Data count on the switcher is 2 = 1 invalid + 1 expiring.
+- Legal tags 15 = 14 valid + 1 invalid. Records carry 4 of the valid tags, and 1 of those expires within 30 days. The invalid tag holds no records. The Data count on the switcher is 1: invalid tags that still hold records plus expiring tags in use.
 - Schemas: not measured (the schema service is not probed).
 
 Legal tags drawn:
 
 | Tag | State | Detail |
 |---|---|---|
-| `opendes-legacy-training` | invalid | expired 2026-08-31; records affected not measured |
+| `opendes-legacy-training` | invalid | expired 2026-08-31; no records carry it |
 | `opendes-pilot-trial` | valid, expires 2026-10-24 (22 d) | countries US, classification Private; expires 4 days before the Pilot pass ends |
 | `opendes-public-usa-dataset` | valid | expires 2099-12-31, Public Domain Data |
 | `opendes-public-norway` | valid | expires 2099-12-31, Public Domain Data |
@@ -281,23 +281,31 @@ Screen: [data.png](screens/data.png).
 
 This section is read-only in the first take. There is no "Extend expiry" and no create or delete of legal tags.
 
-**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 tag invalid · 1 expiring" (caution). Chip `opendes · measured counts 14:05Z, legal 14:05Z`. Stats, 4 tiles:
+**Pulse `rib:adme:data-pulse`**, drawn in the header while Data shows. Status "1 expiring" (caution); with an invalid tag that holds records it reads "1 invalid tag holds records · 1 expiring". Chip `opendes · measured counts 14:05Z, legal 14:05Z`. Stats, 4 tiles:
 
 1. Records 1,284,512, sub "indexed, visible to this sign-in".
 2. Kinds 214, sub "N families · N authorities".
-3. Legal tags 15 (caution), sub "1 invalid · 1 within 30 days".
+3. Legal tags in use "4 of 15" (caution), sub "1 invalid · 1 within 30 days". Without per-tag counts the tile is Legal tags 15.
 4. ACL groups, the distinct groups in `acl.viewers` and `acl.owners` on records, sub "N read · N own, on records". "?" when search refuses either aggregate.
 
-**Row 1**, one full-width region `rib:adme:map`, title "Partition map", byline "what is in the partition, who can reach it and which legal tag governs it · select a row", chip "measured 14:05Z". A columns section with weights 5:7.
+**Row 1**, one full-width region `rib:adme:map`, title "Partition map", byline "what is in the partition, who can reach it and which legal tag governs it · select a row", chip "measured 14:05Z". A columns section with weights 5:7. The lens is the only navigation and a row is the only selection; the flow and the cards display and never navigate.
 
 - Left column:
-  - Lens strip: **Legal tags · 15** (selected on open), Readers · N, Owners · N, Kinds · 214. Kinds adds the group strip (Family, Authority, Namespace, Schema version).
-  - Rows titled for the lens ("Records per legal tag · attention first"), at most 12 then "… N more". Each row has its chip or glyph, the name, the record count and a bar of its share of visible records, and selects the row. Legal tags sort invalid first, then expiring soonest, then tags that records carry but the legal service does not list (chip `not listed`, caution), then valid tags by count. Group names drop the `@<entitlements domain>` suffix.
-  - Caption: "A record can carry several tags and groups, so rows overlap and do not add up to 1,284,512."
+  - Lens strip: **Tags in use · 4** (selected on open), Readers · N, Owners · N, Kinds · 214, Cleanup · 12. Kinds adds the group strip (Family, Authority, Namespace, Schema version). Cleanup carries a red dot glyph and a hint while a tag that needs a decision holds records.
+  - Rows titled for the lens ("Tags holding records · 4 of 15 · largest first"), at most 12 then "… N more". Each row has its chip or glyph, the name, "count · share" of visible records and a bar scaled to the largest row. Tags in use are the valid tags that hold records, largest first; one expiring within 30 days carries a "22 d" chip. Group names drop the `@<entitlements domain>` suffix.
+  - The largest row is selected on open, so the right column is never empty. A row the operator picks stays selected while it is drawn and comes back when they return through its lens.
+  - Caption: "Bars scale to the largest row. A record can carry several tags and groups, so shares can add up past 100%."
   - When search refuses an aggregate, that lens's counts are "?" with the reason; tags still list from the legal service.
-- Right column, the selected row's profile ("Select a row …" until one is picked):
-  - One card with Browse records. A tag: records, expiry, countries, classification, data type, personal data, export; "Why invalid" on an invalid tag. A group: records, members ("1 group · 3 people or applications"), name (copyable); pill `not in entitlements` (caution) when entitlements answers 404. A kind group: records, kinds, schema versions, pattern.
-  - The slice, read when the row is selected: for a tag, "Who can read it", "Who owns it" and bars "What it covers" (by family); for a group, "Under which legal tags", "What it covers" and "Member groups"; for a kind, "Governed by" and "Who can read it".
+- Right column, for every lens but Cleanup:
+  - Flow "Where the records sit", following the lens: legal tag to who can read (Tags in use, Readers), legal tag to who owns (Owners), kind group to legal tag (Kinds). It reads one aggregate per group (the 8 largest) or per tag (the 5 largest in use) and says "showing N of M" past that. At most 6 nodes on the left and 4 on the right; the rest fold into one "N more" node whose hover card lists its largest members, then "+N more". The selected row's node is always kept and lit.
+  - The selected row's profile: one card with Browse records. A tag: records, expiry, countries, classification, data type, personal data, export; "Why invalid" on an invalid tag. A group: records, members ("1 group · 3 people or applications"), name (copyable); pill `not in entitlements` (caution) when entitlements answers 404. A kind group: records, kinds, schema versions, pattern.
+  - The slice, minus what the flow shows: for a tag, "Who owns it" and bars "What it covers" (by family); for a group, "What it covers" and "Member groups"; for a kind, "Who can read it".
+- Right column, Cleanup:
+  - Rows on the left: "Hold records, need a decision", invalid tags that hold records (chip `invalid`, "expired …"), then tags records carry that the legal service does not list (chip `not listed`).
+  - Stats: Need a decision, Invalid empty ("likely safe to delete"), Valid empty, In use.
+  - The selected tag's profile, as above.
+  - Grids of the invalid and the valid tags no record carries, with the partition prefix dropped.
+  - A "Copy names" card: one copy field per grid that puts the full names on the clipboard, one per line. Deleting a tag happens outside the rib.
 - Browse records runs the slice as a search (legal tag, ACL group or kind) and jumps to Records.
 
 **Row 2**, `rib:adme:records`, title "Records", collapsible and folded while no search is active (the board raises `defaultCollapsed`). A columns section with weights 1:2: "Find records" tabs (**By kind**, By id, Lucene, By ACL group, By legal tag) on the left; on the right the result title "88,104 records · kind osdu:wks:master-data--Well:* · page 1 of 3,525", up to 25 rows (chip `compliant`, record id, trailing name, short kind and modified date) that open the record drawer, and Prev, Next 25, Clear.

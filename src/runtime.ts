@@ -49,6 +49,8 @@ export interface RuntimeOptions {
   transport?: Transport;
   sleep?: (ms: number) => Promise<void>;
   registerOp?: ((req: RegisterOpRequest) => OpHandle) | undefined;
+  // After each sweep lands, for reads that depend on more than one area.
+  swept?: () => void;
 }
 
 export class Runtime {
@@ -300,6 +302,7 @@ export class Runtime {
       return;
     }
     this.opts.recompose([...keys]);
+    this.opts.swept?.();
   }
 
   private clientFor(profile: Profile): AdmeClient {

@@ -16,14 +16,15 @@ import {
   type LegalTags,
 } from "../data/areas.ts";
 import { GROUP_BYS, GROUP_LABELS, groupBy, groupKinds } from "../data/inventory.ts";
-import { classifyTags, daysUntil } from "../data/legal.ts";
+import { daysUntil, type TagUsage, tagUsage } from "../data/legal.ts";
 import {
   type Bucket,
-  FACET_FIELDS,
   FACETS_AREA,
   type Facets,
+  type Flow,
   LENSES,
   type Lens,
+  lensField,
   mapState,
   type Selection,
   type Slice,
@@ -37,32 +38,47 @@ type Section = CanvasBoardView["sections"][number];
 type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
+type FlowLeaf = Extract<Leaf, { kind: "flow" }>;
+type FlowNode = FlowLeaf["nodes"][number];
 type Tone = NonNullable<Row["glyph"]>;
 
 export const MAP_LENS_ACTION = "map-lens";
 export const MAP_GROUP_ACTION = "map-group";
 export const MAP_SELECT_ACTION = "map-select";
 export const MAP_BROWSE_ACTION = "map-browse";
+export const MAP_COPY_ACTION = "map-copy";
 
 export const MAP_ROWS = 12;
 export const PROFILE_ROWS = 8;
+// Nodes the flow draws on each side before it folds the rest into one.
+export const FLOW_NODES = { left: 6, right: 4 } as const;
+
+export const CLEANUP_SETS = ["invalid-empty", "valid-empty"] as const;
+export type CleanupSet = (typeof CLEANUP_SETS)[number];
 
 const LENS_LABELS: Record<Lens, string> = {
-  tags: "Legal tags",
+  tags: "Tags in use",
   viewers: "Readers",
   owners: "Owners",
   kinds: "Kinds",
+  cleanup: "Cleanup",
 };
 
-const LENS_TITLES: Record<Lens, string> = {
-  tags: "Records per legal tag · attention first",
+const LENS_TITLES: Record<Exclude<Lens, "kinds">, string> = {
+  tags: "Tags holding records · largest first",
   viewers: "Records per reader group · acl.viewers",
   owners: "Records per owner group · acl.owners",
-  kinds: "Records per",
+  cleanup: "Hold records, need a decision",
 };
 
 const n = (v: number | null | undefined): string =>
   v === null || v === undefined ? "?" : v.toLocaleString("en-US");
+
+function share(v: number | null, total: number): string {
+  if (v === null || total <= 0) return "";
+  const p = (v / total) * 100;
+  return p >= 10 ? `${Math.round(p)}%` : p >= 0.1 ? `${p.toFixed(1)}%` : "<0.1%";
+}
 
 // One row of a lens: what it selects, and how it draws.
 export interface Entry {
@@ -80,6 +96,7 @@ interface Inputs {
   kinds?: KindCounts;
   legal?: LegalTags;
   facets?: Facets;
+  usage?: TagUsage;
   domain?: string;
   now: Date;
 }
@@ -89,12 +106,15 @@ function inputs(rt: Runtime): Inputs {
   const legal = rt.cache.get<LegalTags>(LEGAL_AREA).data;
   const facets = rt.cache.get<Facets>(FACETS_AREA).data;
   const domain = rt.profile?.entitlementsDomain;
+  const now = rt.now();
+  const usage = legal && facets?.tags ? tagUsage(legal, facets.tags, now) : undefined;
   return {
     ...(kinds ? { kinds } : {}),
     ...(legal ? { legal } : {}),
     ...(facets ? { facets } : {}),
+    ...(usage ? { usage } : {}),
     ...(domain ? { domain } : {}),
-    now: rt.now(),
+    now,
   };
 }
 
@@ -127,60 +147,59 @@ function capped(entries: Entry[], cap: number, noun: string): Entry[] {
   ];
 }
 
+// Valid tags that hold records, most records first. Without counts, every valid tag at "?".
 function tagEntries(i: Inputs): Entry[] {
-  const counts = new Map((i.facets?.tags ?? []).map((b) => [b.key, b.count]));
-  const measured = !!i.facets?.tags;
-  const count = (name: string) => (measured ? (counts.get(name) ?? 0) : null);
-  const entries: Entry[] = [];
-  const listed = new Set<string>();
-  if (i.legal) {
-    const { invalid, expiring, rest } = classifyTags(i.legal, i.now);
-    for (const t of invalid) {
-      listed.add(t.name);
-      entries.push({
-        key: t.name,
-        label: t.name,
-        count: count(t.name),
-        chip: tagChip(t, i.now, true),
-      });
-    }
-    for (const { tag } of expiring) {
-      listed.add(tag.name);
-      entries.push({
-        key: tag.name,
-        label: tag.name,
-        count: count(tag.name),
-        chip: tagChip(tag, i.now, false),
-      });
-    }
-    // Records that carry a tag the legal service does not list need a look too.
-    for (const b of i.facets?.tags ?? []) {
-      if (listed.has(b.key) || rest.some((t) => t.name === b.key)) continue;
-      listed.add(b.key);
-      entries.push({
-        key: b.key,
-        label: b.key,
-        count: b.count,
-        chip: tagChip(undefined, i.now, false),
-      });
-    }
-    const valid = rest
-      .map((t) => ({ t, c: count(t.name) }))
-      .sort((a, b) => (b.c ?? 0) - (a.c ?? 0) || a.t.name.localeCompare(b.t.name));
-    for (const { t, c } of valid) {
-      entries.push({ key: t.name, label: t.name, count: c, chip: tagChip(t, i.now, false) });
-    }
-  } else {
-    for (const b of i.facets?.tags ?? []) {
-      entries.push({
-        key: b.key,
-        label: b.key,
-        count: b.count,
-        chip: { label: "?", tone: "neutral" },
-      });
-    }
+  if (i.usage) {
+    return capped(
+      i.usage.inUse.map((u) => ({
+        key: u.tag.name,
+        label: u.tag.name,
+        count: u.count,
+        ...(u.daysLeft !== undefined
+          ? { chip: { label: `${u.daysLeft} d`, tone: "warn" as const } }
+          : { glyph: "ok" as const }),
+      })),
+      MAP_ROWS,
+      "tags in use",
+    );
   }
-  return capped(entries, MAP_ROWS, "tags");
+  if (i.legal) {
+    return capped(
+      i.legal.valid.map((t) => ({ key: t.name, label: t.name, count: null, glyph: "neutral" })),
+      MAP_ROWS,
+      "tags",
+    );
+  }
+  return capped(
+    (i.facets?.tags ?? []).map((b) => ({
+      key: b.key,
+      label: b.key,
+      count: b.count,
+      glyph: "neutral",
+    })),
+    MAP_ROWS,
+    "tags",
+  );
+}
+
+// Tags that hold records but need a decision: invalid ones, then ones the legal service does not list.
+function cleanupEntries(i: Inputs): Entry[] {
+  if (!i.usage) return [];
+  return [
+    ...i.usage.invalidHeld.map((u) => ({
+      key: u.tag.name,
+      label: u.tag.name,
+      count: u.count,
+      chip: { label: "invalid", tone: "error" as const },
+      ...(u.tag.expirationDate ? { trailing: `expired ${u.tag.expirationDate}` } : {}),
+    })),
+    ...i.usage.unlisted.map((b) => ({
+      key: b.key,
+      label: b.key,
+      count: b.count,
+      chip: { label: "not listed", tone: "caution" as const },
+    })),
+  ];
 }
 
 function groupEntries(buckets: Bucket[], domain: string | undefined): Entry[] {
@@ -219,9 +238,27 @@ function kindEntries(rt: Runtime, kinds: KindCounts): Entry[] {
 export function lensEntries(rt: Runtime, lens: Lens): Entry[] {
   const i = inputs(rt);
   if (lens === "tags") return tagEntries(i);
+  if (lens === "cleanup") return cleanupEntries(i);
   if (lens === "kinds") return i.kinds ? kindEntries(rt, i.kinds) : [];
   const buckets = i.facets?.[lens];
   return buckets ? groupEntries(buckets, i.domain) : [];
+}
+
+// The row the profile shows: the operator's pick while it is still drawn, else the largest.
+export function focusOf(rt: Runtime, lens: Lens): Selection | undefined {
+  const entries = lensEntries(rt, lens).filter((e) => !e.summary);
+  const state = mapState(rt);
+  const key = state.selection?.lens === lens ? state.selection.key : state.picks?.[lens];
+  const kept = key === undefined ? undefined : entries.find((e) => e.key === key);
+  const pick = kept ?? entries[0];
+  return pick ? { lens, key: pick.key, label: pick.label } : undefined;
+}
+
+// The names Copy hands off, so a delete script never needs them retyped.
+export function cleanupNames(rt: Runtime, set: CleanupSet): string[] | undefined {
+  const usage = inputs(rt).usage;
+  if (!usage) return undefined;
+  return (set === "invalid-empty" ? usage.invalidEmpty : usage.validEmpty).map((t) => t.name);
 }
 
 function totalOf(i: Inputs): number {
@@ -229,14 +266,17 @@ function totalOf(i: Inputs): number {
 }
 
 function lensStrip(active: Lens, i: Inputs): Leaf {
+  const u = i.usage;
   const counts: Record<Lens, number | null> = {
-    tags: i.legal
-      ? i.legal.valid.length + i.legal.invalid.length
-      : (i.facets?.tags?.length ?? null),
+    tags: u ? u.inUse.length : (i.legal?.valid.length ?? i.facets?.tags?.length ?? null),
     viewers: i.facets?.viewers?.length ?? null,
     owners: i.facets?.owners?.length ?? null,
     kinds: i.kinds?.kinds.length ?? null,
+    cleanup: u
+      ? u.invalidHeld.length + u.unlisted.length + u.invalidEmpty.length + u.validEmpty.length
+      : null,
   };
+  const held = u ? u.invalidHeld.length + u.unlisted.length : 0;
   return {
     kind: "actions",
     wrap: true,
@@ -246,6 +286,13 @@ function lensStrip(active: Lens, i: Inputs): Leaf {
         counts[lens] === null ? LENS_LABELS[lens] : `${LENS_LABELS[lens]} · ${n(counts[lens])}`,
       payload: { lens },
       selected: lens === active,
+      ...(lens === "cleanup" && held > 0
+        ? {
+            glyph: "●",
+            tone: "error" as const,
+            hint: `${n(held)} ${held === 1 ? "tag that needs a decision holds" : "tags that need a decision hold"} records`,
+          }
+        : {}),
     })),
   };
 }
@@ -264,24 +311,49 @@ function groupStrip(rt: Runtime): Leaf {
   };
 }
 
-function lensRows(rt: Runtime, lens: Lens, i: Inputs, locked: boolean): Leaf[] {
-  const state = mapState(rt);
-  const sel = state.selection?.lens === lens ? state.selection.key : undefined;
-  const total = totalOf(i);
-  const title =
-    lens === "kinds" ? `Records per ${GROUP_LABELS[groupBy(rt)].toLowerCase()}` : LENS_TITLES[lens];
+function lensTitle(rt: Runtime, lens: Lens, i: Inputs, entries: Entry[]): string {
+  if (lens === "kinds") return `Records per ${GROUP_LABELS[groupBy(rt)].toLowerCase()}`;
+  if (lens === "tags" && i.usage && i.legal) {
+    const all = i.legal.valid.length + i.legal.invalid.length;
+    return `Tags holding records · ${n(i.usage.inUse.length)} of ${n(all)} · largest first`;
+  }
+  if (lens === "cleanup") return `${LENS_TITLES.cleanup} · ${n(entries.length)}`;
+  return LENS_TITLES[lens];
+}
+
+function lensRows(rt: Runtime, lens: Lens, i: Inputs): Leaf[] {
+  const entries = lensEntries(rt, lens);
+  const title = lensTitle(rt, lens, i, entries);
   const missing = lensMissing(rt, lens, i);
   if (missing) return [{ kind: "rows", title, items: [missing] }];
-  const items: Row[] = lensEntries(rt, lens).map((e) => ({
-    ...(e.chip ? { chip: e.chip } : { glyph: e.glyph ?? "neutral" }),
-    text: e.label,
-    trailing: e.trailing ? `${n(e.count)} · ${e.trailing}` : n(e.count),
-    bar: { value: e.count, total: Math.max(total, e.count ?? 0, 1) },
-    ...(e.summary || locked
-      ? {}
-      : { action: { type: MAP_SELECT_ACTION, payload: { lens, key: e.key } } }),
-    ...(sel !== undefined && e.key === sel ? { selected: true } : {}),
-  }));
+  if (lens === "cleanup" && entries.length === 0) {
+    return [
+      {
+        kind: "rows",
+        title,
+        items: [{ glyph: "ok", text: "No invalid or unlisted tag holds records." }],
+      },
+    ];
+  }
+  const sel = focusOf(rt, lens)?.key;
+  const total = totalOf(i);
+  // Bars scale to the largest row so a long tail still reads; the share says the rest.
+  const max = Math.max(1, ...entries.filter((e) => !e.summary).map((e) => e.count ?? 0));
+  const items: Row[] = entries.map((e) => {
+    const pct = lens === "cleanup" || e.summary ? "" : share(e.count, total);
+    const count = pct ? `${n(e.count)} · ${pct}` : n(e.count);
+    return {
+      ...(e.chip ? { chip: e.chip } : { glyph: e.glyph ?? "neutral" }),
+      text: e.label,
+      trailing: e.trailing ? `${count} · ${e.trailing}` : count,
+      ...(e.summary || lens === "cleanup"
+        ? {}
+        : { bar: { value: e.count, total: Math.max(max, e.count ?? 0) } }),
+      // Kept while signed out: the selected row needs its action, and select says why it refuses.
+      ...(e.summary ? {} : { action: { type: MAP_SELECT_ACTION, payload: { lens, key: e.key } } }),
+      ...(!e.summary && e.key === sel ? { selected: true } : {}),
+    };
+  });
   return [{ kind: "rows", title, items }];
 }
 
@@ -295,10 +367,15 @@ function lensMissing(rt: Runtime, lens: Lens, i: Inputs): Row | undefined {
     };
   }
   if (lens === "tags" && (i.legal || i.facets?.tags)) return undefined;
-  if (lens !== "tags" && i.facets?.[lens]) return undefined;
-  const why = i.facets?.errors[lens] ?? rt.cache.get(FACETS_AREA).error;
+  if (lens === "cleanup" && i.usage) return undefined;
+  if ((lens === "viewers" || lens === "owners") && i.facets?.[lens]) return undefined;
+  const facet = lens === "cleanup" || lens === "tags" ? "tags" : lens;
+  const why = i.facets?.errors[facet] ?? rt.cache.get(FACETS_AREA).error;
+  if (lens === "cleanup" && !why && !i.legal) {
+    return { glyph: "neutral", text: "Legal tags are not read yet." };
+  }
   return why
-    ? { glyph: "warn", text: `Not measured: search did not count ${FACET_FIELDS[lens]} (${why}).` }
+    ? { glyph: "warn", text: `Not measured: search did not count ${lensField(lens)} (${why}).` }
     : { glyph: "neutral", text: "Not measured yet." };
 }
 
@@ -308,7 +385,7 @@ function caption(rt: Runtime, lens: Lens, i: Inputs, locked: boolean): Leaf {
     const why = i.facets?.errors.tags ?? rt.cache.get(FACETS_AREA).error;
     rows.push({
       glyph: "warn",
-      text: `Records per tag not measured${why ? `: ${why}` : ""}. Tags still list from the legal service.`,
+      text: `Records per tag not measured${why ? `: ${why}` : ""}. Valid tags still list from the legal service.`,
     });
   }
   if (lens === "kinds" && i.kinds && i.kinds.kinds.length >= KIND_BUCKET_LIMIT) {
@@ -320,20 +397,236 @@ function caption(rt: Runtime, lens: Lens, i: Inputs, locked: boolean): Leaf {
   rows.push(
     locked
       ? { glyph: "neutral", text: SIGNIN_REASON }
-      : lens === "kinds"
+      : lens === "cleanup"
         ? {
             glyph: "neutral",
-            text: `Bars are shares of ${n(totalOf(i))} visible records. Select a row for its tags and readers.`,
+            text: "Counts are records this sign-in can see. Deleting or extending a tag happens outside the rib.",
           }
         : {
             glyph: "neutral",
-            text: `A record can carry several tags and groups, so rows overlap and do not add up to ${n(totalOf(i))}. Select a row to see the rest.`,
+            text: "Bars scale to the largest row. A record can carry several tags and groups, so shares can add up past 100%.",
           },
   );
   return { kind: "rows", items: rows };
 }
 
-// ---- The profile of the selected row ----
+// ---- The flow: where the records sit, from one side to the other ----
+
+interface Side {
+  label: string;
+  key: string;
+  // Records on this node from the facet read, for its sublabel.
+  count: number | null;
+}
+
+interface FlowPlan {
+  left: string;
+  right: string;
+  title: string;
+  links: { l: string; r: string; n: number }[];
+  lefts: Map<string, Side>;
+  rights: Map<string, Side>;
+  note?: string;
+}
+
+const L = (key: string) => `l:${key}`;
+const R = (key: string) => `r:${key}`;
+const MORE_L = "l:\u0000more";
+const MORE_R = "r:\u0000more";
+
+function plan(rt: Runtime, flow: Flow, i: Inputs): FlowPlan {
+  const counts = (buckets: Bucket[] | null | undefined) =>
+    new Map((buckets ?? []).map((b) => [b.key, b.count]));
+  const unread = flow.parts.filter((p) => !p.buckets);
+  const note = unread.length
+    ? `${n(unread.length)} not read: ${unread[0]?.error ?? "search refused"}`
+    : undefined;
+  if (flow.lens === "kinds") {
+    const by = groupBy(rt);
+    const tagCounts = counts(i.facets?.tags);
+    const links: FlowPlan["links"] = [];
+    const lefts = new Map<string, Side>();
+    const rights = new Map<string, Side>();
+    for (const part of flow.parts) {
+      if (!part.buckets) continue;
+      rights.set(part.key, {
+        key: part.key,
+        label: part.key,
+        count: tagCounts.get(part.key) ?? null,
+      });
+      const groups = groupKinds(
+        part.buckets.map((b) => ({ kind: b.key, count: b.count })),
+        by,
+      );
+      for (const g of groups) {
+        const all = groupKinds(i.kinds?.kinds ?? [], by).find((x) => x.pattern === g.pattern);
+        lefts.set(g.pattern, { key: g.pattern, label: g.label, count: all?.count ?? null });
+        links.push({ l: g.pattern, r: part.key, n: g.count });
+      }
+    }
+    const shown =
+      flow.parts.length < flow.of ? ` · showing ${n(flow.parts.length)} of ${n(flow.of)} tags` : "";
+    return {
+      left: GROUP_LABELS[by],
+      right: "Legal tag",
+      title: `Where the records sit · ${GROUP_LABELS[by].toLowerCase()} to legal tag${shown}`,
+      links,
+      lefts,
+      rights,
+      ...(note ? { note } : {}),
+    };
+  }
+  const groupCounts = counts(flow.lens === "owners" ? i.facets?.owners : i.facets?.viewers);
+  const tagCounts = counts(i.facets?.tags);
+  const links: FlowPlan["links"] = [];
+  const lefts = new Map<string, Side>();
+  const rights = new Map<string, Side>();
+  for (const part of flow.parts) {
+    if (!part.buckets) continue;
+    rights.set(part.key, {
+      key: part.key,
+      label: shortGroup(part.key, i.domain),
+      count: groupCounts.get(part.key) ?? null,
+    });
+    for (const b of part.buckets) {
+      lefts.set(b.key, { key: b.key, label: b.key, count: tagCounts.get(b.key) ?? null });
+      links.push({ l: b.key, r: part.key, n: b.count });
+    }
+  }
+  const noun = flow.lens === "owners" ? "who owns" : "who can read";
+  const shown =
+    flow.parts.length < flow.of ? ` · showing ${n(flow.parts.length)} of ${n(flow.of)} groups` : "";
+  return {
+    left: "Legal tag",
+    right: flow.lens === "owners" ? "Who owns" : "Who can read",
+    title: `Where the records sit · legal tag to ${noun}${shown}`,
+    links,
+    lefts,
+    rights,
+    ...(note ? { note } : {}),
+  };
+}
+
+// Keeps the largest `cap` keys on a side, always keeping the selected one, and folds the rest.
+function fold(
+  totals: Map<string, number>,
+  cap: number,
+  keep: string | undefined,
+): { kept: string[]; folded: string[] } {
+  const order = [...totals.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (order.length <= cap + 1) return { kept: order.map(([k]) => k), folded: [] };
+  let kept = order.slice(0, cap).map(([k]) => k);
+  if (keep && totals.has(keep) && !kept.includes(keep)) kept = [...kept.slice(0, cap - 1), keep];
+  const set = new Set(kept);
+  return { kept, folded: order.map(([k]) => k).filter((k) => !set.has(k)) };
+}
+
+function flowLeaf(
+  rt: Runtime,
+  lens: Exclude<Lens, "cleanup">,
+  i: Inputs,
+  sel: Selection | undefined,
+  locked: boolean,
+): Leaf[] {
+  const read = mapState(rt).flow;
+  const title = "Where the records sit";
+  if (!read || ("data" in read && read.data.lens !== lens)) {
+    return [
+      {
+        kind: "rows",
+        title,
+        items: [
+          { glyph: "neutral", text: locked ? SIGNIN_REASON : "Reading where the records sit…" },
+        ],
+      },
+    ];
+  }
+  if ("error" in read) {
+    return [{ kind: "rows", title, items: [{ glyph: "error", text: `Not read: ${read.error}` }] }];
+  }
+  const p = plan(rt, read.data, i);
+  if (p.links.length === 0) {
+    return [{ kind: "rows", title, items: [{ glyph: "neutral", text: "No records to draw." }] }];
+  }
+  const sum = (side: "l" | "r") => {
+    const m = new Map<string, number>();
+    for (const link of p.links) m.set(link[side], (m.get(link[side]) ?? 0) + link.n);
+    return m;
+  };
+  const selLeft = sel && (lens === "tags" || lens === "kinds") ? sel.key : undefined;
+  const selRight = sel && (lens === "viewers" || lens === "owners") ? sel.key : undefined;
+  const left = fold(sum("l"), FLOW_NODES.left, selLeft);
+  const right = fold(sum("r"), FLOW_NODES.right, selRight);
+  const total = totalOf(i);
+  const sub = (count: number | null) =>
+    count === null ? undefined : `${n(count)}${total > 0 ? ` · ${share(count, total)}` : ""}`;
+  const node = (side: Side, id: string, s: "left" | "right", selected: boolean): FlowNode => {
+    const label = sub(side.count);
+    return {
+      id,
+      side: s,
+      label: side.label,
+      ...(label ? { sublabel: label } : {}),
+      ...(selected ? { selected: true } : {}),
+    };
+  };
+  const foldNode = (
+    keys: string[],
+    sides: Map<string, Side>,
+    totals: Map<string, number>,
+    id: string,
+    s: "left" | "right",
+    noun: string,
+  ): FlowNode[] => {
+    if (keys.length === 0) return [];
+    const members = keys.map((k) => ({ label: sides.get(k)?.label ?? k, n: totals.get(k) ?? 0 }));
+    const count = members.reduce((acc, m) => acc + m.n, 0);
+    return [
+      {
+        id,
+        side: s,
+        label: `${n(keys.length)} more ${noun}`,
+        sublabel: n(count),
+        folded: members,
+      },
+    ];
+  };
+  const leftNoun = lens === "kinds" ? `${GROUP_LABELS[groupBy(rt)].toLowerCase()} groups` : "tags";
+  const rightNoun = lens === "kinds" ? "tags" : "groups";
+  const lTotals = sum("l");
+  const rTotals = sum("r");
+  const nodes: FlowNode[] = [
+    ...left.kept.map((k) => node(p.lefts.get(k) as Side, L(k), "left", k === selLeft)),
+    ...foldNode(left.folded, p.lefts, lTotals, MORE_L, "left", leftNoun),
+    ...right.kept.map((k) => node(p.rights.get(k) as Side, R(k), "right", k === selRight)),
+    ...foldNode(right.folded, p.rights, rTotals, MORE_R, "right", rightNoun),
+  ];
+  const lSet = new Set(left.kept);
+  const rSet = new Set(right.kept);
+  const merged = new Map<string, { source: string; target: string; n: number }>();
+  for (const link of p.links) {
+    const source = lSet.has(link.l) ? L(link.l) : MORE_L;
+    const target = rSet.has(link.r) ? R(link.r) : MORE_R;
+    const key = `${source}\u0000${target}`;
+    const at = merged.get(key);
+    if (at) at.n += link.n;
+    else merged.set(key, { source, target, n: link.n });
+  }
+  const leaves: Leaf[] = [
+    {
+      kind: "flow",
+      title: p.title,
+      left: p.left,
+      right: p.right,
+      nodes,
+      links: [...merged.values()].filter((l) => l.n > 0).sort((a, b) => b.n - a.n),
+    },
+  ];
+  if (p.note) leaves.push({ kind: "rows", items: [{ glyph: "warn", text: p.note }] });
+  return leaves;
+}
+
+// ---- The profile of the focused row ----
 
 function browse(locked: boolean): NonNullable<Card["actions"]>[number] {
   return {
@@ -514,33 +807,19 @@ function coverBars(slice: Slice, total: number | null): Leaf {
   return { kind: "bars", title, items };
 }
 
-function profile(rt: Runtime, i: Inputs, locked: boolean): Leaf[] {
+function profile(rt: Runtime, sel: Selection | undefined, i: Inputs, locked: boolean): Leaf[] {
+  if (!sel) return [];
   const state = mapState(rt);
-  const sel = state.selection;
-  if (!sel) {
-    return [
-      {
-        kind: "rows",
-        title: "Selected",
-        items: [
-          {
-            glyph: "neutral",
-            text: "Select a row to see what it covers, who can reach it and which legal tag governs it.",
-          },
-        ],
-      },
-    ];
-  }
-  const read = state.slice;
+  const mine = state.selection?.lens === sel.lens && state.selection.key === sel.key;
+  const read = mine ? state.slice : undefined;
   const slice = read && "data" in read ? read.data : undefined;
-  const leaves: Leaf[] = [];
   const card =
-    sel.lens === "tags"
+    sel.lens === "tags" || sel.lens === "cleanup"
       ? tagCard(rt, sel, i, locked)
       : sel.lens === "kinds"
         ? kindCard(rt, sel, i, locked)
         : groupCard(rt, sel, slice, locked);
-  leaves.push({ kind: "cards", items: [card] });
+  const leaves: Leaf[] = [{ kind: "cards", items: [card] }];
   if (read && "error" in read) {
     leaves.push({ kind: "rows", items: [{ glyph: "error", text: `Not read: ${read.error}` }] });
     return leaves;
@@ -552,25 +831,21 @@ function profile(rt: Runtime, i: Inputs, locked: boolean): Leaf[] {
     });
     return leaves;
   }
-  const tagRow = (b: Bucket): Row => {
-    const { tag, invalid } = findTag(i.legal, b.key);
-    return { chip: tagChip(tag, i.now, invalid), text: b.key, trailing: n(b.count) };
-  };
   const groupRow = (b: Bucket): Row => ({
     glyph: "info",
     text: shortGroup(b.key, i.domain),
     trailing: n(b.count),
   });
   const count = countOf(rt, sel);
-  if (sel.lens === "tags") {
+  if (sel.lens === "cleanup") {
     leaves.push(bucketRows("Who can read it", slice.viewers, slice.errors.viewers, groupRow));
+  }
+  if (sel.lens === "tags" || sel.lens === "cleanup") {
     leaves.push(bucketRows("Who owns it", slice.owners, slice.errors.owners, groupRow));
     leaves.push(coverBars(slice, count));
   } else if (sel.lens === "kinds") {
-    leaves.push(bucketRows("Governed by", slice.tags, slice.errors.tags, tagRow));
     leaves.push(bucketRows("Who can read it", slice.viewers, slice.errors.viewers, groupRow));
   } else {
-    leaves.push(bucketRows("Under which legal tags", slice.tags, slice.errors.tags, tagRow));
     leaves.push(coverBars(slice, count));
     if (slice.members && slice.members.groups.length > 0) {
       leaves.push({
@@ -587,6 +862,82 @@ function profile(rt: Runtime, i: Inputs, locked: boolean): Leaf[] {
   return leaves;
 }
 
+// ---- Cleanup: the tags to review, with the empty ones as a compact grid ----
+
+function cleanupBoard(rt: Runtime, i: Inputs, locked: boolean): Leaf[] {
+  const u = i.usage;
+  if (!u) return [];
+  const sum = (xs: { count: number }[]) => xs.reduce((s, x) => s + x.count, 0);
+  const held = [...u.invalidHeld, ...u.unlisted];
+  const prefix = rt.profile?.partition ? `${rt.profile.partition}-` : "";
+  const shortTag = (name: string) =>
+    prefix && name.startsWith(prefix) ? name.slice(prefix.length) : name;
+  const leaves: Leaf[] = [
+    {
+      kind: "stats",
+      items: [
+        {
+          label: "Need a decision",
+          value: n(held.length),
+          sub: `${n(u.invalidHeld.length)} invalid · ${n(u.unlisted.length)} not listed · ${n(sum(held))} records`,
+          ...(held.length > 0 ? { tone: "error" as const } : {}),
+        },
+        { label: "Invalid, empty", value: n(u.invalidEmpty.length), sub: "likely safe to delete" },
+        { label: "Valid, empty", value: n(u.validEmpty.length), sub: "no visible records" },
+        { label: "In use", value: n(u.inUse.length), sub: `hold ${n(sum(u.inUse))} records` },
+      ],
+    },
+  ];
+  if (held.length > 0) leaves.push(...profile(rt, focusOf(rt, "cleanup"), i, locked));
+  const dropped = prefix ? ` · ${prefix} dropped` : "";
+  if (u.invalidEmpty.length > 0) {
+    leaves.push({
+      kind: "grid",
+      title: `Invalid, no records · ${n(u.invalidEmpty.length)}${dropped} · expired on`,
+      cells: u.invalidEmpty.map((t) => ({
+        label: shortTag(t.name),
+        ...(t.expirationDate
+          ? { badge: { text: t.expirationDate.slice(0, 7), tone: "neutral" as const } }
+          : {}),
+      })),
+    });
+  }
+  if (u.validEmpty.length > 0) {
+    leaves.push({
+      kind: "grid",
+      title: `Valid, no records · ${n(u.validEmpty.length)}${dropped}`,
+      cells: u.validEmpty.map((t) => ({
+        label: shortTag(t.name),
+        badge: { text: "valid", tone: "ok" as const },
+      })),
+    });
+  }
+  const copies: NonNullable<Card["fields"]> = [];
+  const copy = (set: CleanupSet, label: string, count: number) => {
+    if (count === 0) return;
+    copies.push({
+      label,
+      value: `${n(count)} ${count === 1 ? "name" : "names"}`,
+      ...(locked ? {} : { copyAction: { type: MAP_COPY_ACTION, payload: { set } } }),
+    });
+  };
+  copy("invalid-empty", "invalid, no records", u.invalidEmpty.length);
+  copy("valid-empty", "valid, no records", u.validEmpty.length);
+  if (copies.length > 0) {
+    leaves.push({
+      kind: "cards",
+      items: [
+        {
+          title: "Copy names",
+          fields: copies,
+          reason: { text: "The rib only lists them; deleting a tag happens outside the rib." },
+        },
+      ],
+    });
+  }
+  return leaves;
+}
+
 export function composeMap(rt: Runtime): CanvasBoardView {
   const phase = rt.status.phase;
   if (phase !== "connected" && phase !== "signin") return EMPTY_BOARD;
@@ -595,7 +946,12 @@ export function composeMap(rt: Runtime): CanvasBoardView {
   const lens = mapState(rt).lens;
   const left: Leaf[] = [lensStrip(lens, i)];
   if (lens === "kinds") left.push(groupStrip(rt));
-  left.push(...lensRows(rt, lens, i, locked), caption(rt, lens, i, locked));
+  left.push(...lensRows(rt, lens, i), caption(rt, lens, i, locked));
+  const sel = focusOf(rt, lens);
+  const right =
+    lens === "cleanup"
+      ? cleanupBoard(rt, i, locked)
+      : [...flowLeaf(rt, lens, i, sel, locked), ...profile(rt, sel, i, locked)];
   const fresh = rt.freshness(FACETS_AREA) ?? rt.freshness(KINDS_AREA);
   return {
     view: "board",
@@ -605,7 +961,7 @@ export function composeMap(rt: Runtime): CanvasBoardView {
         kind: "columns",
         columns: [
           { weight: 5, sections: left },
-          { weight: 7, sections: profile(rt, i, locked) },
+          { weight: 7, sections: right },
         ],
       },
     ],
