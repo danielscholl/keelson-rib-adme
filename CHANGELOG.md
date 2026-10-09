@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.9.0...v1.9.1) (2026-10-09)
+
+
+### Fixed
+
+* retry calls that search throttles instead of showing them as not read ([#44](https://github.com/danielscholl/keelson-rib-adme/issues/44)) ([c0caebe](https://github.com/danielscholl/keelson-rib-adme/commit/c0caebe188168932cb4874b826a2e7e9a0d952a9))
+
 ## [1.9.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.8.0...v1.9.0) (2026-10-09)
 
 
