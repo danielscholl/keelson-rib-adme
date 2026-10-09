@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.7.0...v1.8.0) (2026-10-09)
+
+
+### Added
+
+* **data:** add a People lens that shows who reaches each ACL group ([#40](https://github.com/danielscholl/keelson-rib-adme/issues/40)) ([df54042](https://github.com/danielscholl/keelson-rib-adme/commit/df54042ba4561c49ac51e826798e5c289a5f7d7a))
+
 ## [1.7.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.6.0...v1.7.0) (2026-10-09)
 
 
