@@ -323,12 +323,11 @@ Screen: [seismic.png](screens/seismic.png).
 3. On default ACL 2, sub "volve, drogon".
 4. No members 1 (caution), sub "subproject-legacy".
 
-**Row, full width: `rib:adme:seis-subprojects`**, title "Subprojects", byline "select one to see its members · datasets are not measured until one is opened", status "13 of 13", chip "selected: alpha". A card grid 4 across with 13 cards, in this order: alpha, bravo, charlie, delta, sleipner, echo, foxtrot, golf, golf2, golf3, volve, drogon, subproject-legacy.
+**Row, full width: `rib:adme:seis-subprojects`**, title "Subprojects", byline "who reaches each seismic subproject · select a row to see its members", status "13 subprojects", chip "selected: alpha". It is read-only and uses the Partition map's layout: a ranked list on the left (weight 5) and a flow on the right (weight 7).
 
-- Own-ACL cards: mono title, pill `own ACL`, an admins line and a viewers line (count, then people dots and names), Legal tag, Datasets "?". Applications appear among viewers by name (`tier-viewer`).
-- `volve` and `drogon`: pill `default ACL` (info), Members "all 32 editors", ACL `data.default.viewers`.
-- `subproject-legacy`: caution edge, pill `empty`, 0 admins, 0 viewers, and "Why flagged: no members since creation; looks abandoned."
-- Clicking a card selects the subproject and recomposes the sibling region below; it does not open the drawer. `alpha` is selected.
+- Rows "Subprojects by who reaches them", largest first, each with an ACL chip (`default` info, `own`, `empty` caution, `partial` warn), a bar, and a trailing count: volve and drogon "all 32 people", alpha "7 reach it", delta "4 reach it", then bravo to golf3, and subproject-legacy "0 reach it" last. A role that was not read makes the count "?".
+- Flow "Who reaches seismic · subproject to people and applications", Subproject on the left and Who on the right. A default-ACL subproject links to one node, "everyone with a data role via data.default.viewers", with the people count as its width. Own-ACL subprojects link to each member they name, one per member. The left keeps 5 subprojects and folds the rest; the right keeps 8 and folds the rest, always keeping the default node and the selected subproject's members. The selected subproject and its members are lit.
+- Clicking a row selects the subproject and recomposes the region below; it does not open the drawer. `alpha` is selected.
 
 **Row, two columns.**
 

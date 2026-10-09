@@ -7,6 +7,7 @@ import {
   composeSeismicPulse,
   composeSeismicSelected,
   composeSeismicSubprojects,
+  FLOW_SUBPROJECTS,
   SEIS_READ_ACTION,
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
@@ -353,61 +354,58 @@ describe("seismic pulse", () => {
     expect(view.header?.chip).toBe("sd://opendes · cached from 14:05Z");
     expect(section(view, "cards")?.title).toBe("Sign in again");
     expect(tiles(view).Subprojects?.value).toBe(13);
-    expect(section(subprojects(rt), "cards")?.items).toHaveLength(13);
+    expect(all(subprojects(rt), "rows")[0]?.items).toHaveLength(13);
     expect(selected(rt).header?.chip).toBe("sd://opendes/alpha");
   });
 });
 
 describe("subprojects and the selected subproject", () => {
-  test("13 cards, 4 across, in the spec's order with alpha selected", () => {
+  test("subprojects ranked by who reaches them, beside a flow to people", () => {
     const view = subprojects(seededRuntime(SEED, { now: NOW }));
-    expect(view.header?.status?.label).toBe("13 of 13");
+    expect(view.header?.status?.label).toBe("13 subprojects");
     expect(view.header?.chip).toBe("selected: alpha");
-    const cards = section(view, "cards");
-    expect(cards).toMatchObject({ grid: true, columns: 4 });
-    expect(cards?.items.map((c) => c.title)).toEqual([
-      "alpha",
-      "bravo",
-      "charlie",
-      "delta",
-      "sleipner",
-      "echo",
-      "foxtrot",
-      "golf",
-      "golf2",
-      "golf3",
-      "volve",
-      "drogon",
-      "subproject-legacy",
+    const list = all(view, "rows")[0];
+    expect(list?.items.map((r) => [r.text, r.chip?.label, r.trailing])).toEqual([
+      ["volve", "default", "all 32 people"],
+      ["drogon", "default", "all 32 people"],
+      ["alpha", "own", "7 reach it"],
+      ["delta", "own", "4 reach it"],
+      ["bravo", "own", "3 reach it"],
+      ["charlie", "own", "3 reach it"],
+      ["sleipner", "own", "3 reach it"],
+      ["echo", "own", "3 reach it"],
+      ["foxtrot", "own", "3 reach it"],
+      ["golf", "own", "3 reach it"],
+      ["golf2", "own", "1 reaches it"],
+      ["golf3", "own", "1 reaches it"],
+      ["subproject-legacy", "empty", "0 reach it"],
     ]);
-    const alpha = cards?.items[0];
-    expect(alpha?.selected).toBe(true);
-    expect(alpha?.pill).toEqual({ label: "own ACL", tone: "neutral" });
-    expect(alpha?.fields?.[0]).toEqual({
-      label: "3 admins",
-      people: [
-        { name: "ingrid", tone: expect.any(String) },
-        { name: "priya", tone: expect.any(String) },
-        { name: "tomas", tone: expect.any(String) },
-      ],
+    expect(list?.items.filter((r) => r.selected).map((r) => r.text)).toEqual(["alpha"]);
+    expect(list?.items.every((r) => r.action?.type === SEIS_SELECT_ACTION)).toBe(true);
+    const flow = all(view, "flow")[0];
+    const left = flow?.nodes.filter((n) => n.side === "left") ?? [];
+    expect(left.filter((n) => !n.folded)).toHaveLength(FLOW_SUBPROJECTS);
+    expect(left.find((n) => n.selected)?.label).toBe("alpha");
+    const right = flow?.nodes.filter((n) => n.side === "right") ?? [];
+    expect(right[0]).toMatchObject({
+      label: "everyone with a data role",
+      sublabel: "via data.default.viewers",
     });
-    expect(alpha?.fields?.[1]?.label).toBe("4 viewers");
-    expect(alpha?.fields?.[1]?.people?.map((p) => p.name)).toEqual([
-      "marcus",
-      "tier-admin",
-      "2 more",
+    expect(
+      right
+        .filter((n) => n.selected)
+        .map((n) => n.label)
+        .sort(),
+    ).toEqual([
+      "Ingrid Halvorsen (you)",
+      "Marcus Oyelaran",
+      "Priya Nair",
+      "Tomas Reyes",
+      "contoso-adme-tier-admin",
+      "contoso-adme-tier-editor",
+      "contoso-adme-tier-viewer",
     ]);
-    expect(alpha?.fields?.find((f) => f.label === "Datasets")?.value).toBeNull();
-    const volve = cards?.items.find((c) => c.title === "volve");
-    expect(volve?.pill).toEqual({ label: "default ACL", tone: "info" });
-    expect(volve?.fields?.slice(0, 2)).toEqual([
-      { label: "Members", value: "all 32 people" },
-      { label: "ACL", value: "data.default.viewers" },
-    ]);
-    const legacy = cards?.items.find((c) => c.title === "subproject-legacy");
-    expect(legacy).toMatchObject({ edge: "caution", pill: { label: "empty", tone: "caution" } });
-    expect(legacy?.reason?.text).toContain("no members");
-    expect(cards?.items.every((c) => c.action?.type === SEIS_SELECT_ACTION)).toBe(true);
+    expect(flow?.links.find((l) => l.source === "s:volve")?.n).toBe(32);
   });
 
   test("the selected region names alpha's admins and viewers with copyable identifiers", () => {
@@ -438,7 +436,7 @@ describe("subprojects and the selected subproject", () => {
     ]);
   });
 
-  test("clicking a card selects it and recomposes the selected region, no drawer", async () => {
+  test("clicking a row selects it and recomposes the selected region, no drawer", async () => {
     const recomposed: string[][] = [];
     const rt = seededRuntime(SEED, {
       now: NOW,
@@ -454,8 +452,8 @@ describe("subprojects and the selected subproject", () => {
     const view = selected(rt);
     expect(view.header?.status?.label).toBe("1 admin · 3 viewers");
     expect(view.header?.chip).toBe("sd://opendes/delta");
-    const cards = section(subprojects(rt), "cards")?.items ?? [];
-    expect(cards.filter((c) => c.selected).map((c) => c.title)).toEqual(["delta"]);
+    const rows = all(subprojects(rt), "rows")[0]?.items ?? [];
+    expect(rows.filter((r) => r.selected).map((r) => r.text)).toEqual(["delta"]);
     expect(await act(rt, SEIS_SELECT_ACTION, { subproject: "nope" })).toMatchObject({ ok: false });
   });
 

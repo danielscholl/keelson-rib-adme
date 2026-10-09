@@ -610,7 +610,7 @@ function plan(rt: Runtime, flow: Flow, i: Inputs): FlowPlan {
 }
 
 // Keeps the largest `cap` keys on a side, always keeping the selected ones, and folds the rest.
-function fold(
+export function fold(
   totals: Map<string, number>,
   cap: number,
   keep: ReadonlySet<string>,
