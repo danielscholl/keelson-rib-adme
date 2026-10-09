@@ -139,6 +139,8 @@ export interface GraphBatchResponse {
 }
 
 const RETRY_DELAYS_MS = [500, 1500];
+// Search throttles wide queries for about two seconds, so a 429 waits longer than a 5xx.
+const THROTTLE_DELAYS_MS = [2000, 4000];
 const GRAPH_BATCH_LIMIT = 20;
 
 export function classifyStatus(status: number): FailureKind | undefined {
@@ -270,6 +272,10 @@ export class Batch {
       if (!kind) return { ok: true, status: res.status, data: body as T };
       if (kind === "server" && attempt < RETRY_DELAYS_MS.length) {
         await this.sleep(RETRY_DELAYS_MS[attempt] as number);
+        continue;
+      }
+      if (res.status === 429 && attempt < THROTTLE_DELAYS_MS.length) {
+        await this.sleep(THROTTLE_DELAYS_MS[attempt] as number);
         continue;
       }
       return {
