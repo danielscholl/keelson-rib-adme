@@ -24,6 +24,8 @@ import {
   GROUP_NAMES,
   type GroupKey,
 } from "../access/read.ts";
+import { briefInputs } from "../brief/inputs.ts";
+import { peopleRows } from "../brief/people.ts";
 import { bindingOf } from "../plan/model.ts";
 import { shortId } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
@@ -34,19 +36,18 @@ import { UNTRACKED } from "../tracker.ts";
 import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
 import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
+import { annotateForm, factSection } from "./inspect.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
 type Field = NonNullable<Card["fields"]>[number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
-type Cell = Extract<Section, { kind: "grid" }>["cells"][number];
 type Tone = NonNullable<Row["glyph"]>;
 
 export const REFRESH_PERSON_ACTION = "refresh-person";
 export const ACCEPT_EXTRAS_ACTION = "accept-extra-groups";
 
-const PLAIN_LIMIT = 13;
 const ROLE_KEYS = ["ops", "admins", "editors", "viewers"] as const;
 
 export function findIdentity(model: AccessModel, id: string): Identity | undefined {
@@ -290,7 +291,6 @@ function groupSections(audit: GroupAudit): Leaf[] {
   const plain = audit.held
     .filter((g) => !flagged.has(g))
     .sort((a, b) => PLAIN_RANK(a) - PLAIN_RANK(b) || a.localeCompare(b));
-  const shown = plain.slice(0, PLAIN_LIMIT);
   const out: Leaf[] = [];
   const odd = [
     ...audit.gaps.map((g) => ({
@@ -321,16 +321,30 @@ function groupSections(audit: GroupAudit): Leaf[] {
       }),
     });
   }
-  const cells: Cell[] = [
-    ...audit.baseline.map((g) => ({
-      label: shortGroup(g),
-      badge: { text: "baseline", tone: "neutral" as const },
-    })),
-    ...shown.map((g) => ({ label: shortGroup(g) })),
-    ...(plain.length > shown.length ? [{ label: `${plain.length - shown.length} more` }] : []),
-  ];
+  const baseline = audit.baseline.map((g) => shortGroup(g));
+  if (baseline.length > 0) {
+    out.push({
+      kind: "rows",
+      title: "Accepted beyond the role",
+      items: baseline.map((g) => ({
+        chip: { label: "baseline", tone: "neutral" as const },
+        text: g,
+      })),
+    });
+  }
   const computed = audit.source === "computed" ? " · computed from role groups" : "";
-  out.push({ kind: "grid", title: `Effective groups · ${audit.held.length}${computed}`, cells });
+  out.push({
+    kind: "rows",
+    title: `Effective groups · ${audit.held.length}${computed}`,
+    items: [
+      {
+        glyph: "neutral",
+        text: `${plain.length} groups the role explains`,
+        trailing: "show",
+        detail: plain.map((g) => shortGroup(g)).join("\n"),
+      },
+    ],
+  });
   return out;
 }
 
@@ -460,7 +474,13 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   const bad = worst(list);
   const tone: Tone | undefined = bad ? VERDICT_TONE[bad.verdict] : undefined;
 
+  const inputs = briefInputs(rt);
+  const row = peopleRows(inputs).find((r) => r.id === who.id);
+  const key = inputs.directory.keyFor(who.id);
+  const notes = (row?.known ?? []).filter((f) => f.source === "operator");
   const left: Leaf[] = [
+    ...(row ? [factSection(row.question, row.ladder) as Leaf] : []),
+    ...(notes.length > 0 ? [factSection("Operator notes", notes) as Leaf] : []),
     {
       kind: "cards",
       title: "Identity",
@@ -491,6 +511,11 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   }
   const planned = plannedActions(rt, who);
   if (planned.length > 0) left.push({ kind: "actions", items: planned });
+  const bound = rt.profile ? bindingOf(rt.profile) : undefined;
+  left.push({
+    kind: "actions",
+    items: [annotateForm(who.id, rt.annotations.get(key), bound, { labelFirst: false })],
+  });
 
   const chart = who.kind === "person" ? callsChart(measured, who) : undefined;
   const right: Leaf[] = [

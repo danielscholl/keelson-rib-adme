@@ -9,7 +9,14 @@ import {
   ribViewDescriptorSchema,
 } from "@keelson/shared";
 import rib from "../src/index";
-import { BOARD_KEYS, CONNECTION_KEY, HEADER_KEY, PERSON_KEY, RECORDS_KEY } from "../src/keys";
+import {
+  BOARD_KEYS,
+  CONNECTION_KEY,
+  CONSOLE_KEY,
+  HEADER_KEY,
+  PERSON_KEY,
+  RECORDS_KEY,
+} from "../src/keys";
 import { SECTION_ACTION } from "../src/section";
 import { Store } from "../src/store";
 import { sectionOf } from "../src/surfaces";
@@ -85,9 +92,10 @@ describe("binding", () => {
   test("registers every key and every resting frame passes its validator", async () => {
     const { ctx, snapshots } = fakeContext();
     rib.registerTools?.(ctx);
-    expect(snapshots.keys().sort()).toEqual([...BOARD_KEYS].sort());
+    expect(snapshots.keys().sort()).toEqual([...BOARD_KEYS, CONSOLE_KEY].sort());
     const frames = await snapshots.composeAll();
-    expect(frames.size).toBe(BOARD_KEYS.length);
+    expect(frames.size).toBe(BOARD_KEYS.length + 1);
+    expect(typeof frames.get(CONSOLE_KEY)).toBe("string");
   });
 
   test("only the showing section's regions publish", async () => {

@@ -108,6 +108,10 @@ export class Directory {
     return "object";
   }
 
+  entry(id: string): DirectoryEntry | undefined {
+    return this.byId.get(id.toLowerCase());
+  }
+
   // The object id an email resolves to, when the directory or a former address knows it.
   idOf(address: string): string | undefined {
     return this.byAddress.get(address.toLowerCase());

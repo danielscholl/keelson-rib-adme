@@ -45,6 +45,8 @@ export interface RuntimeOptions {
   exec: RibExec;
   store: Store;
   recompose: (keys: readonly string[]) => void;
+  // Resolves once the key's frame is composed, for a drawer that opens on it.
+  recomposeNow?: (key: string) => Promise<void>;
   allKeys: readonly string[];
   now?: () => Date;
   transport?: Transport;
@@ -88,6 +90,10 @@ export class Runtime {
     this.areas.push(area);
   }
 
+  hasArea(name: string): boolean {
+    return this.areas.some((a) => a.name === name);
+  }
+
   // "measured 14:05Z" while connected; "cached from 13:02Z" once sign-in is needed.
   // A reading from an earlier day carries its date, so a stale one never reads as today's.
   freshness(area: string): string | undefined {
@@ -105,6 +111,11 @@ export class Runtime {
 
   recompose(keys: readonly string[]): void {
     this.opts.recompose(keys);
+  }
+
+  async recomposeNow(key: string): Promise<void> {
+    if (this.opts.recomposeNow) await this.opts.recomposeNow(key);
+    else this.opts.recompose([key]);
   }
 
   recomposeAll(): void {
@@ -265,11 +276,17 @@ export class Runtime {
   }
 
   // Tier 1: every due area in one batch, so the reads share one token per resource.
-  sweep(opts: { force?: boolean } = {}): Promise<void> {
+  // `only` forces just the named areas.
+  sweep(opts: { force?: boolean; only?: readonly string[] } = {}): Promise<void> {
     if (this.sweeping) return this.sweeping;
     const client = this.client;
     if (!client || this.status.phase !== "connected") return Promise.resolve();
-    const areas = opts.force ? this.areas : this.areas.filter((a) => this.due(a));
+    const only = opts.only;
+    const areas = only
+      ? this.areas.filter((a) => only.includes(a.name))
+      : opts.force
+        ? this.areas
+        : this.areas.filter((a) => this.due(a));
     if (areas.length === 0) return Promise.resolve();
     this.sweeping = client
       .batch((b) => this.readAreas(b, areas))

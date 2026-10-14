@@ -119,12 +119,24 @@ describe("person inspector", () => {
         trailing: "expected for the role, not held",
       },
     ]);
-    const grid = find(right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.title).toBe("Effective groups · 32");
-    expect(grid.cells[0]).toEqual({ label: "editors" });
-    expect(grid.cells.at(-1)).toEqual({ label: "19 more" });
-    expect(grid.cells).toHaveLength(14);
+    const groups = find(right, "Effective groups");
+    if (groups?.kind !== "rows") throw new Error("rows expected");
+    expect(groups.title).toBe("Effective groups · 32");
+    expect(groups.items[0]).toMatchObject({
+      text: "32 groups the role explains",
+      trailing: "show",
+    });
+    expect(groups.items[0]?.detail?.split("\n")[0]).toBe("editors");
+    expect(groups.items[0]?.detail?.split("\n")).toHaveLength(32);
+    const ladder = find(left, "Can this person get started?");
+    if (ladder?.kind !== "rows") throw new Error("ladder expected");
+    expect(ladder.items.map((r) => [r.text, r.trailing])).toEqual([
+      ["Invitation", "accepted 29 Sep"],
+      ["Instance membership", "missing users@"],
+      ["Data role", "Editor"],
+      ["Named seismic reach", "not read yet"],
+      ["Observed use", "not measured"],
+    ]);
 
     const identity = find(left, "Identity");
     if (identity?.kind !== "cards") throw new Error("identity expected");
@@ -242,11 +254,11 @@ describe("person inspector", () => {
     view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
     expect(view.find(view.right, "Beyond or short of the role")).toBeUndefined();
-    const grid = view.find(view.right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells[0]).toEqual({
-      label: "data.pilot.viewers",
-      badge: { text: "baseline", tone: "neutral" },
+    const accepted = view.find(view.right, "Accepted beyond the role");
+    if (accepted?.kind !== "rows") throw new Error("rows expected");
+    expect(accepted.items[0]).toEqual({
+      chip: { label: "baseline", tone: "neutral" },
+      text: "data.pilot.viewers",
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 baseline");
     expect(JSON.stringify(view.find(view.right, "History"))).toContain(
@@ -269,11 +281,11 @@ describe("person inspector", () => {
     expect(view.parsed.header?.status).toEqual({ label: "1 extra group", tone: "warn" });
     const odd = view.find(view.right, "Beyond or short of the role");
     expect(JSON.stringify(odd)).toContain('"text":"data.vendor.owners"');
-    const grid = view.find(view.right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells[0]).toEqual({
-      label: "data.pilot.viewers",
-      badge: { text: "baseline", tone: "neutral" },
+    const accepted = view.find(view.right, "Accepted beyond the role");
+    if (accepted?.kind !== "rows") throw new Error("rows expected");
+    expect(accepted.items[0]).toEqual({
+      chip: { label: "baseline", tone: "neutral" },
+      text: "data.pilot.viewers",
     });
   });
 

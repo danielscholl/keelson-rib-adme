@@ -12,6 +12,7 @@ import { EXPORT_GUIDE_ACTION } from "./boards/people.ts";
 import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
+  CONSOLE_KEY,
   HEADER_KEY,
   MAP_KEY,
   OPERATION_KEY,
@@ -29,6 +30,7 @@ import {
 import type { SectionId } from "./section.ts";
 
 export const REFRESH_ACTION = "refresh";
+export const INSPECT_ACTION = "inspect";
 
 type Row = RibSurfaceDescriptor["layout"]["rows"][number];
 
@@ -220,6 +222,17 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
       "Who has access to the instance, what data is in it, and who can reach each seismic subproject.",
     layout: {
       header,
+      banner: {
+        key: CONSOLE_KEY,
+        title: "Console",
+        glyph: { char: "◉", tone: "accent" },
+        live: true,
+        headActions: [
+          { type: REFRESH_ACTION, label: "Refresh now" },
+          { type: RETEST_ACTION, label: "Re-test connection" },
+          { type: CONNECTION_DETAILS_ACTION, label: "Connection details" },
+        ],
+      },
       rows: [...ACCESS_ROWS, ...DATA_ROWS, ...SEISMIC_ROWS],
     },
   },

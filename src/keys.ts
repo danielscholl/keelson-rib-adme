@@ -11,6 +11,11 @@ export const RIB_ID = "adme";
 // The one surface's header: section switcher, connection and the section's pulse.
 export const HEADER_KEY = "rib:adme:header";
 
+// The console is html, not a board: one banner drawn from the brief.
+export const CONSOLE_KEY = "rib:adme:console";
+// The side inspector for console selections; an inspect action opens it in the drawer.
+export const INSPECT_KEY = "rib:adme:inspect";
+
 // Access section
 export const PULSE_KEY = "rib:adme:pulse";
 export const ATTENTION_KEY = "rib:adme:attention";
@@ -67,6 +72,7 @@ export const BOARD_KEYS = [
   PLAN_KEY,
   EXPLAIN_KEY,
   RECORD_KEY,
+  INSPECT_KEY,
 ] as const;
 
 export const SURFACE_ID = "adme";

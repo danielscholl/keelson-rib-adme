@@ -16,17 +16,21 @@ import {
   type RibViewDescriptor,
   type SnapshotManager,
 } from "@keelson/shared";
+import { expectHtml } from "./boards/console.ts";
 import { DOCS } from "./docs.ts";
 import {
   BOARD_KEYS,
+  CONSOLE_KEY,
   DATA_PULSE_KEY,
   HEADER_KEY,
+  INSPECT_KEY,
   PULSE_KEY,
   RIB_ID,
   SEIS_PULSE_KEY,
 } from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
+import { composeConsole, consoleModule } from "./modules/console.ts";
 import { dataPulseModule } from "./modules/data.ts";
 import { explainModule } from "./modules/explain.ts";
 import { headerModule } from "./modules/header.ts";
@@ -47,7 +51,7 @@ import {
 } from "./sample/index.ts";
 import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
-import { SURFACES, sectionOf } from "./surfaces.ts";
+import { INSPECT_ACTION, SURFACES, sectionOf } from "./surfaces.ts";
 import { admeTools } from "./tools.ts";
 
 // Later modules override earlier ones for the same key.
@@ -62,6 +66,7 @@ const MODULES: readonly RegionModule[] = [
   seismicModule,
   explainModule,
   headerModule,
+  consoleModule,
 ];
 
 const ALL_KEYS = BOARD_KEYS;
@@ -74,9 +79,14 @@ let ticker: ReturnType<typeof setInterval> | undefined;
 // The header draws from the section pulses.
 const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY]);
 
+// The console and its inspector read every area, so they follow any recompose.
 function recompose(keys: readonly string[]): void {
   const all = new Set(keys);
   if (keys.some((k) => HEADER_SOURCES.has(k))) all.add(HEADER_KEY);
+  if (all.size > 0) {
+    all.add(CONSOLE_KEY);
+    all.add(INSPECT_KEY);
+  }
   for (const key of all) snapshots?.recompose(key).catch(() => undefined);
 }
 
@@ -107,6 +117,9 @@ function bind(ctx: RibContext): void {
   const rt = new Runtime({
     ...source,
     recompose,
+    recomposeNow: async (key) => {
+      await sm?.recompose(key).catch(() => undefined);
+    },
     allKeys: ALL_KEYS,
     registerOp: ctx.registerOp,
     swept: () => {
@@ -128,6 +141,9 @@ function bind(ctx: RibContext): void {
       }),
     );
   }
+  unregisters.push(
+    sm.register(CONSOLE_KEY, async () => composeConsole(rt), { validate: expectHtml }),
+  );
   recompose(ALL_KEYS);
   rt.sweep().catch(() => undefined);
   // A test saved before roles were recorded is re-run once so the header can show the role.
@@ -153,13 +169,16 @@ const rib: Rib = {
   id: RIB_ID,
   displayName: "ADME",
 
-  views: BOARD_KEYS.map(
-    (key): RibViewDescriptor => ({
-      key,
-      canvasKind: "view",
-      title: `ADME: ${key.split(":").pop()}`,
-    }),
-  ),
+  views: [
+    { key: CONSOLE_KEY, canvasKind: "html", title: "ADME console" },
+    ...BOARD_KEYS.map(
+      (key): RibViewDescriptor => ({
+        key,
+        canvasKind: "view",
+        title: `ADME: ${key.split(":").pop()}`,
+      }),
+    ),
+  ],
 
   surfaces: SURFACES,
 
@@ -174,6 +193,10 @@ const rib: Rib = {
   onAction: async (action: RibAction): Promise<RibActionResult> => {
     const rt = runtime;
     if (!rt) return { ok: false, error: "adme is not bound yet" };
+    // Console markup is untrusted by contract: it may select and open the inspector, never act.
+    if (action.origin === "canvas-html" && action.type !== INSPECT_ACTION) {
+      return { ok: false, error: "the console only opens the inspector; act from its buttons" };
+    }
     // The first action after an idle spell refreshes what went stale meanwhile.
     const idle = !rt.shouldTick();
     rt.touch();

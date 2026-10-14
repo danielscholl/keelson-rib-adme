@@ -99,7 +99,7 @@ async function readGroups(rt: Runtime, id: string): Promise<string | undefined> 
   return res.failure.message;
 }
 
-const selectPersonAction: ActionHandler = async (rt, payload) => {
+export const selectPersonAction: ActionHandler = async (rt, payload) => {
   const id = idOf(payload);
   if (!id) return { ok: false, error: "Pick a person to open." };
   const measured = measuredAccess(rt);
