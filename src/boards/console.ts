@@ -10,6 +10,7 @@ import { designTokenCssBlock } from "@keelson/shared";
 import type { Brief, Item, Tone } from "../brief/index.ts";
 import type { PersonRow } from "../brief/people.ts";
 import { INSPECT_ACTION } from "../surfaces.ts";
+import { DATA_STYLE } from "./console-data.ts";
 import { SEISMIC_STYLE } from "./console-seismic.ts";
 import { esc, factRows, legend, TONE_CLASS } from "./html.ts";
 
@@ -176,7 +177,7 @@ export function consoleHtml(parts: ConsoleParts): string {
 <div data-view-pane="people" hidden>${peopleHtml(parts.people)}</div>
 ${extra.map((t) => `<div data-view-pane="${esc(t.id)}" hidden>${t.html}</div>`).join("\n")}`
     : `${stamp ? `<div class="tabs">${stamp}</div>` : ""}<h2>${esc(b.headline)}</h2>${b.summary ? `<p class="summary">${esc(b.summary)}</p>` : ""}`;
-  return `<style>${designTokenCssBlock()}${STYLE}${SEISMIC_STYLE}</style>
+  return `<style>${designTokenCssBlock()}${STYLE}${SEISMIC_STYLE}${DATA_STYLE}</style>
 <div class="wrap">
 ${views}
 </div>

@@ -43,11 +43,10 @@ import {
 } from "../data/map.ts";
 import { reachOf, readDirect, readReachCount, setKey } from "../data/reach.ts";
 import { buildQuery } from "../data/records.ts";
-import { DATA_PULSE_KEY, MAP_KEY, RECORDS_KEY } from "../keys.ts";
+import { DATA_PULSE_KEY, MAP_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
-import { focusRegion } from "../section.ts";
-import { loadSearch } from "./records.ts";
+import { loadSearch, openRecords } from "./records.ts";
 
 // A refresh of the same row keeps the old slice on screen until the new one lands.
 async function loadSlice(rt: Runtime, selection: Selection): Promise<void> {
@@ -213,7 +212,7 @@ export const mapModule: RegionModule = {
       const built = browseQuery(sel.lens, sel.key);
       if (!built.ok) return { ok: false, error: built.error };
       const res = await loadSearch(rt, built.query, 0);
-      return res.ok ? focusRegion(rt, "data", RECORDS_KEY) : res;
+      return res.ok ? openRecords() : res;
     },
     [MAP_COPY_ACTION]: async (rt, payload) => {
       const set = (payload as { set?: unknown } | undefined)?.set;

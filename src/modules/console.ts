@@ -11,6 +11,7 @@ import { measuredAccess } from "../access/measured.ts";
 import { EXPLAIN_ACTION } from "../boards/change.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import { CONNECTION_ID, consoleHtml } from "../boards/console.ts";
+import { dataTab, EXPLORE_ID, FIND_ID } from "../boards/console-data.ts";
 import { seismicTab } from "../boards/console-seismic.ts";
 import {
   ANNOTATE_ACTION,
@@ -26,6 +27,7 @@ import {
   REREAD_ACTION,
   rereadAction,
 } from "../boards/inspect.ts";
+import { unresolvedUsers } from "../boards/record.ts";
 import {
   composeSeismicSelected,
   PREVIEW_SEIS_GRANT_ACTION,
@@ -33,21 +35,24 @@ import {
   seismicState,
   selectedFlow,
 } from "../boards/seismic.ts";
+import { dataBrief, familiesOf } from "../brief/data.ts";
 import { type Brief, type BriefInputs, buildBrief, type Fact, type Item } from "../brief/index.ts";
 import { briefInputs } from "../brief/inputs.ts";
 import { peopleRows } from "../brief/people.ts";
 import { SHARED, seismicMatrix } from "../brief/seismic.ts";
 import { annotationInputSchema } from "../directory/annotations.ts";
-import { CONNECTION_KEY, INSPECT_KEY } from "../keys.ts";
+import { CONNECTION_KEY, INSPECT_KEY, MAP_KEY } from "../keys.ts";
 import { bindingOf, sameBinding } from "../plan/model.ts";
 import { coverage } from "../plan/seismic.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
+import { focusRegion } from "../section.ts";
 import { isDefaultGroup } from "../seismic/read.ts";
 import { configuredOf, READ_AREAS, type ReadArea } from "../status/index.ts";
 import { INSPECT_ACTION } from "../surfaces.ts";
 import { selectPersonAction } from "./access.ts";
+import { loadSearch, openRecords } from "./records.ts";
 import { measureSeismic } from "./seismic.ts";
 
 interface InspectState {
@@ -78,11 +83,59 @@ function str(p: Payload, key: string): string | undefined {
 
 export function composeConsole(rt: Runtime): string {
   const inputs = briefInputs(rt);
+  const brief = buildBrief(inputs);
   return consoleHtml({
-    brief: buildBrief(inputs),
+    brief,
     people: peopleRows(inputs),
-    tabs: [{ id: "seismic", label: "Seismic", html: seismicTab(seismicMatrix(inputs)) }],
+    tabs: [
+      { id: "seismic", label: "Seismic", html: seismicTab(seismicMatrix(inputs)) },
+      { id: "data", label: "Data", html: dataTab(dataBrief(inputs, brief.items)) },
+    ],
   });
+}
+
+export const BROWSE_FAMILY_ACTION = "browse-family";
+
+function composeFamily(i: BriefInputs, key: string): CanvasBoardView | undefined {
+  const f = familiesOf(i).find((x) => x.key === key);
+  if (!f) return undefined;
+  return {
+    view: "board",
+    header: {
+      status: { label: `${f.count.toLocaleString("en-US")} records`, tone: "neutral" },
+      chip: f.pattern,
+    },
+    sections: [
+      {
+        kind: "rows",
+        title: `Kinds · ${f.kinds.length} · indexed, visible to this sign-in`,
+        items: f.kinds.map((k) => ({
+          glyph: "neutral" as const,
+          text: k.kind,
+          trailing: k.count.toLocaleString("en-US"),
+        })),
+      },
+      {
+        kind: "rows",
+        items: [
+          {
+            text: `${f.versions} ${f.versions === 1 ? "version" : "versions"} from ${f.authorities.join(", ")}. A family is a kind's entity name, so versions and authorities add together.`,
+          },
+        ],
+      },
+      {
+        kind: "actions",
+        items: [
+          {
+            type: BROWSE_FAMILY_ACTION,
+            label: "Browse records",
+            payload: { family: f.key },
+            pendingLabel: "Searching…",
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function binding(rt: Runtime) {
@@ -324,6 +377,9 @@ export function composeInspect(rt: Runtime): CanvasBoardView {
       gone("That legal tag is no longer listed.")
     );
   }
+  if (sel.startsWith("fam:")) {
+    return composeFamily(inputs, sel.slice(4)) ?? gone("That record family is no longer counted.");
+  }
   if (sel.startsWith("cell:")) {
     const [, id, sub] = sel.split(":");
     const v = id && sub ? cellView(rt, inputs, id, sub) : undefined;
@@ -351,8 +407,10 @@ function open(key: string, title: string): RibActionResult {
   return { ok: true, data: { effect: "open-canvas", key, title, placement: "side" } };
 }
 
-// Every id the rib could name: listed by entitlements, by a seismic group, or annotated.
-function knownId(i: BriefInputs, id: string): boolean {
+// Every id the rib could name: listed by entitlements or a seismic group, in the
+// directory, or a creator of the record open in the drawer.
+function knownId(rt: Runtime, i: BriefInputs, id: string): boolean {
+  if (unresolvedUsers(rt).includes(id)) return true;
   const a = i.access?.model;
   if (a && [...a.people, ...a.apps, ...a.unknown].some((p) => p.id === id)) return true;
   if (i.seismic?.members[id]) return true;
@@ -363,6 +421,8 @@ const inspectAction: ActionHandler = async (rt, payload) => {
   const id = str(asPayload(payload), "id");
   if (!id) return { ok: false, error: "inspect payload must be { id: string }" };
   if (id === CONNECTION_ID) return open(CONNECTION_KEY, "Connection");
+  if (id === FIND_ID) return openRecords();
+  if (id === EXPLORE_ID) return focusRegion(rt, "data", MAP_KEY);
   const inputs = briefInputs(rt);
   if (id.startsWith("who:")) {
     const target = id.slice(4).toLowerCase();
@@ -379,7 +439,10 @@ const inspectAction: ActionHandler = async (rt, payload) => {
   }
   const brief = buildBrief(inputs);
   let title: string | undefined;
-  if (id.startsWith("cell:")) {
+  if (id.startsWith("fam:")) {
+    const f = familiesOf(inputs).find((x) => x.key === id.slice(4));
+    title = f ? `Family · ${f.label}` : undefined;
+  } else if (id.startsWith("cell:")) {
     const [, who, sub] = id.split(":");
     title = who && sub ? cellView(rt, inputs, who, sub)?.title : undefined;
   } else if (id.startsWith("sub:")) {
@@ -417,7 +480,7 @@ const annotateAction: ActionHandler = async (rt, payload) => {
   }
   const id = str(p, "id")?.toLowerCase();
   const inputs = briefInputs(rt);
-  if (!id || !knownId(inputs, id))
+  if (!id || !knownId(rt, inputs, id))
     return { ok: false, error: "That identity is not in the last read." };
   const parsed = annotationInputSchema.safeParse({
     label: p.label,
@@ -453,9 +516,18 @@ const rereadAreaAction: ActionHandler = async (rt, payload) => {
   return { ok: true, data: { message: `Read ${area}` } };
 };
 
+const browseFamilyAction: ActionHandler = async (rt, payload) => {
+  const key = str(asPayload(payload), "family");
+  const f = key ? familiesOf(briefInputs(rt)).find((x) => x.key === key) : undefined;
+  if (!f) return { ok: false, error: "That record family is no longer counted." };
+  const res = await loadSearch(rt, { mode: "kind", kind: f.pattern, subject: f.pattern }, 0);
+  return res.ok ? openRecords() : res;
+};
+
 export const consoleModule: RegionModule = {
   composers: { [INSPECT_KEY]: composeInspect },
   actions: {
+    [BROWSE_FAMILY_ACTION]: browseFamilyAction,
     [INSPECT_ACTION]: inspectAction,
     [ANNOTATE_ACTION]: annotateAction,
     [REREAD_ACTION]: rereadAreaAction,

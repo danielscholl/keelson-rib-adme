@@ -8,8 +8,11 @@
 
 import type { CanvasBoardView } from "@keelson/shared";
 import { openedRecord, type RecordDetail } from "../data/record.ts";
+import { directoryOf } from "../directory/build.ts";
+import { bindingOf } from "../plan/model.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
+import { annotateForm } from "./inspect.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
@@ -31,17 +34,20 @@ export function formatBytes(bytes: number): string {
 
 const list = (xs: string[]): string => (xs.length ? xs.join(", ") : "none");
 
-function by(time: string | undefined, user: string | undefined): string {
+// A person by name, a labelled actor by its label, an id nothing names as unresolved.
+export type NameOf = (user: string) => string;
+
+function by(time: string | undefined, user: string | undefined, nameOf: NameOf): string {
   if (!time) return "?";
-  return user ? `${time} by ${user}` : time;
+  return user ? `${time} by ${nameOf(user)}` : time;
 }
 
-function fields(r: RecordDetail): Row[] {
+function fields(r: RecordDetail, nameOf: NameOf): Row[] {
   const rows: [string, string][] = [
     ["kind", r.kind],
     ...(r.name ? [["name", r.name] as [string, string]] : []),
-    ["created", by(r.createTime, r.createUser)],
-    ["modified", r.modifyTime ? by(r.modifyTime, r.modifyUser) : "not since created"],
+    ["created", by(r.createTime, r.createUser, nameOf)],
+    ["modified", r.modifyTime ? by(r.modifyTime, r.modifyUser, nameOf) : "not since created"],
     ["legal tags", list(r.legaltags)],
     ["legal status", r.legalStatus ?? "?"],
     ["countries", list(r.countries)],
@@ -50,6 +56,27 @@ function fields(r: RecordDetail): Row[] {
     ["parents", r.parents.length ? r.parents.join("\n") : "none"],
   ];
   return rows.map(([text, trailing]) => ({ text, trailing }));
+}
+
+function nameOf(rt: Runtime): NameOf {
+  const directory = directoryOf(rt);
+  return (user) => {
+    const r = directory.resolve(user);
+    if (r.nameSource === "directory")
+      return r.email && r.email !== r.name ? `${r.name} (${r.email})` : r.name;
+    if (r.nameSource === "label") return `${r.name} (operator label)`;
+    return `${user} (unresolved)`;
+  };
+}
+
+// Creators and modifiers the directory cannot name, so the operator can label them.
+export function unresolvedUsers(rt: Runtime): string[] {
+  const view = openedRecord(rt);
+  if (!view?.ok) return [];
+  const directory = directoryOf(rt);
+  return [...new Set([view.record.createUser, view.record.modifyUser])].filter(
+    (u): u is string => Boolean(u) && directory.unresolved(u as string),
+  );
 }
 
 export function composeRecord(rt: Runtime): CanvasBoardView {
@@ -83,7 +110,15 @@ export function composeRecord(rt: Runtime): CanvasBoardView {
           { label: "Parents", value: String(r.parents.length), sub: "ancestry links" },
         ],
       },
-      { kind: "rows", boxed: true, items: fields(r) },
+      { kind: "rows", boxed: true, items: fields(r, nameOf(rt)) },
+      ...unresolvedUsers(rt).map((u) => ({
+        kind: "actions" as const,
+        items: [
+          annotateForm(u, undefined, rt.profile ? bindingOf(rt.profile) : undefined, {
+            labelFirst: true,
+          }),
+        ],
+      })),
     ],
   };
 }

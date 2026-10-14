@@ -14,6 +14,7 @@ import {
   CONNECTION_KEY,
   CONSOLE_KEY,
   HEADER_KEY,
+  MAP_KEY,
   PERSON_KEY,
   RECORDS_KEY,
 } from "../src/keys";
@@ -109,12 +110,13 @@ describe("binding", () => {
       const frame = await snapshots.recompose(key);
       return (frame.data as { sections: unknown[] }).sections.length;
     };
-    expect(await sections(RECORDS_KEY)).toBe(0);
+    expect(await sections(MAP_KEY)).toBe(0);
     const res = await rib.onAction?.(
       { type: SECTION_ACTION, payload: { section: "data" } },
       fakeContext().ctx,
     );
     expect(res).toMatchObject({ ok: true, data: { effect: "open-surface" } });
+    expect(await sections(MAP_KEY)).toBeGreaterThan(0);
     expect(await sections(RECORDS_KEY)).toBeGreaterThan(0);
   });
 

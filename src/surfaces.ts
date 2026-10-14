@@ -20,7 +20,6 @@ import {
   PEOPLE_KEY,
   PRINCIPALS_KEY,
   RECENT_KEY,
-  RECORDS_KEY,
   SEIS_CHANGE_KEY,
   SEIS_REACH_KEY,
   SEIS_SELECTED_KEY,
@@ -102,19 +101,6 @@ const DATA_ROWS: Row[] = [
           "what is in the partition, who can reach it and which legal tag governs it · select a row",
         glyph: { char: "◈", tone: "info" },
         hideWhenEmpty: true,
-      },
-    ],
-  },
-  // Folded until a search runs; Browse records on the map opens it.
-  {
-    columns: [
-      {
-        key: RECORDS_KEY,
-        title: "Records",
-        byline: "search by kind, id, Lucene, ACL group or legal tag · open a row for its detail",
-        glyph: { char: "⌕", tone: "info" },
-        hideWhenEmpty: true,
-        collapsible: true,
       },
     ],
   },
