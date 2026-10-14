@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { ACCESS_AREA } from "../src/access/read";
-import { SIGNIN_REASON } from "../src/boards/connection";
+import { SELECT_PERSON_ACTION } from "../src/boards/access";
+import { composePerson } from "../src/boards/person";
 import { composePlan } from "../src/boards/plan";
 import {
   composeSeismicSelected,
@@ -9,12 +10,11 @@ import {
   PREVIEW_SEIS_GRANT_ACTION,
   PREVIEW_SEIS_REVOKE_ACTION,
   PREVIEW_SEIS_SELF_ACTION,
-  SEIS_REACH_ACTION,
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
-import { composeSeismicChange, composeSeismicReach } from "../src/boards/seismic-change";
 import { HEALTH_AREA } from "../src/data/health";
-import { PLAN_KEY, SEIS_CHANGE_KEY, SEIS_REACH_KEY, SEIS_SELECTED_KEY } from "../src/keys";
+import { INSPECT_KEY, PERSON_KEY, PLAN_KEY } from "../src/keys";
+import { accessModule } from "../src/modules/access";
 import { planModule } from "../src/modules/plan";
 import { seismicModule } from "../src/modules/seismic";
 import { currentOperation, operationPending } from "../src/plan/apply";
@@ -33,13 +33,11 @@ const INGRID = oid(1);
 const MARCUS = oid(4);
 const LENA = oid(5);
 const HIRO = oid(6);
-const RACHEL = oid(11);
+const _RACHEL = oid(11);
 const BASE = 33;
 const binding = bindingOf(SAMPLE_PROFILE);
 
-const changeBoard = expectView(SEIS_CHANGE_KEY, "board");
-const reachBoard = expectView(SEIS_REACH_KEY, "board");
-const selectedBoard = expectView(SEIS_SELECTED_KEY, "board");
+const selectedBoard = expectView(INSPECT_KEY, "board");
 const planBoard = expectView(PLAN_KEY, "board");
 
 // Entitlements as a store: each person's seismic groups, read back as effective groups.
@@ -319,58 +317,6 @@ describe("seismic plans", () => {
   });
 });
 
-describe("Grant or revoke", () => {
-  test("three tabs that preview a plan, Grant open on the selected subproject", async () => {
-    const { rt } = runtime();
-    await act(rt, SEIS_SELECT_ACTION, { subproject: "delta" });
-    const view = changeBoard(composeSeismicChange(rt)) as CanvasBoardView;
-    const section = view.sections[0] as Extract<Section, { kind: "actions" }>;
-    expect(section.tabs).toBe(true);
-    expect(section.items.map((i) => [i.type, i.label])).toEqual([
-      [PREVIEW_SEIS_GRANT_ACTION, "Grant"],
-      [PREVIEW_SEIS_REVOKE_ACTION, "Revoke"],
-      [PREVIEW_SEIS_COPY_ACTION, "Copy grants from person"],
-    ]);
-    const grant = section.items[0];
-    expect(grant?.submitLabel).toBe("Preview plan");
-    expect(grant?.binding).toEqual({ ...binding });
-    expect(grant?.fields?.map((f) => f.name)).toEqual(["id", "subproject", "role"]);
-    expect(grant?.fields?.[1]?.defaultValue).toBe("delta");
-    expect(grant?.fields?.[2]).toMatchObject({ segmented: true, defaultValue: "viewer" });
-    expect(section.items.every((i) => !i.disabled)).toBe(true);
-  });
-
-  test("hidden until the seismic store has been read", () => {
-    const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW });
-    expect(composeSeismicChange(rt).sections).toEqual([]);
-    expect(composeSeismicReach(rt).sections).toEqual([]);
-  });
-
-  test("sign-in needed disables every form and the selected-subproject actions", async () => {
-    const { rt } = runtime({ phase: "signin" });
-    const view = changeBoard(composeSeismicChange(rt)) as CanvasBoardView;
-    expect(view.header?.status).toEqual({ label: "sign-in needed", tone: "error" });
-    expect(actionsOf(view).every((i) => i.disabled && i.reason === SIGNIN_REASON)).toBe(true);
-    const selected = selectedBoard(composeSeismicSelected(rt)) as CanvasBoardView;
-    expect(actionsOf(selected).every((i) => i.disabled && i.reason === SIGNIN_REASON)).toBe(true);
-    expect(
-      await act(rt, PREVIEW_SEIS_GRANT_ACTION, { id: LENA, subproject: "alpha", role: "viewer" }),
-    ).toMatchObject({ ok: false });
-  });
-
-  test("a binding for another instance is refused", async () => {
-    const { rt } = runtime();
-    const res = await planModule.actions?.[PREVIEW_SEIS_GRANT_ACTION]?.(rt, {
-      ...binding,
-      host: "other.energy.azure.com",
-      id: LENA,
-      subproject: "alpha",
-      role: "viewer",
-    });
-    expect(res).toMatchObject({ ok: false });
-  });
-});
-
 describe("the selected subproject", () => {
   test("Grant access… and Add myself as admin, disabled when you are already one", () => {
     const { rt } = runtime();
@@ -418,56 +364,10 @@ describe("the selected subproject", () => {
   });
 });
 
-describe("What a partner can reach", () => {
-  test("a viewer of alpha and delta reaches four paths, and the note says so", async () => {
-    const { rt } = runtime();
-    expect(await act(rt, SEIS_REACH_ACTION, { id: MARCUS })).toMatchObject({ ok: true });
-    const view = reachBoard(composeSeismicReach(rt)) as CanvasBoardView;
-    expect(view.header?.chip).toBe("Marcus Oyelaran · 4 paths");
-    const rows = view.sections.find(
-      (s): s is Extract<Section, { kind: "rows" }> => s.kind === "rows",
-    );
-    expect(rows?.title).toBe("Reachable paths · 4");
-    expect(rows?.items.map((r) => [r.chip?.label, r.text, r.trailing])).toEqual([
-      ["viewer", "sd://opendes/volve", "via data.default.viewers"],
-      ["viewer", "sd://opendes/drogon", "via data.default.viewers"],
-      ["viewer", "sd://opendes/alpha", "direct grant"],
-      ["viewer", "sd://opendes/delta", "direct grant"],
-    ]);
-    const card = view.sections.find(
-      (s): s is Extract<Section, { kind: "cards" }> => s.kind === "cards",
-    )?.items[0];
-    expect(card?.title).toBe("Send to Marcus Oyelaran");
-    expect(card?.fields?.[0]).toMatchObject({ label: "Access note", copyable: true });
-    expect(card?.fields?.[0]?.value).toBe(
-      "You can read four seismic subprojects in tenant opendes on contoso-adme.energy.azure.com: sd://opendes/volve, sd://opendes/drogon, sd://opendes/alpha and sd://opendes/delta. Your role in each is viewer. Listing subprojects is admin only, so open them by path.",
-    );
-    const form = actionsOf(view)[0];
-    expect(form).toMatchObject({ type: SEIS_REACH_ACTION, label: "Show reach", expanded: true });
-    expect(form?.fields?.[0]?.defaultValue).toBe(MARCUS);
-  });
-
-  test("a person missing users@ is flagged, and an unknown person is refused", async () => {
-    const { rt } = runtime();
-    await act(rt, SEIS_REACH_ACTION, { id: RACHEL });
-    const text = JSON.stringify(reachBoard(composeSeismicReach(rt)));
-    expect(text).toContain("Rachel Kim is not in users@, so every call returns 401");
-    expect(await act(rt, SEIS_REACH_ACTION, { id: "nobody" })).toMatchObject({ ok: false });
-  });
-});
-
 describe("every seismic change frame passes its validator", () => {
   const states: [string, () => Promise<Runtime>][] = [
     ["measured", async () => runtime().rt],
     ["signin", async () => runtime({ phase: "signin" }).rt],
-    [
-      "reach shown",
-      async () => {
-        const { rt } = runtime();
-        await act(rt, SEIS_REACH_ACTION, { id: INGRID });
-        return rt;
-      },
-    ],
     [
       "revoke planned",
       async () => {
@@ -484,8 +384,6 @@ describe("every seismic change frame passes its validator", () => {
   for (const [name, make] of states) {
     test(name, async () => {
       const rt = await make();
-      changeBoard(composeSeismicChange(rt));
-      reachBoard(composeSeismicReach(rt));
       planBoard(composePlan(rt));
       for (const s of sampleSeismic().subprojects) {
         if (rt.status.phase === "connected") {
@@ -495,6 +393,18 @@ describe("every seismic change frame passes its validator", () => {
       }
     });
   }
+});
+
+describe("what a partner can reach", () => {
+  test("the person inspector carries the access note with every path", async () => {
+    const { rt } = runtime();
+    await accessModule.actions?.[SELECT_PERSON_ACTION]?.(rt, { id: MARCUS });
+    const view = expectView(PERSON_KEY, "board")(composePerson(rt));
+    const text = JSON.stringify(view);
+    expect(text).toContain("What Marcus Oyelaran can reach · 4 paths");
+    expect(text).toContain("sd://opendes/alpha");
+    expect(text).toContain("Copy only. The rib does not send mail.");
+  });
 });
 
 describe("grant seismic from the access tab", () => {

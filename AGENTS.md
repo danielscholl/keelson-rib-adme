@@ -30,9 +30,17 @@ A PR needs `bun run check`, `bun run typecheck` and `bun test` green.
 
 ## Architecture
 
-- One `Rib` object exported from `src/index.ts`, three surfaces (ADME Access,
-  ADME Data, ADME Seismic) and three drawer inspectors, each region bound to a
-  `rib:adme:*` key in `src/keys.ts`.
+- One `Rib` object exported from `src/index.ts` and one surface: a connect
+  header, the console banner (`rib:adme:console`, html), and the operation and
+  partition map regions below it. Drawers (person, plan, explain, record, find
+  records, cohorts, connection and `rib:adme:inspect`) have views and no region.
+  Every key is in `src/keys.ts`. The console design is `design/console.md`.
+- `src/directory/` resolves every id through one identity directory: Graph
+  names plus operator annotations in `directory.<host>.<partition>.json`.
+  `src/status/` keeps the status axes and read signals. `src/brief/` is pure and
+  writes every word the console, the inspector and `adme_brief` show; it never
+  imports from `src/boards/`, except through `inputs.ts`, which gathers from the
+  runtime.
 - Everything is an in-process composer. No workflows, no cadence: the rib
   drives refresh itself, and timers run only shortly after operator activity.
 - The rib calls ADME and Microsoft Graph directly with tokens from the
@@ -51,8 +59,15 @@ A PR needs `bun run check`, `bun run typecheck` and `bun test` green.
   the plan.
 - **Mutating actions are bound.** Each carries host, partition and tenant in
   its binding, revalidated in the rib before anything is written.
-- **Fail closed.** Every key registers a validator (`expectView`); an
-  unmeasured value is `null` and draws as "?", never as 0.
+- **Fail closed.** Every key registers a validator (`expectView`, or
+  `expectHtml` for the console); an unmeasured value is `null` and draws as
+  "?", never as 0.
+- **The console frame never acts.** `rib:adme:console` is html in a sandboxed
+  frame, so its markup is untrusted: `onAction` accepts only `inspect` from a
+  `canvas-html` origin, and every verb stays a board button in a drawer.
+- **Annotations describe, never decide.** A label names only an id the
+  directory cannot; it never overrides a directory name, never grants, and is
+  written only to the annotations file.
 - **Public repo, sample data only.** Committed fixtures, tests and docs use the
   scrubbed cast from `design/spec.md` (contoso-adme, Pilot, Vendor, alpha to
   golf). Real instance names, people and ids never enter the repo.

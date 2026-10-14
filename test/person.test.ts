@@ -1,16 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead, GROUP_KEYS } from "../src/access/read";
-import { composeAttention, SELECT_PERSON_ACTION } from "../src/boards/access";
+import { SELECT_PERSON_ACTION } from "../src/boards/access";
 import { SIGNIN_REASON } from "../src/boards/connection";
-import { composePeople, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import {
   ACCEPT_EXTRAS_ACTION,
   composePerson,
   REFRESH_PERSON_ACTION,
   shortGroup,
 } from "../src/boards/person";
-import { ATTENTION_KEY, PEOPLE_KEY, PERSON_KEY, PRINCIPALS_KEY } from "../src/keys";
+import { PERSON_KEY } from "../src/keys";
 import { accessModule } from "../src/modules/access";
 import { Store } from "../src/store";
 import { Tracker, trackerFile } from "../src/tracker";
@@ -170,25 +169,12 @@ describe("person inspector", () => {
     expect(text).toContain('{"label":"Pass ends","value":"26 d · 2026-10-28"}');
   });
 
-  test("selecting recomposes the inspector first and marks the person in the lists", async () => {
-    const { rt, read, recomposed, act } = setup();
+  test("selecting recomposes the inspector before the drawer opens", async () => {
+    const { read, recomposed, act } = setup();
     const rachel = idOf(read, "Rachel Kim");
-    await act(SELECT_PERSON_ACTION, { id: rachel });
-    expect(recomposed).toEqual([[PERSON_KEY], [PEOPLE_KEY, ATTENTION_KEY, PRINCIPALS_KEY]]);
-    const roster = expectView(PEOPLE_KEY, "board")(composePeople(rt));
-    const rows =
-      roster.view === "board"
-        ? roster.sections.flatMap((s) => (s.kind === "rows" ? s.items : []))
-        : [];
-    expect(rows.find((r) => r.text === "Rachel Kim")).toMatchObject({
-      action: { type: SELECT_PERSON_ACTION, payload: { id: rachel } },
-      selected: true,
-    });
-    expect(rows.find((r) => r.text === "Ben Whitaker")?.selected).toBeUndefined();
-    const attention = JSON.stringify(expectView(ATTENTION_KEY, "board")(composeAttention(rt)));
-    expect(attention).toContain(
-      `"action":{"type":"select-person","payload":{"id":"${rachel}"}},"selected":true`,
-    );
+    const res = await act(SELECT_PERSON_ACTION, { id: rachel });
+    expect(recomposed).toEqual([[PERSON_KEY]]);
+    expect(res).toMatchObject({ data: { effect: "open-canvas", key: PERSON_KEY } });
   });
 
   test("a missing or unknown id is refused and opens nothing", async () => {
@@ -320,27 +306,6 @@ describe("person inspector", () => {
     expect(tracker.cohorts).toHaveLength(1);
     expect(tracker.baselineOf("anyone")).toEqual([]);
     expect(tracker.eventsFor("anyone")).toEqual([]);
-  });
-
-  test("the roles matrix offers an Open person form listing the people shown", async () => {
-    const { rt, read, act } = setup();
-    await act(PEOPLE_VIEW_ACTION, { view: "matrix" });
-    const view = expectView(PEOPLE_KEY, "board")(composePeople(rt));
-    const form = view.view === "board" ? view.sections.at(-1) : undefined;
-    if (form?.kind !== "actions") throw new Error("form expected");
-    const open = form.items[0];
-    expect(open).toMatchObject({
-      type: SELECT_PERSON_ACTION,
-      label: "Open person",
-      submitLabel: "Open",
-    });
-    const options = open?.fields?.[0]?.options ?? [];
-    expect(options).toHaveLength(32);
-    expect(options).toContainEqual({
-      value: idOf(read, "Rachel Kim"),
-      label: "Rachel Kim",
-      hint: "rachel.kim@pacrim-energy.example",
-    });
   });
 
   test("sign-in needed keeps the last read, says cached, and pauses the refresh", async () => {

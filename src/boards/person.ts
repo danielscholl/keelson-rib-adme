@@ -30,6 +30,7 @@ import { bindingOf } from "../plan/model.ts";
 import { shortId } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
+import { accessNote, reachOf } from "../seismic/reach.ts";
 import { sdmsGrant } from "../seismic/read.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
@@ -37,6 +38,7 @@ import { activityReason, day, daysAgo, type Measured, measuredAccess, passText }
 import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 import { annotateForm, factSection } from "./inspect.ts";
+import { measuredSeismic } from "./seismic.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
@@ -337,12 +339,14 @@ function groupSections(audit: GroupAudit): Leaf[] {
     kind: "rows",
     title: `Effective groups · ${audit.held.length}${computed}`,
     items: [
-      {
-        glyph: "neutral",
-        text: `${plain.length} groups the role explains`,
-        trailing: "show",
-        detail: plain.map((g) => shortGroup(g)).join("\n"),
-      },
+      plain.length > 0
+        ? {
+            glyph: "neutral",
+            text: `${plain.length} groups the role explains`,
+            trailing: "show",
+            detail: plain.map((g) => shortGroup(g)).join("\n"),
+          }
+        : { glyph: "neutral", text: "No other groups" },
     ],
   });
   return out;
@@ -456,6 +460,35 @@ function freshness(rt: Runtime, id: string): string | undefined {
   return rt.status.phase === "connected" ? `measured ${at}` : `cached from ${at}`;
 }
 
+// Listing subprojects is admin only, so a partner needs the paths they can open.
+function accessNoteCard(rt: Runtime, who: Identity): Leaf | undefined {
+  const model = measuredSeismic(rt)?.model;
+  const profile = rt.profile;
+  if (!model || !profile || who.kind !== "person") return undefined;
+  const reach = reachOf(model, who);
+  if (reach.length === 0) return undefined;
+  return {
+    kind: "cards",
+    title: `What ${who.name} can reach · ${reach.length} ${reach.length === 1 ? "path" : "paths"}`,
+    items: [
+      {
+        title: `Send to ${who.name}`,
+        prose: true,
+        fields: [
+          {
+            label: "Access note",
+            value: accessNote(reach, model.tenant, profile.host),
+            copyable: true,
+          },
+        ],
+        footnote: model.partial
+          ? "Some groups could not be read, so this list may be incomplete. Copy only; the rib does not send mail."
+          : "Copy only. The rib does not send mail.",
+      },
+    ],
+  };
+}
+
 export function composePerson(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   const read = rt.cache.get<AccessRead>(ACCESS_AREA).data;
@@ -545,6 +578,8 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   }
   if (audit) right.push(...groupSections(audit));
   right.push({ kind: "actions", wrap: true, items: groupActions(rt, who) });
+  const note = accessNoteCard(rt, who);
+  if (note) right.push(note);
   const past = history(rt, who, entry);
   if (past.length > 0) right.push({ kind: "rows", title: "History", items: past });
 

@@ -2,24 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
 import { z } from "zod";
 import { buildAccess, countAccess } from "../src/access/model";
-import { selectPerson } from "../src/access/person";
 import { ACCESS_AREA, readAccess } from "../src/access/read";
 import {
-  composeAccessPulse,
-  composeAttention,
   composeCohorts,
-  composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
   IMPORT_COHORTS_ACTION,
 } from "../src/boards/access";
-import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
-import { composePerson } from "../src/boards/person";
 import { Batch } from "../src/client";
-import { ATTENTION_KEY, COHORTS_KEY, PEOPLE_KEY, PRINCIPALS_KEY, PULSE_KEY } from "../src/keys";
+import { COHORTS_KEY } from "../src/keys";
 import { accessModule } from "../src/modules/access";
-import { planModule } from "../src/modules/plan";
-import { planState } from "../src/plan/state";
 import { Store } from "../src/store";
 import { csvCell, Tracker, trackerFile } from "../src/tracker";
 import {
@@ -97,145 +89,6 @@ function rt(phase?: "connected" | "signin" | "firstrun") {
   return seededRuntime({ [ACCESS_AREA]: sampleAccess() }, phase ? { phase } : {});
 }
 
-describe("access boards", () => {
-  test("the pulse counts decisions apart from invitations and draws unmeasured use as unmeasured", () => {
-    const view = expectView(PULSE_KEY, "board")(composeAccessPulse(rt()));
-    const text = JSON.stringify(view);
-    expect(text).toContain('"label":"2 to decide · 3 invited"');
-    expect(text).toContain("contoso-adme · opendes · measured 14:05Z");
-    expect(text).toContain('{"label":"In use: not measured","n":null}');
-    expect(text).toContain('{"label":"Active this week","value":null');
-    expect(text).toContain('{"label":"Accepted, not used","value":null');
-    expect(text).toContain("32 people from 12 organizations. 3 not accepted yet.");
-    expect(text).toContain("1 missing users@ · 1 duplicate entry");
-    expect(text).not.toContain("Next pass ends");
-  });
-
-  test("follow up lists who cannot use it, then invitations oldest first", () => {
-    const view = expectView(ATTENTION_KEY, "board")(composeAttention(rt()));
-    const titles = view.view === "board" ? view.sections.map((s) => s.title) : [];
-    expect(titles).toEqual([
-      "From invitation to data",
-      "Cannot use it · 2",
-      "Has not accepted the invitation · 3",
-      undefined,
-      "Checks that found nothing",
-    ]);
-    const text = JSON.stringify(view);
-    expect(text).toContain("Pacrim Energy · not in users@, every call returns 401");
-    expect(text).toContain("Northfield · invited 4 d ago");
-    expect(text).toContain("Who accepted but has not used it is not measured");
-    const invited = view.view === "board" ? view.sections[2] : undefined;
-    const names = invited?.kind === "rows" ? invited.items.map((i) => i.text) : [];
-    expect(names.at(-1)).toBe("Jonas Lindqvist");
-  });
-
-  test("the funnel narrows from entitlements to data, and needs the log past the role step", () => {
-    const view = expectView(ATTENTION_KEY, "board")(composeAttention(rt()));
-    const funnel = view.view === "board" ? view.sections[0] : undefined;
-    const steps = funnel?.kind === "rows" ? funnel.items : [];
-    expect(steps.map((r) => [r.text, r.trailing, r.detail])).toEqual([
-      ["Have entitlements", "32 of 32", undefined],
-      ["Accepted the invitation", "29 of 32", "3 not accepted yet"],
-      [
-        "In users@ with a data role",
-        "27 of 32",
-        "2 cannot use it: missing users@, no role or a duplicate entry",
-      ],
-      ["Made a data call", "? · needs the audit log", undefined],
-      ["Active this week", "? · needs the audit log", undefined],
-    ]);
-  });
-
-  test("the roster lists attention first and caps the healthy rows", () => {
-    const view = expectView(PEOPLE_KEY, "board")(composePeople(rt()));
-    const text = JSON.stringify(view);
-    expect(text).toContain("Needs attention · 5");
-    expect(text).toContain("Healthy · 27");
-    expect(text).toContain("… 2 more · all healthy");
-    expect(text).toContain("Ingrid Halvorsen (you)");
-  });
-
-  test("applications flag the root app as legacy", () => {
-    const view = expectView(PRINCIPALS_KEY, "board")(composePrincipals(rt()));
-    const text = JSON.stringify(view);
-    expect(text).toContain('"label":"1 legacy"');
-    for (const app of SAMPLE_APPS) expect(text).toContain(app.name);
-  });
-
-  test("before connecting the regions are hidden and the pulse is the connect journey", () => {
-    const first = seededRuntime({}, { phase: "firstrun" });
-    expect(composeAttention(first).sections).toEqual([]);
-    expect(composePeople(first).sections).toEqual([]);
-    expect(JSON.stringify(composeAccessPulse(first))).toContain("Step 2: pick the instance");
-    expect(accessModule.counts?.access?.(first)).toBe(0);
-  });
-
-  test("a lapsed sign-in keeps the last sweep and says cached", () => {
-    const text = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(rt("signin"))));
-    expect(text).toContain("sign-in needed");
-    expect(text).toContain("cached from 14:05Z");
-    expect(text).toContain('"label":"People","value":32');
-  });
-
-  test("the badge counts decisions: blocked, inconsistent and unnamed principals, not invitations", () => {
-    expect(accessModule.counts?.access?.(rt())).toBe(2);
-    const read = sampleAccess();
-    read.groups.editors.push({ id: "ffffffff-0000-4000-8000-000000000000", owner: false });
-    const withUnknown = seededRuntime({ [ACCESS_AREA]: read });
-    expect(accessModule.counts?.access?.(withUnknown)).toBe(3);
-    expect(JSON.stringify(composeAttention(withUnknown))).toContain("not found in Entra");
-    const key = `object:${SAMPLE_PROFILE.tenantId}:ffffffff-0000-4000-8000-000000000000`;
-    const now = new Date("2026-10-02T14:05:00Z");
-    withUnknown.annotations.set(key, { label: "Old loader", kind: "historical-actor" }, now);
-    expect(accessModule.counts?.access?.(withUnknown)).toBe(3);
-    expect(JSON.stringify(composeAttention(withUnknown))).toContain("Old loader");
-    withUnknown.annotations.set(key, { label: "Nightly sync", kind: "service" }, now);
-    expect(accessModule.counts?.access?.(withUnknown)).toBe(2);
-  });
-
-  test("a failed re-read keeps the last people and says the read failed", () => {
-    const runtime = rt();
-    runtime.cache.fail(ACCESS_AREA, "Graph names: Forbidden", new Date("2026-10-02T14:20:00Z"));
-    const text = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(runtime)));
-    expect(text).toContain("Last read failed at 14:20Z: Graph names: Forbidden");
-    expect(text).toContain('"label":"People","value":32');
-  });
-});
-
-describe("follow up actions", () => {
-  const rows = (runtime: ReturnType<typeof rt>) => {
-    const view = expectView(ATTENTION_KEY, "board")(composeAttention(runtime));
-    if (view.view !== "board") return [];
-    return view.sections.flatMap((s) => (s.kind === "rows" ? s.items : []));
-  };
-
-  test("rows change nothing: each one opens the person", () => {
-    for (const row of rows(rt()).filter((r) => r.action)) {
-      expect(row.action?.type).toBe("select-person");
-    }
-    const rachel = rows(rt()).find((r) => r.text === "Rachel Kim");
-    expect(rachel?.action?.payload).toEqual({ id: "00000000-0000-4000-8000-000000000011" });
-  });
-
-  test("the inspector offers no resend; the plan module still dry-runs one", async () => {
-    const runtime = rt();
-    selectPerson(runtime, "00000000-0000-4000-8000-000000000008");
-    const text = JSON.stringify(composePerson(runtime));
-    expect(text).not.toContain('"type":"preview-resend-invite"');
-    const binding = {
-      host: SAMPLE_PROFILE.host,
-      partition: SAMPLE_PROFILE.partition,
-      tenantId: SAMPLE_PROFILE.tenantId,
-    };
-    const payload = { ...binding, id: "00000000-0000-4000-8000-000000000008" };
-    const res = await planModule.actions?.["preview-resend-invite"]?.(runtime, payload);
-    await planState(runtime).pending;
-    expect(res).toMatchObject({ ok: true, data: { effect: "open-canvas" } });
-    expect(planState(runtime).plan?.kind).toBe("resend-invite");
-  });
-});
-
 describe("cohorts", () => {
   const NOW = new Date("2026-10-02T14:05:00Z");
   const tracked = () => {
@@ -267,12 +120,6 @@ describe("cohorts", () => {
     expect(text).toContain('"value":"27 d · 2026-10-29"');
     expect(text).toContain('"label":"Pass ends","value":"none"');
     expect(text).not.toContain("Untracked");
-    const pulse = JSON.stringify(expectView(PULSE_KEY, "board")(composeAccessPulse(runtime)));
-    expect(pulse).toContain('"label":"Next pass ends","value":"26 d","sub":"Pilot · 2026-10-28"');
-    expect(pulse).toContain("2 Permanent · 29 Pilot · 1 Vendor");
-    const roster = JSON.stringify(expectView(PEOPLE_KEY, "board")(composePeople(runtime)));
-    expect(roster).toContain("Pilot · 24");
-    expect(roster).toContain("Permanent · 2");
   });
 
   test("a bad line refuses the whole import and names the line", () => {
@@ -324,9 +171,6 @@ describe("cohorts", () => {
     const runtime = rt();
     runtime.tracker = tracker;
     expect(JSON.stringify(composeCohorts(runtime))).toContain("could not be read");
-    expect(JSON.stringify(composeAccessPulse(runtime))).toContain(
-      '{"label":"Next pass ends","value":null,"sub":"the tracker could not be read"}',
-    );
   });
 
   test("cohorts are kept per instance and survive a restart", () => {
@@ -367,8 +211,6 @@ describe("cohorts", () => {
   test("a pass that has ended is an error, not a negative count", () => {
     const runtime = rt();
     runtime.tracker.importCsv("lena.fischer@rheinseis.example,Pilot,2026-09-30", NOW);
-    const pulse = JSON.stringify(composeAccessPulse(runtime));
-    expect(pulse).toContain('"label":"Next pass ends","value":"ended"');
     expect(JSON.stringify(composeCohorts(runtime))).toContain("ended 2 d ago · 2026-09-30");
   });
 
@@ -526,124 +368,5 @@ describe("access read", () => {
       failure: { message: expect.stringContaining("Re-test") },
     });
     expect(sent).toEqual([]);
-  });
-});
-
-describe("people views", () => {
-  const people = expectView(PEOPLE_KEY, "board");
-  const act = (runtime: ReturnType<typeof rt>, type: string, payload: unknown) =>
-    accessModule.actions?.[type]?.(runtime, payload);
-
-  test("the roster shows a group count only where it differs from the role", () => {
-    const text = JSON.stringify(people(composePeople(rt())));
-    expect(text).toContain("rachel.kim@pacrim-energy.example · 32 of 33");
-    expect(text).toContain('"trailing":"ingrid.halvorsen@contoso.example · member"');
-  });
-
-  test("the roles matrix chunks rows, flags gaps and duplicates, and says what it shows", async () => {
-    const runtime = rt();
-    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "matrix" })).toMatchObject({ ok: true });
-    const view = people(composePeople(runtime));
-    if (view.view !== "board") throw new Error("board expected");
-    const tables = view.sections.filter((s) => s.kind === "table");
-    expect(tables.map((t) => t.title)).toEqual(["Needs attention · 5", "Healthy · 1 to 15 of 27"]);
-    const attention = tables[0]?.kind === "table" ? tables[0].rows : [];
-    const rachel = attention.find((r) => r.person === "Rachel Kim");
-    expect(rachel).toMatchObject({
-      users: { value: "✕ missing", tone: "error" },
-      groups: { value: "32/33", tone: "warn" },
-      editors: { badges: [{ text: "M" }] },
-    });
-    const dmitri = attention.find((r) => r.person === "Dmitri Volkov");
-    expect(JSON.stringify(dmitri?.editors)).toContain("duplicate");
-    expect(tables.at(-1)?.caption).toBe(
-      "Showing 20 of 32 · filter: all. M is member, O is owner. Filter by organization or cohort to list everyone.",
-    );
-    // Pass has no value until a cohort is tracked, so its column stays hidden.
-    const keys = tables[0]?.kind === "table" ? tables[0].columns.map((c) => c.key) : [];
-    expect(keys).toContain("roster");
-    expect(keys).not.toContain("pass");
-  });
-
-  test("a cohort filter lists everyone in it, 15 rows per table", async () => {
-    const runtime = rt();
-    runtime.tracker.importCsv(sampleCohortCsv(), new Date("2026-10-02T14:05:00Z"));
-    await act(runtime, PEOPLE_VIEW_ACTION, { view: "matrix" });
-    expect(await act(runtime, PEOPLE_FILTER_ACTION, { filter: "cohort:Pilot" })).toMatchObject({
-      ok: true,
-    });
-    const view = people(composePeople(runtime));
-    const titles = view.view === "board" ? view.sections.map((s) => s.title).filter(Boolean) : [];
-    expect(titles).toEqual([
-      "Needs attention · 5",
-      "Pilot · 1 to 15 of 24",
-      "Pilot · 16 to 24 of 24",
-    ]);
-    expect(JSON.stringify(view)).toContain('"chip":"29 of 32 · Pilot"');
-    const table = view.view === "board" ? view.sections.find((s) => s.kind === "table") : undefined;
-    expect(table?.kind === "table" && table.columns.some((c) => c.key === "pass")).toBe(true);
-  });
-
-  test("gaps, pending and applications filter the roster", async () => {
-    const runtime = rt();
-    await act(runtime, PEOPLE_FILTER_ACTION, { filter: "gaps" });
-    let text = JSON.stringify(people(composePeople(runtime)));
-    expect(text).toContain("Needs attention · 2");
-    await act(runtime, PEOPLE_FILTER_ACTION, { filter: "apps" });
-    text = JSON.stringify(people(composePeople(runtime)));
-    expect(text).toContain("Applications · 4");
-    expect(text).toContain('"chip":"4 of 4 · applications"');
-  });
-
-  test("an unknown view or filter is refused", async () => {
-    const runtime = rt();
-    expect(await act(runtime, PEOPLE_VIEW_ACTION, { view: "bogus" })).toMatchObject({ ok: false });
-    expect(await act(runtime, PEOPLE_FILTER_ACTION, { filter: "cohort:Nope" })).toMatchObject({
-      ok: false,
-    });
-  });
-});
-
-describe("drift checks", () => {
-  test("a clean sample reports roster drift and deleted users as checks that found nothing", () => {
-    const text = JSON.stringify(composeAttention(rt()));
-    expect(text).toContain("Roster drift (Entra roster vs entitlements)");
-    expect(text).toContain("Deleted in Entra, still in entitlements");
-  });
-
-  test("roster drift names both sides", () => {
-    const read = sampleAccess();
-    const lena = Object.entries(read.directory).find(([, e]) => e.name === "Lena Fischer")?.[0];
-    read.roster = [
-      ...(read.roster ?? []).filter((m) => m.id !== lena),
-      {
-        id: "eeeeeeee-0000-4000-8000-000000000001",
-        name: "Former Pilot",
-        mail: "former@x.example",
-      },
-    ];
-    const runtime = seededRuntime({ [ACCESS_AREA]: read });
-    const text = JSON.stringify(composeAttention(runtime));
-    expect(text).toContain("Roster drift · 2");
-    expect(text).toContain("has entitlements, not in the roster group");
-    expect(text).toContain("former@x.example · in the roster group, no entitlements");
-    expect(countAccess(buildAccess(read)).rosterDrift).toBe(2);
-  });
-
-  test("a listed id Entra holds as deleted is named as deleted, not unknown", () => {
-    const read = sampleAccess();
-    const gone = "dddddddd-0000-4000-8000-000000000001";
-    read.groups.editors.push({ id: gone, owner: false });
-    read.deleted = [gone];
-    const text = JSON.stringify(composeAttention(seededRuntime({ [ACCESS_AREA]: read })));
-    expect(text).toContain("Deleted in Entra, still in entitlements · 1");
-    expect(text).not.toContain("Unknown principals ·");
-  });
-
-  test("without a roster read the drift check is not claimed", () => {
-    const read = sampleAccess();
-    delete read.roster;
-    const text = JSON.stringify(composeAttention(seededRuntime({ [ACCESS_AREA]: read })));
-    expect(text).not.toContain("Roster drift");
   });
 });

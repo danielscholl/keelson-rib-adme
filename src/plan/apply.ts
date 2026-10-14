@@ -10,16 +10,7 @@ import type { OpHandle } from "@keelson/shared";
 import { z } from "zod";
 import { measuredAccess } from "../boards/access.ts";
 import type { Batch, CallResult } from "../client.ts";
-import {
-  ATTENTION_KEY,
-  COHORTS_KEY,
-  OPERATION_KEY,
-  PEOPLE_KEY,
-  PERSON_KEY,
-  PLAN_KEY,
-  PULSE_KEY,
-  RECENT_KEY,
-} from "../keys.ts";
+import { COHORTS_KEY, OPERATION_KEY, PERSON_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
 import { measureSeismic } from "../modules/seismic.ts";
 import { shortId } from "../profile.ts";
 import type { Runtime } from "../runtime.ts";
@@ -61,7 +52,7 @@ export interface Operation {
 }
 
 const OP_FILE = "operation.json";
-const ACCESS_KEYS = [PULSE_KEY, ATTENTION_KEY, PEOPLE_KEY, COHORTS_KEY, PERSON_KEY];
+const ACCESS_KEYS = [COHORTS_KEY, PERSON_KEY];
 // An account created this long before Apply started is not one this plan invited.
 const NEW_ACCOUNT_SLACK_MS = 5 * 60_000;
 

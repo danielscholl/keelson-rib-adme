@@ -20,10 +20,13 @@ export { esc };
 export const CONSOLE_MAX_BYTES = 256_000;
 
 export const CONNECTION_ID = "connection";
+export const COHORTS_ID = "cohorts";
 
 export interface ConsoleParts {
   brief: Brief;
   people: PersonRow[];
+  // Tracked cohorts; the People tab links to them, or to importing the first.
+  cohorts?: number;
   // Later tabs, each already laid out; a tab with no body is left out.
   tabs?: { id: string; label: string; html: string }[];
 }
@@ -119,7 +122,7 @@ ${r.groups ? `<p class="scope">${esc(r.groups)} · group detail in the inspector
 </section>`;
 }
 
-function peopleHtml(rows: readonly PersonRow[]): string {
+function peopleHtml(rows: readonly PersonRow[], cohorts: number): string {
   const first = rows[0]?.id;
   const count = (f: (typeof FACETS)[number]) => rows.filter(f.test).length;
   const facets = FACETS.filter((f) => f.id === "all" || count(f) > 0)
@@ -134,6 +137,7 @@ function peopleHtml(rows: readonly PersonRow[]): string {
 <div class="facets">${facets}</div>
 <div class="plist">${rows.map((r, n) => personRow(r, r.id === first, n < PANE_LIMIT)).join("")}</div>
 <p class="count" data-count data-total="${rows.length}">${rows.length} of ${rows.length} identities</p>
+<p class="links"><button type="button" class="link" data-inspect="${COHORTS_ID}">${cohorts > 0 ? `Cohorts · ${cohorts} tracked ▸` : "Import cohorts ▸"}</button></p>
 </div>
 <div class="pane">${rows
     .slice(0, PANE_LIMIT)
@@ -174,7 +178,7 @@ export function consoleHtml(parts: ConsoleParts): string {
   const views = measured
     ? `<div class="tabs" role="tablist">${tab("overview", "Overview", true)}${tab("people", "People", false)}${extra.map((t) => tab(t.id, t.label, false)).join("")}${stamp}</div>
 <div data-view-pane="overview">${overviewHtml(b)}</div>
-<div data-view-pane="people" hidden>${peopleHtml(parts.people)}</div>
+<div data-view-pane="people" hidden>${peopleHtml(parts.people, parts.cohorts ?? 0)}</div>
 ${extra.map((t) => `<div data-view-pane="${esc(t.id)}" hidden>${t.html}</div>`).join("\n")}`
     : `${stamp ? `<div class="tabs">${stamp}</div>` : ""}<h2>${esc(b.headline)}</h2>${b.summary ? `<p class="summary">${esc(b.summary)}</p>` : ""}`;
   return `<style>${designTokenCssBlock()}${STYLE}${SEISMIC_STYLE}${DATA_STYLE}</style>

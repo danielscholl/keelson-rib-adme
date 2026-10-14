@@ -7,19 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallFailure, CallResult } from "../client.ts";
-import {
-  ATTENTION_KEY,
-  COHORTS_KEY,
-  MAP_KEY,
-  PEOPLE_KEY,
-  PRINCIPALS_KEY,
-  PULSE_KEY,
-  SEIS_CHANGE_KEY,
-  SEIS_PULSE_KEY,
-  SEIS_REACH_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_SUBPROJECTS_KEY,
-} from "../keys.ts";
+import { COHORTS_KEY, MAP_KEY, PERSON_KEY } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const ACCESS_AREA = "access";
@@ -278,20 +266,8 @@ export async function readAccess(batch: Batch): Promise<CallResult<AccessRead>> 
 export const ACCESS_AREAS: readonly Area[] = [
   {
     name: ACCESS_AREA,
-    // Seismic boards and the map's People lens name members through this directory.
-    keys: [
-      MAP_KEY,
-      PULSE_KEY,
-      ATTENTION_KEY,
-      PEOPLE_KEY,
-      COHORTS_KEY,
-      PRINCIPALS_KEY,
-      SEIS_PULSE_KEY,
-      SEIS_SUBPROJECTS_KEY,
-      SEIS_SELECTED_KEY,
-      SEIS_CHANGE_KEY,
-      SEIS_REACH_KEY,
-    ],
+    // The map's People lens names members through this directory.
+    keys: [MAP_KEY, PERSON_KEY, COHORTS_KEY],
     read: readAccess,
   },
 ];

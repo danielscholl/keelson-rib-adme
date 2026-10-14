@@ -22,7 +22,7 @@ import {
   MAP_LENS_ACTION,
   MAP_SELECT_ACTION,
 } from "../boards/map.ts";
-import { LEGAL_AREA, type LegalTags } from "../data/areas.ts";
+import { DATA_AREAS, LEGAL_AREA, type LegalTags } from "../data/areas.ts";
 import { isGroupBy, setGroupBy } from "../data/inventory.ts";
 import { tagUsage } from "../data/legal.ts";
 import {
@@ -43,7 +43,7 @@ import {
 } from "../data/map.ts";
 import { reachOf, readDirect, readReachCount, setKey } from "../data/reach.ts";
 import { buildQuery } from "../data/records.ts";
-import { DATA_PULSE_KEY, MAP_KEY } from "../keys.ts";
+import { MAP_KEY } from "../keys.ts";
 import type { RegionModule } from "../region.ts";
 import type { Runtime } from "../runtime.ts";
 import { loadSearch, openRecords } from "./records.ts";
@@ -163,7 +163,7 @@ const browseQuery = (lens: Exclude<Lens, "people">, key: string) =>
       : buildQuery("acl", { group: key });
 
 export const mapModule: RegionModule = {
-  areas: [{ name: FACETS_AREA, keys: [MAP_KEY, DATA_PULSE_KEY], read: readFacets }],
+  areas: [...DATA_AREAS, { name: FACETS_AREA, keys: [MAP_KEY], read: readFacets }],
   composers: { [MAP_KEY]: composeMap },
   actions: {
     [MAP_LENS_ACTION]: async (rt, payload) => {

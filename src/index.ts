@@ -18,20 +18,10 @@ import {
 } from "@keelson/shared";
 import { expectHtml } from "./boards/console.ts";
 import { DOCS } from "./docs.ts";
-import {
-  BOARD_KEYS,
-  CONSOLE_KEY,
-  DATA_PULSE_KEY,
-  HEADER_KEY,
-  INSPECT_KEY,
-  PULSE_KEY,
-  RIB_ID,
-  SEIS_PULSE_KEY,
-} from "./keys.ts";
+import { BOARD_KEYS, CONSOLE_KEY, INSPECT_KEY, RIB_ID } from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { composeConsole, consoleModule } from "./modules/console.ts";
-import { dataPulseModule } from "./modules/data.ts";
 import { explainModule } from "./modules/explain.ts";
 import { headerModule } from "./modules/header.ts";
 import { mapModule } from "./modules/map.ts";
@@ -49,16 +39,14 @@ import {
   sampleStore,
   sampleTransport,
 } from "./sample/index.ts";
-import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
-import { INSPECT_ACTION, SURFACES, sectionOf } from "./surfaces.ts";
+import { INSPECT_ACTION, SURFACES } from "./surfaces.ts";
 import { admeTools } from "./tools.ts";
 
 // Later modules override earlier ones for the same key.
 const MODULES: readonly RegionModule[] = [
   connectionModule,
   accessModule,
-  dataPulseModule,
   recordsModule,
   mapModule,
   recordModule,
@@ -76,13 +64,9 @@ let runtime: Runtime | undefined;
 let unregisters: Array<() => void> = [];
 let ticker: ReturnType<typeof setInterval> | undefined;
 
-// The header draws from the section pulses.
-const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY]);
-
 // The console and its inspector read every area, so they follow any recompose.
 function recompose(keys: readonly string[]): void {
   const all = new Set(keys);
-  if (keys.some((k) => HEADER_SOURCES.has(k))) all.add(HEADER_KEY);
   if (all.size > 0) {
     all.add(CONSOLE_KEY);
     all.add(INSPECT_KEY);
@@ -132,11 +116,8 @@ function bind(ctx: RibContext): void {
   const byKey = boardComposers();
   for (const key of BOARD_KEYS) {
     const compose = byKey.get(key);
-    const section = sectionOf(key);
-    // A region outside the showing section publishes nothing, so hideWhenEmpty hides it.
-    const shown = (r: Runtime) => section === undefined || activeSection(r) === section;
     unregisters.push(
-      sm.register(key, async () => (compose && shown(rt) ? compose(rt) : EMPTY_BOARD), {
+      sm.register(key, async () => (compose ? compose(rt) : EMPTY_BOARD), {
         validate: expectView(key, "board"),
       }),
     );

@@ -8,23 +8,11 @@
 
 import { type DirectoryEntry, readDirectory } from "../access/read.ts";
 import type { Batch, CallFailure, CallResult } from "../client.ts";
-import {
-  SEIS_CHANGE_KEY,
-  SEIS_PULSE_KEY,
-  SEIS_REACH_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_SUBPROJECTS_KEY,
-} from "../keys.ts";
+import { INSPECT_KEY } from "../keys.ts";
 
 export const SEISMIC_AREA = "seismic";
 export const SEISMIC_EVERY_MS = 30 * 60_000;
-export const SEISMIC_KEYS = [
-  SEIS_PULSE_KEY,
-  SEIS_SUBPROJECTS_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_CHANGE_KEY,
-  SEIS_REACH_KEY,
-] as const;
+export const SEISMIC_KEYS = [INSPECT_KEY] as const;
 
 export interface Subproject {
   name: string;

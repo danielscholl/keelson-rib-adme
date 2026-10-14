@@ -14,9 +14,6 @@ export interface Org {
   name: string;
 }
 
-// The People filter for one organization: "org:<domain>".
-export const ORG_FILTER = "org:";
-
 export const NO_ORG: Org = { domain: "", name: "No email" };
 
 // "alumni.northwind.ac.uk" is northwind.ac.uk: a two-letter country code under a
@@ -45,22 +42,4 @@ export function orgOf(p: Pick<Identity, "email">): Org {
   if (!host) return NO_ORG;
   const domain = registrableDomain(host);
   return { domain, name: orgName(domain) || domain };
-}
-
-export interface OrgGroup {
-  org: Org;
-  people: Identity[];
-}
-
-export function groupByOrg(people: readonly Identity[]): OrgGroup[] {
-  const groups = new Map<string, OrgGroup>();
-  for (const p of people) {
-    const org = orgOf(p);
-    const g = groups.get(org.domain) ?? { org, people: [] };
-    g.people.push(p);
-    groups.set(org.domain, g);
-  }
-  return [...groups.values()].sort(
-    (a, b) => b.people.length - a.people.length || a.org.name.localeCompare(b.org.name),
-  );
 }

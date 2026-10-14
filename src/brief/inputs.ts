@@ -9,9 +9,10 @@
 import { ACTIVITY_AREA } from "../access/activity.ts";
 import { measuredAccess } from "../access/measured.ts";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
+import { healthChip } from "../boards/health.ts";
 import { operatorRole } from "../connection.ts";
 import { KINDS_AREA, type KindCounts, LEGAL_AREA, type LegalTags } from "../data/areas.ts";
-import { HEALTH_AREA, type Health } from "../data/health.ts";
+import { HEALTH_AREA, type Health, verdict } from "../data/health.ts";
 import { FACETS, FACETS_AREA, type Facets } from "../data/map.ts";
 import { directoryOf, labelOf } from "../directory/build.ts";
 import { instanceName } from "../profile.ts";
@@ -148,6 +149,8 @@ export function briefInputs(rt: Runtime): BriefInputs {
   const signedIn = rt.status.test?.signedInAs;
   const you = access?.model.people.find((p) => p.you);
   const role = operatorRole(rt.status.test);
+  const health = rt.cache.get<Health>(HEALTH_AREA).data;
+  const chip = healthChip(verdict(health));
   return {
     now: rt.now(),
     phase: rt.status.phase,
@@ -163,6 +166,7 @@ export function briefInputs(rt: Runtime): BriefInputs {
     ...(legal ? { legal } : {}),
     ...(facets ? { tagCounts: facets.tags } : {}),
     ...(kinds ? { kinds } : {}),
+    ...(health ? { health: { text: chip.label, tone: chip.tone } } : {}),
     signals: signalsOf(rt),
   };
 }

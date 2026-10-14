@@ -79,11 +79,3 @@ export function limitText(ms: number): string {
 export function daysText(days: number): string {
   return days <= 0 ? "today" : days === 1 ? "1 d ago" : `${days} d ago`;
 }
-
-export function possessive(name: string): string {
-  return name.endsWith("s") ? `${name}'` : `${name}'s`;
-}
-
-export function capitalize(s: string): string {
-  return s ? `${s[0]?.toUpperCase()}${s.slice(1)}` : s;
-}

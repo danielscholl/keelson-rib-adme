@@ -102,6 +102,8 @@ export interface BriefInputs {
   // Records per legal tag from search; null when search refused the count.
   tagCounts?: Bucket[] | null;
   kinds?: KindCounts;
+  // The instance's health in a few words, when something is not answering.
+  health?: { text: string; tone: "ok" | "caution" | "error" | "neutral" };
   signals: ReadSignal[];
 }
 
@@ -817,6 +819,9 @@ function stampOf(i: BriefInputs): Brief["stamp"] {
     .map((s) => stampText(s.at, i.now))
     .find(Boolean);
   const notes: StampNote[] = [];
+  if (i.health && (i.health.tone === "caution" || i.health.tone === "error")) {
+    notes.push({ text: i.health.text, inspect: "connection" });
+  }
   for (const s of i.signals) {
     const t = readTrouble(s);
     if (!t) continue;
@@ -836,7 +841,9 @@ function stampOf(i: BriefInputs): Brief["stamp"] {
 export function buildBrief(i: BriefInputs): Brief {
   const reads = i.signals;
   const base = {
-    ...(i.instance ? { instance: `${i.instance.name} · ${i.instance.partition}` } : {}),
+    ...(i.instance
+      ? { instance: `${i.sample ? "Sample " : ""}${i.instance.name} · ${i.instance.partition}` }
+      : {}),
     ...(i.operator
       ? { operator: [i.operator.name, i.operator.role].filter(Boolean).join(" · ") }
       : {}),
