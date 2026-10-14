@@ -28,6 +28,7 @@ import { bindingOf } from "../plan/model.ts";
 import { shortId } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
+import { sdmsGrant } from "../seismic/read.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
@@ -113,6 +114,7 @@ function groupsCheck(who: Identity, audit: GroupAudit | undefined): Check {
   const notes = [
     `${audit.held.length} of ${audit.expected.length} expected for ${who.role ?? "no role"}`,
     ...(audit.extras.length > 0 ? [`${audit.extras.length} extra`] : []),
+    ...(audit.seismic.length > 0 ? [`${audit.seismic.length} seismic`] : []),
     ...(audit.baseline.length > 0 ? [`${audit.baseline.length} baseline`] : []),
   ];
   const ok = audit.gaps.length === 0 && audit.extras.length === 0;
@@ -284,7 +286,7 @@ const PLAIN_RANK = (g: string) => (g.startsWith("users@") ? 0 : g.startsWith("us
 
 // Gaps and extras as full-width rows, so a long group name is never cut short.
 function groupSections(audit: GroupAudit): Leaf[] {
-  const flagged = new Set([...audit.gaps, ...audit.extras, ...audit.baseline]);
+  const flagged = new Set([...audit.gaps, ...audit.extras, ...audit.baseline, ...audit.seismic]);
   const plain = audit.held
     .filter((g) => !flagged.has(g))
     .sort((a, b) => PLAIN_RANK(a) - PLAIN_RANK(b) || a.localeCompare(b));
@@ -303,6 +305,22 @@ function groupSections(audit: GroupAudit): Leaf[] {
     })),
   ];
   if (odd.length > 0) out.push({ kind: "rows", title: "Beyond or short of the role", items: odd });
+  if (audit.seismic.length > 0) {
+    out.push({
+      kind: "rows",
+      title: "Named seismic reach",
+      items: audit.seismic.map((g) => {
+        const grant = sdmsGrant(g);
+        return {
+          chip: { label: "seismic", tone: "neutral" as const },
+          text: grant
+            ? `${grant.role === "admin" ? "Admin" : "Viewer"} on ${grant.subproject}`
+            : shortGroup(g),
+          trailing: shortGroup(g),
+        };
+      }),
+    });
+  }
   const cells: Cell[] = [
     ...audit.baseline.map((g) => ({
       label: shortGroup(g),

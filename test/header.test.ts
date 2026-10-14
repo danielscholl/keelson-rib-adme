@@ -23,11 +23,11 @@ function switcher(view: CanvasBoardView): Extract<Section, { kind: "actions" }> 
 }
 
 describe("ADME header", () => {
-  test("the switcher lists the three sections with Access selected and its follow-up count", () => {
+  test("the switcher lists the three sections with Access selected and its decision count", () => {
     const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() });
     const items = switcher(header(rt)).items;
     expect(items.map((i) => [i.label, i.selected])).toEqual([
-      ["Access · 5", true],
+      ["Access · 2", true],
       ["Data", false],
       ["Seismic", false],
     ]);

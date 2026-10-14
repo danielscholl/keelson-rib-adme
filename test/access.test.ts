@@ -98,10 +98,10 @@ function rt(phase?: "connected" | "signin" | "firstrun") {
 }
 
 describe("access boards", () => {
-  test("the pulse says 5 to follow up and draws unmeasured use as unmeasured, not 0", () => {
+  test("the pulse counts decisions apart from invitations and draws unmeasured use as unmeasured", () => {
     const view = expectView(PULSE_KEY, "board")(composeAccessPulse(rt()));
     const text = JSON.stringify(view);
-    expect(text).toContain('"label":"5 to follow up"');
+    expect(text).toContain('"label":"2 to decide · 3 invited"');
     expect(text).toContain("contoso-adme · opendes · measured 14:05Z");
     expect(text).toContain('{"label":"In use: not measured","n":null}');
     expect(text).toContain('{"label":"Active this week","value":null');
@@ -178,13 +178,20 @@ describe("access boards", () => {
     expect(text).toContain('"label":"People","value":32');
   });
 
-  test("the badge counts pending, broken and unknown principals", () => {
-    expect(accessModule.counts?.access?.(rt())).toBe(5);
+  test("the badge counts decisions: blocked, inconsistent and unnamed principals, not invitations", () => {
+    expect(accessModule.counts?.access?.(rt())).toBe(2);
     const read = sampleAccess();
     read.groups.editors.push({ id: "ffffffff-0000-4000-8000-000000000000", owner: false });
     const withUnknown = seededRuntime({ [ACCESS_AREA]: read });
-    expect(accessModule.counts?.access?.(withUnknown)).toBe(6);
+    expect(accessModule.counts?.access?.(withUnknown)).toBe(3);
     expect(JSON.stringify(composeAttention(withUnknown))).toContain("not found in Entra");
+    const key = `object:${SAMPLE_PROFILE.tenantId}:ffffffff-0000-4000-8000-000000000000`;
+    const now = new Date("2026-10-02T14:05:00Z");
+    withUnknown.annotations.set(key, { label: "Old loader", kind: "historical-actor" }, now);
+    expect(accessModule.counts?.access?.(withUnknown)).toBe(3);
+    expect(JSON.stringify(composeAttention(withUnknown))).toContain("Old loader");
+    withUnknown.annotations.set(key, { label: "Nightly sync", kind: "service" }, now);
+    expect(accessModule.counts?.access?.(withUnknown)).toBe(2);
   });
 
   test("a failed re-read keeps the last people and says the read failed", () => {

@@ -21,6 +21,7 @@ import {
   type TestResult,
   testResultSchema,
 } from "./connection.ts";
+import { Annotations, annotationsFile } from "./directory/annotations.ts";
 import { type Discovery, discoverInstances, findAuditWorkspace } from "./discover.ts";
 import { type Profile, profileSchema } from "./profile.ts";
 import type { Store } from "./store.ts";
@@ -36,7 +37,7 @@ export const TICK_MS = 5 * 60_000;
 export interface Area<T = unknown> {
   name: string;
   keys: readonly string[];
-  read(batch: Batch): Promise<CallResult<T>>;
+  read(batch: Batch, rt: Runtime): Promise<CallResult<T>>;
   everyMs?: number;
 }
 
@@ -58,6 +59,7 @@ export interface RuntimeOptions {
 export class Runtime {
   readonly cache: SweepCache;
   tracker: Tracker;
+  annotations: Annotations;
   status: ConnectionStatus = { phase: "firstrun" };
   discovery: Discovery = { state: "idle" };
   private readonly areas: Area[] = [];
@@ -72,6 +74,7 @@ export class Runtime {
     this.sample = opts.sample ?? false;
     this.cache = new SweepCache(opts.store);
     this.tracker = new Tracker(opts.store, trackerFile(undefined));
+    this.annotations = new Annotations(opts.store, annotationsFile(undefined));
     const profile = opts.store.read("profile.json", profileSchema);
     const test = opts.store.read("test.json", testResultSchema);
     if (profile) this.useProfile(profile, test);
@@ -283,7 +286,7 @@ export class Runtime {
   }
 
   private async readAreas(batch: Batch, areas: readonly Area[]): Promise<void> {
-    const results = await Promise.all(areas.map((a) => a.read(batch)));
+    const results = await Promise.all(areas.map((a) => a.read(batch, this)));
     const at = this.now();
     const keys = new Set<string>();
     let signin: string | undefined;
@@ -319,6 +322,7 @@ export class Runtime {
   private useProfile(profile: Profile, test: TestResult | undefined): void {
     this.client = this.clientFor(profile);
     this.tracker = new Tracker(this.opts.store, trackerFile(profile));
+    this.annotations = new Annotations(this.opts.store, annotationsFile(profile));
     this.status = test
       ? { phase: "connected", profile, test }
       : { phase: "profile-error", profile, error: "Test connection has not run yet." };

@@ -174,7 +174,7 @@ describe("boards with the audit log read", () => {
       { label: "Idle", n: 1, tone: "caution" },
       { label: "Active", n: 3, tone: "ok" },
     ]);
-    expect(view.header?.status).toEqual({ label: "29 to follow up", tone: "caution" });
+    expect(view.header?.status).toEqual({ label: "2 to decide · 3 invited", tone: "caution" });
     const text = JSON.stringify(view);
     expect(text).toContain(
       "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted with no data call since 2026-09-20. 2 people cannot use it.",
@@ -238,10 +238,12 @@ describe("boards with the audit log read", () => {
     expect(JSON.stringify(composePeople(runtime))).toContain("Ingrid Halvorsen");
   });
 
-  test("the tab badge counts the same people as the follow up pill", () => {
+  test("the tab badge counts the same decisions as the pill, never people with no call", () => {
     const runtime = rt();
-    expect(accessModule.counts?.access?.(runtime)).toBe(29);
-    expect(JSON.stringify(composeAccessPulse(runtime))).toContain('"label":"29 to follow up"');
+    expect(accessModule.counts?.access?.(runtime)).toBe(2);
+    expect(JSON.stringify(composeAccessPulse(runtime))).toContain(
+      '"label":"2 to decide · 3 invited"',
+    );
   });
 
   test("ages past a year read in years", () => {

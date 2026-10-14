@@ -131,7 +131,7 @@ describe("sample mode", () => {
       "Sample instance contoso-adme · opendes as ingrid.halvorsen@contoso.example · Ops",
     );
     expect(text(PULSE_KEY)).toContain(
-      "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted with no data call since 2026-09-20. 2 people cannot use it.",
+      "31 people from 12 organizations. 3 used it this week; 3 not accepted yet and 24 accepted with no data call since 2026-09-20. 2 people cannot use it.",
     );
 
     await rib.onAction?.({ type: SECTION_ACTION, payload: { section: "data" } }, ctx);
@@ -142,7 +142,7 @@ describe("sample mode", () => {
     await rib.onAction?.({ type: "seis-read", payload: {} }, ctx);
     await until(() => text(SEIS_PULSE_KEY).includes("hold a grant"));
     expect(text(SEIS_PULSE_KEY)).toContain(
-      "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members.",
+      "13 subprojects; at least 9 of 31 people hold a grant; 2 rely on the default ACL and 1 has no members.",
     );
 
     const rachel = person("Rachel Kim");
@@ -162,6 +162,33 @@ describe("sample mode", () => {
     );
     await until(() => text(EXPLAIN_KEY).includes("Rachel Kim"));
     expect(text(EXPLAIN_KEY)).toContain("401: not a member of users@");
+  });
+
+  test("the brief has a case for every decision class", async () => {
+    const { ctx } = fakeContext();
+    const tools = rib.registerTools?.(ctx) ?? [];
+    const tool = tools.find((t) => t.name === "adme_brief");
+    let brief: { headline: string; items: { cls: string; title: string }[] } | undefined;
+    const run = () =>
+      tool?.execute({}, {
+        emit: (e: { content?: string }) => {
+          brief = JSON.parse(e.content ?? "{}");
+        },
+      } as never);
+    await until(() => {
+      run();
+      return (brief?.items ?? []).some((i) => i.cls === "GRANT");
+    });
+    expect(brief?.headline).toBe("Rachel Kim cannot use the instance as configured.");
+    expect(brief?.items.map((i) => [i.cls, i.title])).toEqual([
+      ["BLOCKED", "Rachel Kim cannot use the instance"],
+      ["INCONSISTENT", "Dmitri Volkov is listed twice in the Editor group"],
+      ["IDENTITY", "An id holding Viewer has no name"],
+      ["IDENTITY", "Reference data loader still holds Ops"],
+      ["GRANT", "Kari Solberg keeps a delta grant without instance access"],
+      ["LEGAL", "opendes-pilot-trial expires in 22 days"],
+      ["READ", "Seismic members were not all read"],
+    ]);
   });
 
   test("keeps its own store beside the real one", async () => {

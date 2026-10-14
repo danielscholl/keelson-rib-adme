@@ -20,7 +20,8 @@ import { routeTransport, seededRuntime } from "./harness";
 
 const D = "@opendes.dataservices.energy";
 const GOLF = `data.sdms.opendes.golf.0f1e2d3c4b5a.viewer${D}`;
-const ECHO = `data.sdms.opendes.echo.6a7b8c9d0e1f.admin${D}`;
+const PILOT = `data.pilot.viewers${D}`;
+const VENDOR = `data.vendor.owners${D}`;
 const person = expectView(PERSON_KEY, "board");
 
 function idOf(read: AccessRead, name: string): string {
@@ -217,7 +218,7 @@ describe("person inspector", () => {
     const store = new Store(undefined);
     const read = sampleAccess();
     const lena = idOf(read, "Lena Fischer");
-    const { rt, act } = setup({ extra: { [lena]: [GOLF] }, store });
+    const { rt, act } = setup({ extra: { [lena]: [PILOT] }, store });
     await act(SELECT_PERSON_ACTION, { id: lena });
 
     let view = board(composePerson(rt));
@@ -226,7 +227,7 @@ describe("person inspector", () => {
     if (odd?.kind !== "rows") throw new Error("rows expected");
     expect(odd.items[0]).toEqual({
       chip: { label: "extra", tone: "info" },
-      text: "sdms.golf.viewer",
+      text: "data.pilot.viewers",
       trailing: "held beyond the role",
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 extra");
@@ -236,7 +237,7 @@ describe("person inspector", () => {
       data: { message: "Lena Fischer: 1 group in the baseline" },
     });
     rt.tracker = new Tracker(store, trackerFile(SAMPLE_PROFILE));
-    expect(rt.tracker.baselineOf(lena)).toEqual([GOLF]);
+    expect(rt.tracker.baselineOf(lena)).toEqual([PILOT]);
 
     view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
@@ -244,7 +245,7 @@ describe("person inspector", () => {
     const grid = view.find(view.right, "Effective groups");
     if (grid?.kind !== "grid") throw new Error("grid expected");
     expect(grid.cells[0]).toEqual({
-      label: "sdms.golf.viewer",
+      label: "data.pilot.viewers",
       badge: { text: "baseline", tone: "neutral" },
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 baseline");
@@ -258,22 +259,40 @@ describe("person inspector", () => {
   test("a new extra counts again while the baseline stays accepted", async () => {
     const read = sampleAccess();
     const lena = idOf(read, "Lena Fischer");
-    const extra = { [lena]: [GOLF] };
+    const extra = { [lena]: [PILOT] };
     const { rt, act } = setup({ extra });
     await act(SELECT_PERSON_ACTION, { id: lena });
     await act(ACCEPT_EXTRAS_ACTION, { id: lena });
-    extra[lena] = [GOLF, ECHO];
+    extra[lena] = [PILOT, VENDOR];
     expect(await act(REFRESH_PERSON_ACTION, { id: lena })).toEqual({ ok: true });
     const view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "1 extra group", tone: "warn" });
     const odd = view.find(view.right, "Beyond or short of the role");
-    expect(JSON.stringify(odd)).toContain('"text":"sdms.echo.admin"');
+    expect(JSON.stringify(odd)).toContain('"text":"data.vendor.owners"');
     const grid = view.find(view.right, "Effective groups");
     if (grid?.kind !== "grid") throw new Error("grid expected");
     expect(grid.cells[0]).toEqual({
-      label: "sdms.golf.viewer",
+      label: "data.pilot.viewers",
       badge: { text: "baseline", tone: "neutral" },
     });
+  });
+
+  test("a seismic group reads as named reach, never as an extra group", async () => {
+    const read = sampleAccess();
+    const lena = idOf(read, "Lena Fischer");
+    const { rt, act } = setup({ extra: { [lena]: [GOLF] } });
+    await act(SELECT_PERSON_ACTION, { id: lena });
+    const view = board(composePerson(rt));
+    expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
+    expect(view.find(view.right, "Beyond or short of the role")).toBeUndefined();
+    const reach = view.find(view.right, "Named seismic reach");
+    if (reach?.kind !== "rows") throw new Error("rows expected");
+    expect(reach.items[0]).toEqual({
+      chip: { label: "seismic", tone: "neutral" },
+      text: "Viewer on golf",
+      trailing: "sdms.golf.viewer",
+    });
+    expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 seismic");
   });
 
   test("a tracker file written before baselines still parses", () => {

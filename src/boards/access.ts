@@ -9,33 +9,27 @@
 import type { CanvasBoardView } from "@keelson/shared";
 import {
   type ActivityState,
-  activityState,
   callsIn,
   grantedAt,
   noCall,
   recentDays,
   USAGE_LABEL,
   USAGE_TONE,
-  type Usage,
-  usageOf,
 } from "../access/activity.ts";
-import {
-  type AccessCounts,
-  type AccessModel,
-  buildAccess,
-  countAccess,
-  type Identity,
-  ROLES,
-} from "../access/model.ts";
+import { type Measured, measuredAccess, usageCount } from "../access/measured.ts";
+import { type AccessModel, type Identity, ROLES } from "../access/model.ts";
 import { groupByOrg, orgOf } from "../access/orgs.ts";
 import { selectedId } from "../access/person.ts";
-import { ACCESS_AREA, type AccessRead, GROUP_NAMES } from "../access/read.ts";
+import { ACCESS_AREA, GROUP_NAMES } from "../access/read.ts";
+import { briefOf } from "../brief/inputs.ts";
 import { instanceName, shortId } from "../profile.ts";
 import { composeRestingHeader, EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { type Cohort, csvCell, daysUntil, UNTRACKED } from "../tracker.ts";
 import { signinCard } from "./connection.ts";
+
+export { type Measured, measuredAccess, usageCount };
 
 type Section = CanvasBoardView["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
@@ -90,31 +84,6 @@ const DAY_MS = 86_400_000;
 const INVITED_LIMIT = 12;
 const NOT_USED_LIMIT = 8;
 
-export interface Measured {
-  model: AccessModel;
-  counts: AccessCounts;
-  activity: ActivityState;
-  // Each person's usage; undefined while the audit log is not measured.
-  usage: Map<string, Usage | undefined>;
-}
-
-export function measuredAccess(rt: Runtime): Measured | undefined {
-  const read = rt.cache.get<AccessRead>(ACCESS_AREA).data;
-  if (!read || rt.status.phase === "firstrun" || rt.status.phase === "profile-error") {
-    return undefined;
-  }
-  const model = buildAccess(read, {
-    signedInAs: rt.status.test?.signedInAs,
-    admeAppId: rt.profile?.admeAppId,
-    cohortOf: (email) => rt.tracker.cohortOf(email),
-  });
-  const activity = activityState(rt, model);
-  const known = activity.kind === "measured" ? activity.model : undefined;
-  const now = rt.now();
-  const usage = new Map(model.people.map((p) => [p.id, usageOf(p, known, now)] as const));
-  return { model, counts: countAccess(model), activity, usage };
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -127,19 +96,6 @@ export function daysAgo(iso: string, now: Date): string {
   const days = Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / DAY_MS));
   if (days >= 365) return `${(days / 365).toFixed(1)} y ago`;
   return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} d ago`;
-}
-
-export function usageCount(m: Measured, u: Usage): number | null {
-  if (u !== "invited" && m.activity.kind !== "measured") return null;
-  return m.model.people.filter((p) => m.usage.get(p.id) === u).length;
-}
-
-// Who to chase: anyone who cannot use their access, has not accepted, or never called.
-export function followUpCount(m: Measured): number {
-  const unused = m.model.people.filter(
-    (p) => p.state !== "broken" && m.usage.get(p.id) === "not-used",
-  ).length;
-  return m.counts.broken + m.counts.pending + unused + m.counts.unknown;
 }
 
 export function activityReason(state: ActivityState): string {
@@ -289,11 +245,14 @@ function pulseStats(rt: Runtime, m: Measured, orgs: number): Stat[] {
   ];
 }
 
-function followPill(m: Measured) {
-  const n = followUpCount(m);
+// Decisions only: pending invitations and people with no call yet are onboarding and adoption.
+function followPill(rt: Runtime, m: Measured) {
+  const n = briefOf(rt).items.length;
+  const invited = m.counts.pending;
+  const onboarding = invited > 0 ? ` · ${invited} invited` : "";
   return n > 0
-    ? { label: `${n} to follow up`, tone: "caution" as const }
-    : { label: "all in use", tone: "ok" as const };
+    ? { label: `${n} to decide${onboarding}`, tone: "caution" as const }
+    : { label: `nobody blocked${onboarding}`, tone: "ok" as const };
 }
 
 export function composeAccessPulse(rt: Runtime): CanvasBoardView {
@@ -351,7 +310,7 @@ export function composeAccessPulse(rt: Runtime): CanvasBoardView {
       status:
         rt.status.phase === "signin"
           ? { label: "sign-in needed", tone: "error" }
-          : followPill(measured),
+          : followPill(rt, measured),
       chip: [instanceName(profile), profile.partition, fresh].filter(Boolean).join(" · "),
       segments: adoptionSegments(measured),
     },
@@ -593,7 +552,7 @@ export function composeAttention(rt: Runtime): CanvasBoardView {
   if (checks?.kind === "rows" && checks.items.length === 0) sections.pop();
   return {
     view: "board",
-    header: { status: followPill(measured), chip: "oldest first" },
+    header: { status: followPill(rt, measured), chip: "oldest first" },
     sections,
   };
 }

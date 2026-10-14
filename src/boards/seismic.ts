@@ -7,13 +7,12 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasBoardView } from "@keelson/shared";
-import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
+import { seismicModelOf } from "../brief/inputs.ts";
 import { HEALTH_AREA, type Health } from "../data/health.ts";
 import { bindingOf } from "../plan/model.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import {
-  buildSeismic,
   countSeismic,
   displayOrder,
   type Member,
@@ -78,12 +77,8 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
   if (!read || rt.status.phase === "firstrun" || rt.status.phase === "profile-error") {
     return undefined;
   }
-  const model = buildSeismic(read, {
-    directory: rt.cache.get<AccessRead>(ACCESS_AREA).data?.directory,
-    signedInAs: rt.status.test?.signedInAs,
-    admeAppId: rt.profile?.admeAppId,
-  });
-  return { model, counts: countSeismic(model) };
+  const model = seismicModelOf(rt);
+  return model ? { model, counts: countSeismic(model) } : undefined;
 }
 
 // Own-ACL subprojects a person can be granted on, for a select; empty before the store is read.

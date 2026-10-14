@@ -57,6 +57,7 @@ export interface SeismicModel {
 
 export interface SeismicContext {
   directory?: Record<string, DirectoryEntry> | undefined;
+  labelOf?: ((id: string) => string | undefined) | undefined;
   signedInAs?: string | undefined;
   admeAppId?: string | undefined;
 }
@@ -87,17 +88,22 @@ function index(dirs: readonly (Record<string, DirectoryEntry> | undefined)[]): I
   return { byId, byAddress };
 }
 
-function resolve(id: string, idx: Index, you: (id: string, e?: DirectoryEntry) => boolean): Member {
+function resolve(
+  id: string,
+  idx: Index,
+  you: (id: string, e?: DirectoryEntry) => boolean,
+  labelOf?: (id: string) => string | undefined,
+): Member {
   if (id.includes("@")) {
     const hit = idx.byAddress.get(id);
-    if (hit) return resolve(hit[0], idx, you);
+    if (hit) return resolve(hit[0], idx, you, labelOf);
     if (id.startsWith("users.") || id.startsWith("data.")) {
       return { id, kind: "group", name: id.split("@")[0] as string, you: false };
     }
     return { id, kind: "unknown", name: id, you: false };
   }
   const entry = idx.byId.get(id);
-  if (!entry) return { id, kind: "unknown", name: shortId(id), you: you(id) };
+  if (!entry) return { id, kind: "unknown", name: labelOf?.(id) ?? shortId(id), you: you(id) };
   if (entry.kind === "app") return { id, kind: "app", name: entry.name, you: false };
   const email = entry.mail ?? entry.upn;
   return {
@@ -147,7 +153,7 @@ export function buildSeismic(read: SeismicRead, ctx: SeismicContext = {}): Seism
     }
     const list: Member[] = [];
     for (const raw of ids) {
-      const m = resolve(raw, idx, isYou);
+      const m = resolve(raw, idx, isYou, ctx.labelOf);
       if (list.some((x) => x.id === m.id)) continue;
       list.push(m);
       members[m.id] = m;

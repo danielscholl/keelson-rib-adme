@@ -26,7 +26,6 @@ import {
   composePrincipals,
   EXPORT_ROSTER_ACTION,
   exportRoster,
-  followUpCount,
   IMPORT_COHORTS_ACTION,
   measuredAccess,
   SELECT_PERSON_ACTION,
@@ -50,6 +49,7 @@ import {
   personAudit,
   REFRESH_PERSON_ACTION,
 } from "../boards/person.ts";
+import { briefOf } from "../brief/inputs.ts";
 import {
   ACTIVITY_KEY,
   ATTENTION_KEY,
@@ -239,9 +239,6 @@ export const accessModule: RegionModule = {
     },
   },
   counts: {
-    access: (rt) => {
-      const m = measuredAccess(rt);
-      return m ? followUpCount(m) : 0;
-    },
+    access: (rt) => (measuredAccess(rt) ? briefOf(rt).items.length : 0),
   },
 };

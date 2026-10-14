@@ -53,6 +53,8 @@ export interface Identity {
   inRoster?: boolean;
   // Unknown principals only: Entra holds this id as a deleted user.
   deleted?: boolean;
+  // Unknown principals only: the operator's label, which `name` shows.
+  label?: string;
 }
 
 export interface GroupCount {
@@ -100,6 +102,8 @@ export interface ModelContext {
   signedInAs?: string | undefined;
   admeAppId?: string | undefined;
   cohortOf?: ((email: string | undefined) => string | undefined) | undefined;
+  // The operator's label for an id Entra cannot name.
+  labelOf?: ((id: string) => string | undefined) | undefined;
 }
 
 function addresses(entry: DirectoryEntry): string[] {
@@ -156,10 +160,12 @@ export function buildAccess(read: AccessRead, ctx: ModelContext = {}): AccessMod
       root: false,
     };
     if (!entry) {
+      const label = ctx.labelOf?.(id);
       model.unknown.push({
         ...base,
         kind: "unknown",
-        name: id,
+        name: label ?? id,
+        ...(label ? { label } : {}),
         state: "healthy",
         guest: false,
         ...(deleted.has(id) ? { deleted: true } : {}),

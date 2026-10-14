@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
-import { ACCESS_AREA, ACCESS_AREAS } from "../src/access/read";
-import { RETEST_ACTION } from "../src/boards/connection";
+import { ACCESS_AREA } from "../src/access/read";
 import { composePeople, PEOPLE_FILTER_ACTION, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import {
   composeSeismicPulse,
@@ -13,7 +12,6 @@ import {
   SEIS_SELECT_ACTION,
   seismicHeadline,
 } from "../src/boards/seismic";
-import { DATA_AREAS } from "../src/data/areas";
 import { HEALTH_AREA } from "../src/data/health";
 import {
   PEOPLE_KEY,
@@ -23,6 +21,7 @@ import {
   SEIS_SUBPROJECTS_KEY,
 } from "../src/keys";
 import { accessModule } from "../src/modules/access";
+import { connectionModule } from "../src/modules/connection";
 import { seismicModule } from "../src/modules/seismic";
 import type { Runtime } from "../src/runtime";
 import { setSection } from "../src/section";
@@ -262,39 +261,32 @@ describe("seismic read", () => {
     ]);
   });
 
-  test("the tier-1 sweep never reads the seismic store", async () => {
+  test("the sweep reads membership, then not again for 30 minutes unless forced", async () => {
     const { transport, sent } = routeTransport(seismicRoutes());
-    const rt = seededRuntime({}, { now: NOW, transport });
-    for (const area of [...ACCESS_AREAS, ...DATA_AREAS]) rt.addArea(area);
-    expect(seismicModule.areas).toBeUndefined();
+    let now = NOW;
+    const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: () => now, transport });
+    for (const area of seismicModule.areas ?? []) rt.addArea(area);
     await rt.sweep();
-    expect(sent.some((r) => r.url.includes("/subproject/"))).toBe(false);
-    expect(rt.cache.get(SEISMIC_AREA).at).toBeUndefined();
+    const lists = () => sent.filter((r) => r.url.includes("/subproject/tenant/opendes")).length;
+    expect(lists()).toBe(1);
+    expect(rt.cache.get(SEISMIC_AREA).at).toBe(NOW.toISOString());
+    now = new Date(NOW.getTime() + 10 * 60_000);
+    await rt.sweep();
+    expect(lists()).toBe(1);
+    await rt.sweep({ force: true });
+    expect(lists()).toBe(2);
+    now = new Date(NOW.getTime() + 41 * 60_000);
+    await rt.sweep();
+    expect(lists()).toBe(3);
   });
 
-  test("Refresh now reads the store only while the Seismic section shows", async () => {
+  test("Refresh now reads membership with the other areas", async () => {
     const { transport, sent } = routeTransport(seismicRoutes());
     const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW, transport });
-    await act(rt, REFRESH_ACTION);
-    expect(sent.some((r) => r.url.includes("/subproject/"))).toBe(false);
-    setSection(rt, "seismic");
-    await act(rt, REFRESH_ACTION);
+    for (const area of seismicModule.areas ?? []) rt.addArea(area);
+    await connectionModule.actions?.[REFRESH_ACTION]?.(rt, undefined);
     expect(sent.some((r) => r.url.includes("/subproject/tenant/opendes"))).toBe(true);
     expect(rt.cache.get(SEISMIC_AREA).at).toBeDefined();
-  });
-
-  test("Re-test reads the store only once the section has been used", async () => {
-    const { transport, sent } = routeTransport(seismicRoutes());
-    const rt = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW, transport });
-    await act(rt, RETEST_ACTION);
-    expect(rt.cache.get(SEISMIC_AREA).at).toBeUndefined();
-    await act(rt, SEIS_READ_ACTION);
-    const reads = () => sent.filter((r) => r.url.includes("/groups/data.sdms")).length;
-    const before = reads();
-    rt.status = { ...rt.status, phase: "connected" };
-    rt.cache.fail(SEISMIC_AREA, "stale", NOW);
-    await act(rt, RETEST_ACTION);
-    expect(reads()).toBeGreaterThanOrEqual(before);
   });
 
   test("a failed read is recorded and offers Try again", async () => {

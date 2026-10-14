@@ -48,6 +48,7 @@ import {
 import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
 import { SURFACES, sectionOf } from "./surfaces.ts";
+import { admeTools } from "./tools.ts";
 
 // Later modules override earlier ones for the same key.
 const MODULES: readonly RegionModule[] = [
@@ -167,13 +168,16 @@ const rib: Rib = {
   // Composers bind here because this is the first hook that receives the context.
   registerTools: (ctx: RibContext) => {
     bind(ctx);
-    return [];
+    return admeTools(() => runtime);
   },
 
   onAction: async (action: RibAction): Promise<RibActionResult> => {
     const rt = runtime;
     if (!rt) return { ok: false, error: "adme is not bound yet" };
+    // The first action after an idle spell refreshes what went stale meanwhile.
+    const idle = !rt.shouldTick();
     rt.touch();
+    if (idle && rt.status.phase === "connected") rt.sweep().catch(() => undefined);
     const handle = ACTIONS.get(action.type);
     if (!handle) return { ok: false, error: `adme does not handle '${action.type}'` };
     return handle(rt, action.payload);

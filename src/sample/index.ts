@@ -7,10 +7,11 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import { join } from "node:path";
+import { annotationsFile } from "../directory/annotations.ts";
 import { Store } from "../store.ts";
 import { trackerFile } from "../tracker.ts";
 import { sampleExec, sampleTransport } from "./transport.ts";
-import { PASS_ENDS, PEOPLE, SAMPLE_NOW, SAMPLE_PROFILE } from "./world.ts";
+import { PASS_ENDS, PEOPLE, SAMPLE_NOW, SAMPLE_PROFILE, sampleAnnotations } from "./world.ts";
 
 export const SAMPLE_ENV = "KEELSON_ADME_SAMPLE";
 
@@ -49,11 +50,12 @@ function trackerSeed() {
 }
 
 // A store of its own under the rib's data dir, so the sample never touches a real
-// profile, tracker or cache. The profile and cohorts are written fresh on every bind.
+// profile, tracker or cache. The profile, cohorts and annotations are written fresh on every bind.
 export function sampleStore(dataDir: string | undefined): Store {
   const store = new Store(dataDir ? join(dataDir, "sample") : undefined);
   store.write("profile.json", SAMPLE_PROFILE);
   store.write(trackerFile(SAMPLE_PROFILE), trackerSeed());
+  store.write(annotationsFile(SAMPLE_PROFILE), sampleAnnotations());
   return store;
 }
 
