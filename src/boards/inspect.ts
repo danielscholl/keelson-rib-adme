@@ -377,3 +377,38 @@ export function composeIdentity(
     ],
   };
 }
+
+export interface CellView {
+  title: string;
+  status: { label: string; tone: "ok" | "warn" | "error" | "neutral" };
+  facts: Fact[];
+  backs: string[];
+  text: string;
+  verbs: CanvasActionItem[];
+}
+
+// One person on one subproject: the path, the group and every subproject that group backs.
+export function composeCell(v: CellView): CanvasBoardView {
+  return {
+    view: "board",
+    header: { status: v.status, chip: v.title },
+    sections: [
+      factSection("Path · configured from group membership", v.facts),
+      {
+        kind: "rows",
+        title: "Every subproject this group backs",
+        items:
+          v.backs.length > 0
+            ? v.backs.map((b) => ({ glyph: "neutral" as const, text: b }))
+            : [
+                {
+                  glyph: "neutral" as const,
+                  text: "No own group: reach comes with the data role.",
+                },
+              ],
+      },
+      { kind: "rows", items: [{ text: v.text }] },
+      ...(v.verbs.length > 0 ? [{ kind: "actions" as const, wrap: true, items: v.verbs }] : []),
+    ],
+  };
+}

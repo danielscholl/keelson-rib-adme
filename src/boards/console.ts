@@ -7,9 +7,13 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import { designTokenCssBlock } from "@keelson/shared";
-import type { Brief, Fact, Item, Source, Tone } from "../brief/index.ts";
+import type { Brief, Item, Tone } from "../brief/index.ts";
 import type { PersonRow } from "../brief/people.ts";
 import { INSPECT_ACTION } from "../surfaces.ts";
+import { SEISMIC_STYLE } from "./console-seismic.ts";
+import { esc, factRows, legend, TONE_CLASS } from "./html.ts";
+
+export { esc };
 
 // A console past this size means the brief stopped folding.
 export const CONSOLE_MAX_BYTES = 256_000;
@@ -21,39 +25,6 @@ export interface ConsoleParts {
   people: PersonRow[];
   // Later tabs, each already laid out; a tab with no body is left out.
   tabs?: { id: string; label: string; html: string }[];
-}
-
-const TONE_CLASS: Record<Tone, string> = { bad: "t-bad", warn: "t-warn", ok: "t-ok", neutral: "" };
-
-const SOURCE_LABEL: Record<Source, string> = {
-  directory: "Directory",
-  instance: "Instance",
-  audit: "Audit log",
-  operator: "Operator",
-};
-
-export function esc(text: string): string {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-export function factRows(facts: readonly Fact[]): string {
-  return facts
-    .map(
-      (f) =>
-        `<div class="fr"><span class="src s-${f.source}" title="${SOURCE_LABEL[f.source]}"></span><span class="fk">${esc(f.label)}</span><span class="fv ${TONE_CLASS[f.tone]}">${esc(f.value)}</span></div>`,
-    )
-    .join("");
-}
-
-export function legend(): string {
-  return `<p class="legend">${(Object.keys(SOURCE_LABEL) as Source[])
-    .map((s) => `<span><span class="src s-${s}"></span>${SOURCE_LABEL[s]}</span>`)
-    .join("")}</p>`;
 }
 
 function chip(text: string, tone: Tone, extra = ""): string {
@@ -83,7 +54,6 @@ function itemPane(item: Item, selected: boolean): string {
 <p class="dl">Next</p><p>${esc(item.next)}</p>
 ${item.scope ? `<p class="scope">${esc(item.scope)}</p>` : ""}
 <button type="button" class="open" data-inspect="${esc(item.id)}">Open in inspector</button>
-${legend()}
 </section>`;
 }
 
@@ -102,7 +72,7 @@ function overviewHtml(b: Brief): string {
   const panes = b.items.map((x) => itemPane(x, x.id === first)).join("");
   return `<h2>${esc(b.headline)}</h2>
 ${b.summary ? `<p class="summary">${esc(b.summary)}</p>` : ""}
-${b.items.length > 0 ? `<div class="split">${list}<div class="pane">${panes}</div></div>` : list}`;
+${b.items.length > 0 ? `<div class="split">${list}<div class="pane">${panes}${legend()}</div></div>` : list}`;
 }
 
 const FACETS: { id: string; label: string; test: (r: PersonRow) => boolean }[] = [
@@ -122,11 +92,16 @@ const FACETS: { id: string; label: string; test: (r: PersonRow) => boolean }[] =
   },
 ];
 
-function personRow(r: PersonRow, selected: boolean): string {
+// Past this many identities a row opens the inspector instead of a pane, so the
+// frame stays under its size limit on a large directory.
+const PANE_LIMIT = 80;
+
+function personRow(r: PersonRow, selected: boolean, paned: boolean): string {
   const facets = FACETS.filter((f) => f.test(r))
     .map((f) => f.id)
     .join(" ");
-  return `<button type="button" class="row prow${selected ? " on" : ""}" data-who="${esc(r.id)}" data-q="${esc(r.search)}" data-facets="${facets}" aria-pressed="${selected}">
+  const target = paned ? `data-who="${esc(r.id)}"` : `data-inspect="${esc(r.inspect)}"`;
+  return `<button type="button" class="row prow${selected ? " on" : ""}" ${target} data-q="${esc(r.search)}" data-facets="${facets}" aria-pressed="${selected}">
 <span class="body"><span class="tt">${esc(r.name)}</span><span class="ss mono">${esc(r.keys)}</span>${r.note ? `<span class="ss note">${esc(r.note)}</span>` : ""}</span>
 <span class="chips">${r.chips.map((c) => chip(c.text, c.tone)).join("")}</span></button>`;
 }
@@ -140,7 +115,6 @@ function personPane(r: PersonRow, selected: boolean): string {
 ${r.known.length > 0 ? `<p class="dl">What we know</p><div class="facts">${factRows(r.known)}</div>` : ""}
 ${r.groups ? `<p class="scope">${esc(r.groups)} · group detail in the inspector</p>` : ""}
 <button type="button" class="open" data-inspect="${esc(r.inspect)}">Open in inspector</button>
-${legend()}
 </section>`;
 }
 
@@ -157,10 +131,13 @@ function peopleHtml(rows: readonly PersonRow[]): string {
 <div class="focus">
 <input class="search" type="search" placeholder="Find identity: name, address, label, organization or id" data-search aria-label="Find identity">
 <div class="facets">${facets}</div>
-<div class="plist">${rows.map((r) => personRow(r, r.id === first)).join("")}</div>
+<div class="plist">${rows.map((r, n) => personRow(r, r.id === first, n < PANE_LIMIT)).join("")}</div>
 <p class="count" data-count data-total="${rows.length}">${rows.length} of ${rows.length} identities</p>
 </div>
-<div class="pane">${rows.map((r) => personPane(r, r.id === first)).join("")}</div>
+<div class="pane">${rows
+    .slice(0, PANE_LIMIT)
+    .map((r) => personPane(r, r.id === first))
+    .join("")}${legend()}</div>
 </div>`;
 }
 
@@ -199,7 +176,7 @@ export function consoleHtml(parts: ConsoleParts): string {
 <div data-view-pane="people" hidden>${peopleHtml(parts.people)}</div>
 ${extra.map((t) => `<div data-view-pane="${esc(t.id)}" hidden>${t.html}</div>`).join("\n")}`
     : `${stamp ? `<div class="tabs">${stamp}</div>` : ""}<h2>${esc(b.headline)}</h2>${b.summary ? `<p class="summary">${esc(b.summary)}</p>` : ""}`;
-  return `<style>${designTokenCssBlock()}${STYLE}</style>
+  return `<style>${designTokenCssBlock()}${STYLE}${SEISMIC_STYLE}</style>
 <div class="wrap">
 ${views}
 </div>
@@ -246,16 +223,17 @@ h2 { margin: 0 0 4px; font-size: 21px; line-height: 1.25; font-weight: 600; colo
 .detail .dl { margin-top: 10px; }
 .detail p { margin: 2px 0 0; font-size: 13.5px; }
 .facts { display: flex; flex-direction: column; margin-top: 4px; }
-.fr { display: grid; grid-template-columns: 10px minmax(9rem, auto) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-.fr:last-child { border-bottom: none; }
-.fk { color: var(--muted); }
-.fv { color: var(--fg-strong); overflow-wrap: anywhere; }
-.src { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.s-directory { background: var(--src-directory); } .s-instance { background: var(--src-instance); }
-.s-audit { background: var(--src-audit); } .s-operator { background: var(--src-operator); }
+.detail .fr { display: grid; grid-template-columns: 10px minmax(9rem, auto) minmax(0, 1fr); gap: 8px; align-items: baseline; margin: 0; padding: 3px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail .fr:last-child { border-bottom: none; }
+.fr b { font-weight: 400; color: var(--muted); }
+.fr span { color: var(--fg-strong); overflow-wrap: anywhere; }
+.fr span.t-bad { color: var(--crit); } .fr span.t-warn { color: var(--warn); } .fr span.t-ok { color: var(--good); }
+i.sd, i.si, i.sa, i.so { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+i.sd { background: var(--src-directory); } i.si { background: var(--src-instance); }
+i.sa { background: var(--src-audit); } i.so { background: var(--src-operator); }
 .detail .scope { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; }
-.detail .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
-.legend .src { margin-right: 5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 2px 0; font-size: 11.5px; color: var(--muted); }
+.legend i { margin-right: 5px; }
 .open { margin-top: 12px; font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--accent); color: var(--accent); background: none; cursor: pointer; }
 .link { background: none; border: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .link.quiet { color: inherit; text-decoration-style: dotted; }
@@ -298,6 +276,26 @@ const SCRIPT = `(function () {
     });
     return true;
   }
+  function cellFallback(id) {
+    var btn = document.querySelector('[data-cell="' + id + '"]');
+    var pane = document.querySelector('[data-cell-detail="*"]');
+    if (!btn || !pane) return false;
+    document.querySelectorAll("[data-cell-detail]").forEach(function (d) { d.hidden = d !== pane; });
+    document.querySelectorAll("[data-cell]").forEach(function (r) {
+      var on = r === btn;
+      r.classList.toggle("on", on);
+      r.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var h = pane.querySelector("[data-fill]");
+    if (h) h.textContent = btn.getAttribute("data-title") || "";
+    var open = pane.querySelector("[data-inspect]");
+    if (open) open.setAttribute("data-inspect", id);
+    return true;
+  }
+  function pick(c, id) {
+    if (show(c[1], c[2], id, c[3])) return true;
+    return c[0] === "cell" && cellFallback(id);
+  }
   function current(row) {
     var on = document.querySelector("[" + row + "].on");
     return on ? on.getAttribute(row) : null;
@@ -309,7 +307,7 @@ const SCRIPT = `(function () {
     ["cell", "data-cell", "data-cell-detail", "aria-pressed"],
     ["fam", "data-fam", "data-fam-detail", "aria-pressed"],
   ];
-  var state = { q: "", facet: "all" };
+  var state = { q: "", facet: "all", mgroup: "people" };
   KINDS.forEach(function (c) { state[c[0]] = current(c[1]); });
   function save() { if (k.saveState) k.saveState(state); }
   function filter() {
@@ -328,28 +326,40 @@ const SCRIPT = `(function () {
     var c = document.querySelector("[data-count]");
     if (c) c.textContent = shown + " of " + c.getAttribute("data-total") + " identities" + (shown === 0 ? " · nothing matches" : "");
   }
+  function mgroup() {
+    document.querySelectorAll("[data-mrow]").forEach(function (r) {
+      r.hidden = state.mgroup !== "all" && r.getAttribute("data-mrow") !== state.mgroup;
+    });
+    document.querySelectorAll("[data-mgroup]").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-mgroup") === state.mgroup);
+    });
+  }
   var box = document.querySelector("[data-search]");
   if (box) box.addEventListener("input", function () { state.q = box.value; filter(); save(); });
   if (k.onRestore) k.onRestore(function (s) {
     if (!s) return;
     KINDS.forEach(function (c) {
       var id = s[c[0]];
-      if (typeof id === "string" && show(c[1], c[2], id, c[3])) state[c[0]] = id;
+      if (typeof id === "string" && pick(c, id)) state[c[0]] = id;
     });
     if (typeof s.q === "string") { state.q = s.q; if (box) box.value = s.q; }
     if (typeof s.facet === "string") state.facet = s.facet;
+    if (typeof s.mgroup === "string") state.mgroup = s.mgroup;
     filter();
+    mgroup();
   });
   document.addEventListener("click", function (e) {
-    var t = e.target && e.target.closest ? e.target.closest("[data-view],[data-sel],[data-who],[data-cell],[data-fam],[data-facet],[data-inspect]") : null;
+    var t = e.target && e.target.closest ? e.target.closest("[data-view],[data-sel],[data-who],[data-cell],[data-fam],[data-facet],[data-mgroup],[data-inspect]") : null;
     if (!t) return;
     var facet = t.getAttribute("data-facet");
     if (facet !== null) { state.facet = facet; filter(); save(); return; }
+    var mg = t.getAttribute("data-mgroup");
+    if (mg !== null) { state.mgroup = mg; mgroup(); save(); return; }
     for (var i = 0; i < KINDS.length; i++) {
       var c = KINDS[i];
       var id = t.getAttribute(c[1]);
       if (id === null) continue;
-      if (show(c[1], c[2], id, c[3])) { state[c[0]] = id; save(); }
+      if (pick(c, id)) { state[c[0]] = id; save(); }
       return;
     }
     if (k.action) k.action(${JSON.stringify(INSPECT_ACTION)}, { id: t.getAttribute("data-inspect") });

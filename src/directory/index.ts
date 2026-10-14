@@ -236,7 +236,7 @@ export class Directory {
 // The text a search box matches for one identity: names, addresses past and present,
 // the operator label and the ids.
 export function searchText(r: Resolved): string {
-  return [
+  const words = [
     r.name,
     r.email,
     ...r.addresses,
@@ -248,7 +248,7 @@ export function searchText(r: Resolved): string {
     r.id,
     r.appId,
   ]
-    .filter((s): s is string => Boolean(s))
-    .map((s) => s.toLowerCase())
-    .join(" ");
+    .filter((s): s is string => s !== undefined && s !== "" && !s.includes("#ext#"))
+    .map((s) => s.toLowerCase());
+  return [...new Set(words)].join(" ");
 }

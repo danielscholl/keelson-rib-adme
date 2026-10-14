@@ -11,28 +11,41 @@ import { measuredAccess } from "../access/measured.ts";
 import { EXPLAIN_ACTION } from "../boards/change.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import { CONNECTION_ID, consoleHtml } from "../boards/console.ts";
+import { seismicTab } from "../boards/console-seismic.ts";
 import {
   ANNOTATE_ACTION,
   annotateForm,
+  type CellView,
+  composeCell,
   composeIdentity,
   composeItem,
   composeRead,
   composeTag,
   type ItemVerbs,
+  openAction,
   REREAD_ACTION,
   rereadAction,
 } from "../boards/inspect.ts";
-import { PREVIEW_SEIS_REVOKE_ACTION } from "../boards/seismic.ts";
-import { type Brief, type BriefInputs, buildBrief, type Item } from "../brief/index.ts";
+import {
+  composeSeismicSelected,
+  PREVIEW_SEIS_GRANT_ACTION,
+  PREVIEW_SEIS_REVOKE_ACTION,
+  seismicState,
+  selectedFlow,
+} from "../boards/seismic.ts";
+import { type Brief, type BriefInputs, buildBrief, type Fact, type Item } from "../brief/index.ts";
 import { briefInputs } from "../brief/inputs.ts";
 import { peopleRows } from "../brief/people.ts";
+import { SHARED, seismicMatrix } from "../brief/seismic.ts";
 import { annotationInputSchema } from "../directory/annotations.ts";
 import { CONNECTION_KEY, INSPECT_KEY } from "../keys.ts";
 import { bindingOf, sameBinding } from "../plan/model.ts";
+import { coverage } from "../plan/seismic.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
-import { READ_AREAS, type ReadArea } from "../status/index.ts";
+import { isDefaultGroup } from "../seismic/read.ts";
+import { configuredOf, READ_AREAS, type ReadArea } from "../status/index.ts";
 import { INSPECT_ACTION } from "../surfaces.ts";
 import { selectPersonAction } from "./access.ts";
 import { measureSeismic } from "./seismic.ts";
@@ -65,7 +78,11 @@ function str(p: Payload, key: string): string | undefined {
 
 export function composeConsole(rt: Runtime): string {
   const inputs = briefInputs(rt);
-  return consoleHtml({ brief: buildBrief(inputs), people: peopleRows(inputs) });
+  return consoleHtml({
+    brief: buildBrief(inputs),
+    people: peopleRows(inputs),
+    tabs: [{ id: "seismic", label: "Seismic", html: seismicTab(seismicMatrix(inputs)) }],
+  });
 }
 
 function binding(rt: Runtime) {
@@ -131,6 +148,143 @@ function itemVerbs(rt: Runtime, i: BriefInputs, item: Item): ItemVerbs {
   }
 }
 
+function cellView(rt: Runtime, i: BriefInputs, id: string, sub: string): CellView | undefined {
+  const model = i.seismic;
+  const member = model?.members[id];
+  const listed = i.access?.model;
+  const p = listed ? [...listed.people, ...listed.apps].find((x) => x.id === id) : undefined;
+  const name = member?.name ?? p?.name;
+  if (!model || !name) return undefined;
+  const bound = binding(rt);
+  const signedOut = rt.status.phase !== "connected";
+  const gate = signedOut ? { disabled: true, reason: SIGNIN_REASON } : {};
+  const who: Fact = { label: "Identity", value: name, source: "directory", tone: "neutral" };
+  if (sub === SHARED) {
+    const shared = model.subprojects.filter((s) => s.acl === "default");
+    const groups = [
+      ...new Set(
+        shared.flatMap((s) => [...s.adminGroups, ...s.viewerGroups]).filter(isDefaultGroup),
+      ),
+    ];
+    return {
+      title: `${name} → ${shared.map((s) => s.name).join(", ")}`,
+      status: p?.role
+        ? { label: "default", tone: "ok" }
+        : { label: "no data role", tone: "neutral" },
+      facts: [
+        who,
+        { label: "Data role", value: p?.role ?? "none", source: "instance", tone: "neutral" },
+        {
+          label: "Default groups",
+          value: groups.join(", ") || "none",
+          source: "instance",
+          tone: "neutral",
+        },
+      ],
+      backs: shared.map((s) => s.name),
+      text: "Reach to these subprojects comes with the data role through the partition's data.default groups. Changing a default group would change every default-ACL subproject at once, so the rib does not plan it.",
+      verbs: [openAction(`who:${id}`, "Open identity")],
+    };
+  }
+  const s = model.subprojects.find((x) => x.name === sub);
+  if (!s || s.acl === "default") return undefined;
+  const held = (model.grants[id] ?? []).filter((g) => g.subproject === sub).map((g) => g.role);
+  const unread = s.admins.kind === "unread" || s.viewers.kind === "unread";
+  const c = i.access ? configuredOf(p) : undefined;
+  const usable = c?.state === "ready" || c?.state === "inconsistent";
+  const groups = [...s.adminGroups, ...s.viewerGroups].filter((g) => !isDefaultGroup(g));
+  const cover = coverage(model);
+  const backs = [...new Set(groups.flatMap((g) => cover.get(g) ?? []))];
+  const facts: Fact[] = [
+    who,
+    {
+      label: "Grant",
+      value:
+        held.length > 0
+          ? held.map((r) => (r === "admin" ? "Admin" : "Viewer")).join(" and ")
+          : unread && held.length === 0
+            ? "not measured"
+            : "none",
+      source: "instance",
+      tone: held.length > 0 ? (usable ? "ok" : "warn") : unread ? "warn" : "neutral",
+    },
+    ...s.adminGroups.map((g) => ({
+      label: "Admin group",
+      value: g,
+      source: "instance" as const,
+      tone: "neutral" as const,
+    })),
+    ...s.viewerGroups.map((g) => ({
+      label: "Viewer group",
+      value: g,
+      source: "instance" as const,
+      tone: "neutral" as const,
+    })),
+    {
+      label: "Instance access",
+      value: !c
+        ? "not measured"
+        : usable
+          ? `${p?.role} with users@`
+          : c.state === "blocked"
+            ? "missing users@"
+            : "no users@ or role",
+      source: "instance",
+      tone: usable ? "ok" : "warn",
+    },
+  ];
+  const preview = (
+    type: string,
+    role: "admin" | "viewer",
+    label: string,
+    refused?: string,
+  ): CanvasActionItem => ({
+    type,
+    label,
+    payload: { id, subproject: sub, role },
+    ...(bound ? { binding: { ...bound } } : {}),
+    pendingLabel: "Planning…",
+    ...gate,
+    ...(refused && !signedOut ? { disabled: true, reason: refused } : {}),
+  });
+  const noAccess =
+    c && !usable
+      ? `${name} holds no usable instance access, so a grant could not be used`
+      : undefined;
+  const verbs: CanvasActionItem[] = [
+    ...held.map((r) => preview(PREVIEW_SEIS_REVOKE_ACTION, r, `Preview revoke · ${r} on ${sub}`)),
+    ...(["viewer", "admin"] as const)
+      .filter((r) => !held.includes(r))
+      .map((r) =>
+        preview(PREVIEW_SEIS_GRANT_ACTION, r, `Preview grant · ${r} on ${sub}`, noAccess),
+      ),
+    ...(unread
+      ? [rereadAction("seismic", "Re-read seismic members", "one call per group", signedOut)]
+      : []),
+    openAction(`who:${id}`, "Open identity"),
+    openAction(`sub:${sub}`, `Open ${sub}`),
+  ];
+  const status: CellView["status"] =
+    held.length > 0
+      ? usable || !c
+        ? { label: "configured", tone: "ok" }
+        : { label: "configured, unusable", tone: "warn" }
+      : unread
+        ? { label: "not measured", tone: "warn" }
+        : { label: "no configured grant", tone: "neutral" };
+  return {
+    title: `${name} → ${sub}`,
+    status,
+    facts,
+    backs,
+    text:
+      backs.length > 1
+        ? `These groups back ${backs.join(", ")}, so a change reaches all of them. Cells change only when the next read sees the new membership.`
+        : "Cells change only when the next read sees the new membership.",
+    verbs,
+  };
+}
+
 function gone(text: string): CanvasBoardView {
   return { view: "board", sections: [{ kind: "rows", items: [{ glyph: "neutral", text }] }] };
 }
@@ -169,6 +323,19 @@ export function composeInspect(rt: Runtime): CanvasBoardView {
       composeTag(brief, inputs.legal, name, tagUse(inputs, name), now) ??
       gone("That legal tag is no longer listed.")
     );
+  }
+  if (sel.startsWith("cell:")) {
+    const [, id, sub] = sel.split(":");
+    const v = id && sub ? cellView(rt, inputs, id, sub) : undefined;
+    return v ? composeCell(v) : gone("That cell is no longer in the matrix.");
+  }
+  if (sel.startsWith("sub:")) {
+    const selected = composeSeismicSelected(rt);
+    if (selected.view !== "board" || selected.sections.length === 0) {
+      return gone("That subproject is no longer listed.");
+    }
+    const flow = selectedFlow(rt);
+    return { ...selected, sections: [...selected.sections, ...(flow ? [flow] : [])] };
   }
   if (sel.startsWith("who:")) {
     const id = sel.slice(4);
@@ -212,7 +379,16 @@ const inspectAction: ActionHandler = async (rt, payload) => {
   }
   const brief = buildBrief(inputs);
   let title: string | undefined;
-  if (id.startsWith("item:")) title = brief.items.find((x) => x.id === id)?.title;
+  if (id.startsWith("cell:")) {
+    const [, who, sub] = id.split(":");
+    title = who && sub ? cellView(rt, inputs, who, sub)?.title : undefined;
+  } else if (id.startsWith("sub:")) {
+    const name = id.slice(4);
+    if (inputs.seismic?.subprojects.some((s) => s.name === name)) {
+      seismicState(rt).selected = name;
+      title = `Subproject · ${name}`;
+    }
+  } else if (id.startsWith("item:")) title = brief.items.find((x) => x.id === id)?.title;
   else if (id.startsWith("read:")) title = brief.reads.find((r) => `read:${r.area}` === id)?.label;
   else if (id.startsWith("tag:")) {
     const name = id.slice(4);

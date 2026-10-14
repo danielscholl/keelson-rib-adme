@@ -523,6 +523,21 @@ export function composeSeismicSubprojects(rt: Runtime): CanvasBoardView {
   };
 }
 
+// The flow from the selected subproject to who reaches it, for its inspector.
+export function selectedFlow(rt: Runtime): Leaf | undefined {
+  const measured = measuredSeismic(rt);
+  if (!measured) return undefined;
+  const selected = selectedSubproject(rt, measured.model);
+  const people = measuredAccess(rt)?.counts.people;
+  const ranked = displayOrder(measured.model)
+    .map((s, i) => {
+      const r = reachedOf(s);
+      return { s, r, n: reachCount(r, people), i };
+    })
+    .sort((a, b) => (b.n ?? -1) - (a.n ?? -1) || a.i - b.i);
+  return whoFlow(ranked, people, selected);
+}
+
 // ---- The selected subproject ----
 
 function domainOf(m: Member): string | undefined {

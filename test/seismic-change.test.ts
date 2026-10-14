@@ -515,3 +515,58 @@ describe("grant seismic from the access tab", () => {
     );
   });
 });
+
+describe("plans from the console", () => {
+  const KARI = "00000000-0000-4000-8000-0000000000ff";
+
+  function withFormer() {
+    const seismic = sampleSeismic();
+    seismic.groups[groupEmail("delta", "viewer")]?.members?.push(KARI);
+    seismic.directory = {
+      [KARI]: { kind: "user", name: "Kari Solberg", mail: "kari@halden-geo.example" },
+    };
+    return runtime({ seismic, extra: { [KARI]: [groupEmail("delta", "viewer")] } });
+  }
+
+  test("a grant held without instance access can be revoked", async () => {
+    const { rt, sent } = withFormer();
+    const p = await plan(rt, PREVIEW_SEIS_REVOKE_ACTION, {
+      id: KARI,
+      subproject: "delta",
+      role: "viewer",
+    });
+    expect(p.title).toBe("revoke Kari Solberg's viewer on delta");
+    expect(planStats(p)).toMatchObject({ willChange: 1, blocked: 0 });
+    expect(writes(sent)).toEqual([]);
+  });
+
+  test("a grant to someone without instance access is planned as blocked", async () => {
+    const { rt } = withFormer();
+    const p = await plan(rt, PREVIEW_SEIS_GRANT_ACTION, {
+      id: KARI,
+      subproject: "alpha",
+      role: "viewer",
+    });
+    expect(p.subjects[0]).toMatchObject({
+      blocked: true,
+      reason:
+        "Kari Solberg holds no users@ or role group, so a seismic grant could not be used. Restore instance access first.",
+    });
+  });
+
+  test("the plan sheet leads with who, then current against proposed and each group's reach", async () => {
+    const { rt } = runtime();
+    await plan(rt, PREVIEW_SEIS_GRANT_ACTION, { id: LENA, subproject: "alpha", role: "viewer" });
+    const view = planBoard(composePlan(rt));
+    if (view.view !== "board") throw new Error("board expected");
+    const titles = view.sections.map((s) => ("title" in s ? s.title : undefined));
+    expect(titles.slice(0, 3)).toEqual([
+      "Who · Lena Fischer",
+      "Current and proposed · 1 subproject touched",
+      "Reach · every subproject each touched group backs",
+    ]);
+    const change = view.sections[1];
+    if (change?.kind !== "rows") throw new Error("rows expected");
+    expect(change.items[0]).toMatchObject({ text: "alpha · selected", trailing: "none → Viewer" });
+  });
+});
