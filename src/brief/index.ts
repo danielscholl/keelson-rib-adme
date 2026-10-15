@@ -70,6 +70,8 @@ export interface Item {
   scope?: string;
   // The inspector id the item opens beside its own.
   subject?: string;
+  // How many things a folded item stands for; one when absent.
+  count?: number;
   // Oldest first within a class.
   at?: string;
 }
@@ -115,6 +117,8 @@ export interface Brief {
   headline: string;
   summary: string;
   items: Item[];
+  // One LEGAL item per tag, for Data and the inspector; Overview may fold them.
+  stewardship?: Item[];
   onboarding?: Onboarding;
   adoption?: string;
   stamp: { text?: string; notes: StampNote[] };
@@ -567,7 +571,7 @@ export function tagUseText(t: TagInUse): string {
   return parts.length > 0 ? `in use on ${listOf(parts, 6)}` : "in use";
 }
 
-function legalItems(i: BriefInputs): Item[] {
+export function legalItems(i: BriefInputs): Item[] {
   return tagsNeedingCare(i).care.map((t): Item => {
     const title = t.invalid
       ? `${t.name} is invalid and still in use`
@@ -612,6 +616,81 @@ function legalItems(i: BriefInputs): Item[] {
       ...(t.expires ? { at: t.expires } : {}),
     };
   });
+}
+
+export const LEGAL_GROUP = { invalid: "invalid", expiring: "expiring" } as const;
+
+// Tags carried only by records fold into one decision per state, so a partition full
+// of test tags reads as one cleanup; a tag a seismic subproject relies on stays alone.
+function legalDecisions(i: BriefInputs, perTag: readonly Item[]): Item[] {
+  const care = tagsNeedingCare(i).care;
+  const byName = new Map(perTag.map((x) => [x.subject, x]));
+  const alone: Item[] = [];
+  const folds = { invalid: [] as TagInUse[], expiring: [] as TagInUse[] };
+  for (const t of care) {
+    if (t.subprojects.length > 0) {
+      const item = byName.get(tagId(t.name));
+      if (item) alone.push(item);
+    } else folds[t.invalid ? "invalid" : "expiring"].push(t);
+  }
+  const out = [...alone];
+  for (const state of ["invalid", "expiring"] as const) {
+    const tags = folds[state];
+    if (tags.length === 1) {
+      const item = byName.get(tagId(tags[0]?.name ?? ""));
+      if (item) out.push(item);
+    } else if (tags.length > 1) out.push(legalFold(i, state, tags));
+  }
+  return out;
+}
+
+function legalFold(i: BriefInputs, state: "invalid" | "expiring", tags: TagInUse[]): Item {
+  const counted = tags.every((t) => t.records !== null);
+  const total = tags.reduce((n, t) => n + (t.records ?? 0), 0);
+  const ranked = [...tags].sort(
+    (a, b) => (b.records ?? 0) - (a.records ?? 0) || a.name.localeCompare(b.name),
+  );
+  const top = ranked[0];
+  const shown = ranked.slice(0, 6);
+  const records = counted
+    ? plural(total, "indexed record", "indexed records")
+    : "records not all counted";
+  return {
+    id: itemId("LEGAL", `*${LEGAL_GROUP[state]}`),
+    cls: "LEGAL",
+    count: tags.length,
+    title:
+      state === "invalid"
+        ? `${tags.length} invalid legal tags still hold ${counted ? records : "records"}`
+        : `${tags.length} legal tags expire within ${EXPIRY_WINDOW_DAYS} days`,
+    sub: `${state === "invalid" || !counted ? "" : `${records} · `}most on ${top?.name}${top?.records ? ` (${fmt(top.records)})` : ""} · Data lists each`,
+    facts: [
+      ...shown.map((t) => ({
+        label: t.name,
+        value:
+          t.records === null
+            ? "not counted"
+            : `${plural(t.records, "record", "records")}${state === "expiring" && t.daysLeft !== undefined ? ` · ${t.daysLeft} d` : ""}`,
+        source: "instance" as const,
+        tone: state === "invalid" ? ("bad" as const) : ("warn" as const),
+      })),
+      ...(ranked.length > shown.length
+        ? [
+            {
+              label: `${ranked.length - shown.length} more`,
+              value: "listed in Data",
+              source: "instance" as const,
+              tone: "neutral" as const,
+            },
+          ]
+        : []),
+    ],
+    next:
+      state === "invalid"
+        ? "Records under an invalid tag cannot be read. Renew the tags worth keeping and delete or re-tag the rest of the records; the rib does not edit legal tags."
+        : "Extend the tags worth keeping or plan to move their records; the rib does not edit legal tags.",
+    scope: "Indexed records visible to this sign-in. No seismic subproject relies on these tags.",
+  };
 }
 
 function readItems(i: BriefInputs): Item[] {
@@ -690,19 +769,20 @@ export function readFacts(s: ReadSignal, now: Date): Fact[] {
   ];
 }
 
-export function decisionItems(i: BriefInputs): Item[] {
+export function decisionItems(i: BriefInputs, perTag: readonly Item[] = legalItems(i)): Item[] {
   const items = [
     ...blockedItems(i),
     ...inconsistentItems(i),
     ...identityItems(i),
     ...grantItems(i),
-    ...legalItems(i),
+    ...legalDecisions(i, perTag),
     ...readItems(i),
   ];
   return items.sort(
     (a, b) =>
       (CLASS_RANK.get(a.cls) ?? 0) - (CLASS_RANK.get(b.cls) ?? 0) ||
-      (a.at ?? "~").localeCompare(b.at ?? "~"),
+      Number(a.at === undefined) - Number(b.at === undefined) ||
+      (a.at ?? "").localeCompare(b.at ?? ""),
   );
 }
 
@@ -723,7 +803,7 @@ function headlineOf(items: readonly Item[]): string {
   if (same.length === 1) {
     return top.cls === "BLOCKED" ? `${top.title} as configured.` : `${top.title}.`;
   }
-  return CLASS_PLURAL[top.cls](same.length);
+  return CLASS_PLURAL[top.cls](same.reduce((n, x) => n + (x.count ?? 1), 0));
 }
 
 // The next one or two things after the headline, each named once.
@@ -873,7 +953,8 @@ export function buildBrief(i: BriefInputs): Brief {
       stamp: stampOf(i),
     };
   }
-  const items = decisionItems(i);
+  const stewardship = legalItems(i);
+  const items = decisionItems(i, stewardship);
   const onboarding = onboardingOfAll(i);
   const adoption = adoptionOf(i);
   const sweptAt = reads.find((s) => s.area === "access")?.at;
@@ -884,6 +965,7 @@ export function buildBrief(i: BriefInputs): Brief {
     headline: headlineOf(items),
     summary: summaryOf(items, onboarding, reads),
     items,
+    stewardship,
     ...(onboarding ? { onboarding } : {}),
     ...(adoption ? { adoption } : {}),
     stamp: stampOf(i),

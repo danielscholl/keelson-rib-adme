@@ -105,6 +105,64 @@ describe("decisions", () => {
     ]);
   });
 
+  test("invalid tags carried only by records fold into one decision; Data keeps each", () => {
+    const leftovers = ["opendes-test-tag-01", "opendes-test-tag-02", "opendes-test-tag-03"];
+    const legal = {
+      ...SAMPLE_LEGAL,
+      invalid: [
+        ...SAMPLE_LEGAL.invalid,
+        ...leftovers.map((name) => ({
+          name,
+          expirationDate: "2026-01-31",
+          countries: ["US"],
+          dataType: "Public Domain Data",
+          securityClassification: "Public",
+        })),
+      ],
+    };
+    const facets = {
+      ...SAMPLE_FACETS,
+      tags: [
+        ...(SAMPLE_FACETS.tags ?? []),
+        { key: "opendes-test-tag-01", count: 1 },
+        { key: "opendes-test-tag-02", count: 6 },
+        { key: "opendes-test-tag-03", count: 2 },
+      ],
+    };
+    const brief = briefOf(
+      seededRuntime({
+        [ACCESS_AREA]: healthy(),
+        [LEGAL_AREA]: legal,
+        [FACETS_AREA]: facets,
+        [SEISMIC_AREA]: sampleSeismic(),
+      }),
+    );
+    expect(brief.items.map((i) => [i.id, i.title, i.sub])).toEqual([
+      [
+        "item:legal:opendes-pilot-trial",
+        "opendes-pilot-trial expires in 22 days",
+        "in use on foxtrot, golf, golf2, golf3 and 8,400 indexed records",
+      ],
+      [
+        "item:legal:*invalid",
+        "3 invalid legal tags still hold 9 indexed records",
+        "most on opendes-test-tag-02 (6) · Data lists each",
+      ],
+    ]);
+    expect(brief.headline).toBe("Four legal tags in use need care.");
+    expect(brief.items[1]?.facts.map((f) => f.label)).toEqual([
+      "opendes-test-tag-02",
+      "opendes-test-tag-03",
+      "opendes-test-tag-01",
+    ]);
+    expect(brief.stewardship?.map((i) => i.id)).toEqual([
+      "item:legal:opendes-test-tag-01",
+      "item:legal:opendes-test-tag-02",
+      "item:legal:opendes-test-tag-03",
+      "item:legal:opendes-pilot-trial",
+    ]);
+  });
+
   test("a seismic read past 24 hours is a READ item and an amber stamp note", () => {
     const rt = seededRuntime({ [ACCESS_AREA]: healthy() });
     rt.cache.succeed(SEISMIC_AREA, sampleSeismic(), new Date(NOW.getTime() - 6 * 86_400_000));

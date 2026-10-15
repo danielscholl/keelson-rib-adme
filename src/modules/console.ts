@@ -91,7 +91,7 @@ export function composeConsole(rt: Runtime): string {
   const inputs = briefInputs(rt);
   const brief = buildBrief(inputs);
   const matrix = seismicMatrix(inputs);
-  const data = dataTab(dataBrief(inputs, brief.items));
+  const data = dataTab(dataBrief(inputs, brief.stewardship ?? []));
   const base = { brief, people: peopleRows(inputs), cohorts: rt.tracker.cohorts.length };
   const steps = [
     { panes: PANE_LIMIT, compact: false },
@@ -379,7 +379,7 @@ export function composeInspect(rt: Runtime): CanvasBoardView {
   const brief: Brief = buildBrief(inputs);
   const now = rt.now();
   if (sel.startsWith("item:")) {
-    const item = brief.items.find((x) => x.id === sel);
+    const item = [...brief.items, ...(brief.stewardship ?? [])].find((x) => x.id === sel);
     if (!item)
       return gone("This item has cleared since it was opened. The console shows what is left.");
     return composeItem(item, itemVerbs(rt, inputs, item));
@@ -471,7 +471,8 @@ const inspectAction: ActionHandler = async (rt, payload) => {
       seismicState(rt).selected = name;
       title = `Subproject · ${name}`;
     }
-  } else if (id.startsWith("item:")) title = brief.items.find((x) => x.id === id)?.title;
+  } else if (id.startsWith("item:"))
+    title = [...brief.items, ...(brief.stewardship ?? [])].find((x) => x.id === id)?.title;
   else if (id.startsWith("read:")) title = brief.reads.find((r) => `read:${r.area}` === id)?.label;
   else if (id.startsWith("tag:")) {
     const name = id.slice(4);
