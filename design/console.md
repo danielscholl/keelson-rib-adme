@@ -159,9 +159,8 @@ proposed over every subproject the touched groups back, then each group's reach.
 Record families (a kind's entity name, so versions and authorities add
 together) with their counts, indexed and visible to this sign-in. The
 stewardship queue holds LEGAL items; an invalid tag nothing uses sits below as
-lower priority. The partition map sits below the console as Explore the
-partition; Find records and a family's Browse records open record search in the
-drawer. The record inspector names creator and modifier through the directory,
+lower priority. Find records and a family's Browse records open record search
+in the drawer. The record inspector names creator and modifier through the directory,
 and offers Label this id for one nothing names.
 
 ## Frame size

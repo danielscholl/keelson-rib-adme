@@ -24,7 +24,7 @@ const trackerSchema = z.object({
   // Lowercased email address to cohort name.
   members: z.record(z.string(), z.string()),
   // `who` is the identity id an event is about, for that person's history.
-  // `kind` labels a change in Recent changes; `plan` is the plan id it came from.
+  // `kind` labels a change; `plan` is the plan id it came from.
   events: z.array(
     z.object({
       at: z.string(),

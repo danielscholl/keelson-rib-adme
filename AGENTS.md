@@ -31,8 +31,8 @@ A PR needs `bun run check`, `bun run typecheck` and `bun test` green.
 ## Architecture
 
 - One `Rib` object exported from `src/index.ts` and one surface: a connect
-  header, the console banner (`rib:adme:console`, html), and the operation and
-  partition map regions below it. Drawers (person, plan, explain, record, find
+  header, the console banner (`rib:adme:console`, html), and the operation
+  region below it, shown only while a plan applies. Drawers (person, plan, explain, record, find
   records, cohorts, connection and `rib:adme:inspect`) have views and no region.
   Every key is in `src/keys.ts`. The console design is `design/console.md`.
 - `src/directory/` resolves every id through one identity directory: Graph

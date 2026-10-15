@@ -330,6 +330,11 @@ describe("result rows", () => {
 });
 
 describe("phases", () => {
+  test("the drawer stays folded until a search runs", () => {
+    const status = seededRuntime({ [KINDS_AREA]: SAMPLE_KINDS }, { now: NOW }).status;
+    expect(composeRecords({ status }).header?.defaultCollapsed).toBe(true);
+  });
+
   test("not connected publishes no sections so the region hides", () => {
     const view = frame(seededRuntime({}, { phase: "firstrun" }));
     expect(view.sections).toEqual([]);

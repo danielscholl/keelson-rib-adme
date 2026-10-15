@@ -28,8 +28,7 @@ everywhere it appears.
   Admin or Viewer, default reach, a grant that cannot be used, a group that was
   not read. Each cell shows its path from person to group to subproject.
 - **Data.** Record families with their scope, and a stewardship queue of legal
-  tags in use. The partition map sits below the console as Explore the
-  partition, and record search opens in the drawer as Find records.
+  tags in use. Record search opens in the drawer as Find records.
 
 Selecting anything in the console fills its pane; Open in inspector moves it to
 the side drawer, where every verb lives.

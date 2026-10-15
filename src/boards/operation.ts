@@ -10,7 +10,6 @@ import type { CanvasActionItem, CanvasBoardView, CanvasTone } from "@keelson/sha
 import { currentOperation, type OpStatus, type StepState } from "../plan/apply.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
-import { clock } from "../sweep.ts";
 import { SIGNIN_REASON } from "./connection.ts";
 
 type Section = CanvasBoardView["sections"][number];
@@ -103,46 +102,5 @@ export function composeOperation(rt: Runtime): CanvasBoardView {
     view: "board",
     header: { status: { label, tone: STATUS_TONE[op.status] }, chip: `plan ${op.planId}` },
     sections,
-  };
-}
-
-const KIND_CHIP: Record<string, { label: string; tone: CanvasTone }> = {
-  "dry run": { label: "dry run", tone: "neutral" },
-  applied: { label: "applied", tone: "ok" },
-  paused: { label: "paused", tone: "warn" },
-  aborted: { label: "aborted", tone: "warn" },
-  failed: { label: "failed", tone: "error" },
-};
-
-const RECENT_LIMIT = 10;
-
-function when(iso: string, now: Date): string {
-  return iso.slice(0, 10) === now.toISOString().slice(0, 10)
-    ? (clock(iso) ?? iso)
-    : iso.slice(0, 10);
-}
-
-export function composeRecent(rt: Runtime): CanvasBoardView {
-  if (!rt.profile || rt.status.phase === "firstrun") return EMPTY_BOARD;
-  const events = rt.tracker.events.filter((e) => !e.who).slice(0, RECENT_LIMIT);
-  if (events.length === 0) {
-    return {
-      view: "board",
-      sections: [{ kind: "rows", items: [{ glyph: "neutral", text: "No changes recorded yet." }] }],
-    };
-  }
-  const now = rt.now();
-  return {
-    view: "board",
-    sections: [
-      {
-        kind: "rows",
-        items: events.map((e) => ({
-          chip: KIND_CHIP[e.kind ?? ""] ?? { label: "event", tone: "info" as const },
-          text: e.text,
-          trailing: when(e.at, now),
-        })),
-      },
-    ],
   };
 }

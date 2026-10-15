@@ -9,7 +9,7 @@
 import type { OpHandle } from "@keelson/shared";
 import { z } from "zod";
 import type { Batch, CallResult } from "../client.ts";
-import { COHORTS_KEY, OPERATION_KEY, PERSON_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
+import { COHORTS_KEY, OPERATION_KEY, PERSON_KEY, PLAN_KEY } from "../keys.ts";
 import { measureSeismic } from "../modules/seismic.ts";
 import type { Runtime } from "../runtime.ts";
 import { buildPlan, type PlanInputs } from "./build.ts";
@@ -335,7 +335,6 @@ function pause(rt: Runtime, s: ExecState, op: Operation, line: OpStep, reason: s
     [{ kind: "paused", plan: op.planId, text: `${capital(op.title)}, ${reason}` }],
     rt.now(),
   );
-  rt.recompose([RECENT_KEY]);
 }
 
 function capital(text: string): string {
@@ -383,7 +382,7 @@ function finish(rt: Runtime, s: ExecState, status: OpStatus, reason?: string): v
     s.handle?.error(reason ?? "aborted");
   }
   delete s.handle;
-  rt.recompose([RECENT_KEY, PLAN_KEY]);
+  rt.recompose([PLAN_KEY]);
   if (status !== "aborted") {
     rt.sweep()
       .then(() => rt.recompose(ACCESS_KEYS))

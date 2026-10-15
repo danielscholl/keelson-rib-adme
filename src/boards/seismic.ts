@@ -24,7 +24,6 @@ import {
 import { SEISMIC_AREA, type SeismicRead } from "../seismic/read.ts";
 import { measuredAccess, SELECT_PERSON_ACTION } from "./access.ts";
 import { SIGNIN_REASON } from "./connection.ts";
-import { fold } from "./map.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
@@ -73,6 +72,20 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
   }
   const model = seismicModelOf(rt);
   return model ? { model, counts: countSeismic(model) } : undefined;
+}
+
+function fold(
+  totals: Map<string, number>,
+  cap: number,
+  keep: ReadonlySet<string>,
+): { kept: string[]; folded: string[] } {
+  const order = [...totals.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (order.length <= cap + 1) return { kept: order.map(([k]) => k), folded: [] };
+  const lit = order.filter(([k]) => keep.has(k)).slice(0, cap);
+  const rest = order.filter(([k]) => !keep.has(k)).slice(0, cap - lit.length);
+  const set = new Set([...lit, ...rest].map(([k]) => k));
+  const kept = order.map(([k]) => k).filter((k) => set.has(k));
+  return { kept, folded: order.map(([k]) => k).filter((k) => !set.has(k)) };
 }
 
 export function selectedSubproject(rt: Runtime, model: SeismicModel): SubprojectView | undefined {

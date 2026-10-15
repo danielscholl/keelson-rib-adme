@@ -1,6 +1,6 @@
 import type { KindCounts, LegalTag, LegalTags } from "../../src/data/areas";
+import type { Facets } from "../../src/data/facets";
 import type { Health } from "../../src/data/health";
-import type { Facets } from "../../src/data/map";
 
 // The ADME Data cast from design/spec.md. "Now" is 2026-10-02 14:05 UTC.
 export const NOW = new Date("2026-10-02T14:05:00Z");

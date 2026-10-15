@@ -18,8 +18,6 @@ export const INSPECT_KEY = "rib:adme:inspect";
 
 // Regions below the console.
 export const OPERATION_KEY = "rib:adme:operation";
-export const RECENT_KEY = "rib:adme:recent";
-export const MAP_KEY = "rib:adme:map";
 
 // Drawer inspectors: no region, opened in the canvas drawer.
 export const CONNECTION_KEY = "rib:adme:connection";
@@ -33,8 +31,6 @@ export const COHORTS_KEY = "rib:adme:cohorts";
 export const BOARD_KEYS = [
   HEADER_KEY,
   OPERATION_KEY,
-  RECENT_KEY,
-  MAP_KEY,
   CONNECTION_KEY,
   PERSON_KEY,
   PLAN_KEY,

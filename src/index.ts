@@ -22,9 +22,9 @@ import { BOARD_KEYS, CONSOLE_KEY, INSPECT_KEY, RIB_ID } from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
 import { composeConsole, consoleModule } from "./modules/console.ts";
+import { dataModule } from "./modules/data.ts";
 import { explainModule } from "./modules/explain.ts";
 import { headerModule } from "./modules/header.ts";
-import { mapModule } from "./modules/map.ts";
 import { planModule } from "./modules/plan.ts";
 import { recordModule } from "./modules/record.ts";
 import { recordsModule } from "./modules/records.ts";
@@ -48,7 +48,7 @@ const MODULES: readonly RegionModule[] = [
   connectionModule,
   accessModule,
   recordsModule,
-  mapModule,
+  dataModule,
   recordModule,
   planModule,
   seismicModule,

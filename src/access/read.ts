@@ -7,7 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallFailure, CallResult } from "../client.ts";
-import { COHORTS_KEY, MAP_KEY, PERSON_KEY } from "../keys.ts";
+import { COHORTS_KEY, PERSON_KEY } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const ACCESS_AREA = "access";
@@ -267,7 +267,7 @@ export const ACCESS_AREAS: readonly Area[] = [
   {
     name: ACCESS_AREA,
     // The map's People lens names members through this directory.
-    keys: [MAP_KEY, PERSON_KEY, COHORTS_KEY],
+    keys: [PERSON_KEY, COHORTS_KEY],
     read: readAccess,
   },
 ];

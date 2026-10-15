@@ -7,7 +7,7 @@ import { dataBrief, familiesOf } from "../src/brief/data";
 import { buildBrief } from "../src/brief/index";
 import { briefInputs } from "../src/brief/inputs";
 import { KINDS_AREA, LEGAL_AREA } from "../src/data/areas";
-import { FACETS_AREA } from "../src/data/map";
+import { FACETS_AREA } from "../src/data/facets";
 import { setOpenedRecord } from "../src/data/record";
 import { INSPECT_KEY, RECORD_KEY, RECORDS_KEY } from "../src/keys";
 import { BROWSE_FAMILY_ACTION, composeInspect, consoleModule } from "../src/modules/console";

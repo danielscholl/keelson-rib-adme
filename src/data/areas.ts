@@ -7,7 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallResult } from "../client.ts";
-import { MAP_KEY, RECORDS_KEY } from "../keys.ts";
+import { CONSOLE_KEY, RECORDS_KEY } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const LEGAL_AREA = "legal";
@@ -126,6 +126,6 @@ export async function readKinds(batch: Batch): Promise<CallResult<KindCounts>> {
 }
 
 export const DATA_AREAS: readonly Area[] = [
-  { name: LEGAL_AREA, keys: [MAP_KEY], read: readLegal },
-  { name: KINDS_AREA, keys: [MAP_KEY, RECORDS_KEY], read: readKinds },
+  { name: LEGAL_AREA, keys: [CONSOLE_KEY], read: readLegal },
+  { name: KINDS_AREA, keys: [RECORDS_KEY], read: readKinds },
 ];
