@@ -9,6 +9,7 @@
 import { designTokenCssBlock } from "@keelson/shared";
 import type { Brief, Item, Tone } from "../brief/index.ts";
 import type { PersonRow } from "../brief/people.ts";
+import { WHO } from "../brief/seismic.ts";
 import { INSPECT_ACTION } from "../surfaces.ts";
 import { DATA_STYLE } from "./console-data.ts";
 import { SEISMIC_STYLE } from "./console-seismic.ts";
@@ -29,6 +30,8 @@ export interface ConsoleParts {
   cohorts?: number;
   // Later tabs, each already laid out; a tab with no body is left out.
   tabs?: { id: string; label: string; html: string }[];
+  // People with an inline profile pane; the rest open the inspector.
+  panes?: number;
 }
 
 function chip(text: string, tone: Tone, extra = ""): string {
@@ -96,9 +99,7 @@ const FACETS: { id: string; label: string; test: (r: PersonRow) => boolean }[] =
   },
 ];
 
-// Past this many identities a row opens the inspector instead of a pane, so the
-// frame stays under its size limit on a large directory.
-const PANE_LIMIT = 80;
+export const PANE_LIMIT = 80;
 
 function personRow(r: PersonRow, selected: boolean, paned: boolean): string {
   const facets = FACETS.filter((f) => f.test(r))
@@ -122,7 +123,7 @@ ${r.groups ? `<p class="scope">${esc(r.groups)} · group detail in the inspector
 </section>`;
 }
 
-function peopleHtml(rows: readonly PersonRow[], cohorts: number): string {
+function peopleHtml(rows: readonly PersonRow[], cohorts: number, panes: number): string {
   const first = rows[0]?.id;
   const count = (f: (typeof FACETS)[number]) => rows.filter(f.test).length;
   const facets = FACETS.filter((f) => f.id === "all" || count(f) > 0)
@@ -135,14 +136,18 @@ function peopleHtml(rows: readonly PersonRow[], cohorts: number): string {
 <div class="focus">
 <input class="search" type="search" placeholder="Find identity: name, address, label, organization or id" data-search aria-label="Find identity">
 <div class="facets">${facets}</div>
-<div class="plist">${rows.map((r, n) => personRow(r, r.id === first, n < PANE_LIMIT)).join("")}</div>
+<div class="plist">${rows.map((r, n) => personRow(r, r.id === first, n < panes)).join("")}</div>
 <p class="count" data-count data-total="${rows.length}">${rows.length} of ${rows.length} identities</p>
 <p class="links"><button type="button" class="link" data-inspect="${COHORTS_ID}">${cohorts > 0 ? `Cohorts · ${cohorts} tracked ▸` : "Import cohorts ▸"}</button></p>
 </div>
-<div class="pane">${rows
-    .slice(0, PANE_LIMIT)
-    .map((r) => personPane(r, r.id === first))
-    .join("")}${legend()}</div>
+<div class="pane">${
+    panes > 0
+      ? rows
+          .slice(0, panes)
+          .map((r) => personPane(r, r.id === first))
+          .join("")
+      : `<p class="none">Select an identity to open it in the inspector.</p>`
+  }${legend()}</div>
 </div>`;
 }
 
@@ -178,7 +183,7 @@ export function consoleHtml(parts: ConsoleParts): string {
   const views = measured
     ? `<div class="tabs" role="tablist">${tab("overview", "Overview", true)}${tab("people", "People", false)}${extra.map((t) => tab(t.id, t.label, false)).join("")}${stamp}</div>
 <div data-view-pane="overview">${overviewHtml(b)}</div>
-<div data-view-pane="people" hidden>${peopleHtml(parts.people, parts.cohorts ?? 0)}</div>
+<div data-view-pane="people" hidden>${peopleHtml(parts.people, parts.cohorts ?? 0, parts.panes ?? PANE_LIMIT)}</div>
 ${extra.map((t) => `<div data-view-pane="${esc(t.id)}" hidden>${t.html}</div>`).join("\n")}`
     : `${stamp ? `<div class="tabs">${stamp}</div>` : ""}<h2>${esc(b.headline)}</h2>${b.summary ? `<p class="summary">${esc(b.summary)}</p>` : ""}`;
   return `<style>${designTokenCssBlock()}${STYLE}${SEISMIC_STYLE}${DATA_STYLE}</style>
@@ -282,25 +287,45 @@ const SCRIPT = `(function () {
     });
     return true;
   }
-  function cellFallback(id) {
-    var btn = document.querySelector('[data-cell="' + id + '"]');
-    var pane = document.querySelector('[data-cell-detail="*"]');
-    if (!btn || !pane) return false;
-    document.querySelectorAll("[data-cell-detail]").forEach(function (d) { d.hidden = d !== pane; });
-    document.querySelectorAll("[data-cell]").forEach(function (r) {
-      var on = r === btn;
-      r.classList.toggle("on", on);
-      r.setAttribute("aria-pressed", on ? "true" : "false");
-    });
-    var h = pane.querySelector("[data-fill]");
-    if (h) h.textContent = btn.getAttribute("data-title") || "";
-    var open = pane.querySelector("[data-inspect]");
-    if (open) open.setAttribute("data-inspect", id);
-    return true;
+  var cols = [];
+  document.querySelectorAll("[data-col]").forEach(function (th) { cols.push(th.getAttribute("data-col")); });
+  function cellOf(td) {
+    var tr = td.parentNode;
+    var h = tr.querySelector(".rowh");
+    return { rid: tr.getAttribute("data-rid"), col: cols[td.cellIndex - 1] || "", name: h ? h.textContent : "", mark: td.textContent };
   }
+  function selectCell(td) {
+    var c = cellOf(td);
+    var tpl = document.querySelector('[data-tpl="' + CSS.escape(c.col + "|" + c.mark) + '"]');
+    var live = document.querySelector("[data-cell-live]");
+    if (!tpl || !live) return null;
+    var id = "cell:" + c.rid + ":" + c.col;
+    var safe = document.createElement("span");
+    safe.textContent = c.name;
+    var open = live.querySelector(".open");
+    live.innerHTML = tpl.innerHTML.split(${JSON.stringify(WHO)}).join(safe.innerHTML);
+    if (open) { open.setAttribute("data-inspect", id); live.appendChild(open); }
+    document.querySelectorAll(".matrix td.on").forEach(function (x) { x.classList.remove("on"); x.setAttribute("aria-pressed", "false"); });
+    td.classList.add("on");
+    td.setAttribute("aria-pressed", "true");
+    return id;
+  }
+  function cellById(id) {
+    var rest = id.slice(5);
+    var at = rest.lastIndexOf(":");
+    var tr = document.querySelector('tr[data-rid="' + CSS.escape(rest.slice(0, at)) + '"]');
+    var i = cols.indexOf(rest.slice(at + 1));
+    return tr && i >= 0 ? tr.cells[i + 1] : null;
+  }
+  document.querySelectorAll(".matrix td").forEach(function (td) {
+    var c = cellOf(td);
+    td.tabIndex = 0;
+    td.setAttribute("role", "button");
+    td.setAttribute("aria-label", c.name + ", " + c.col + ": " + c.mark);
+    td.setAttribute("aria-pressed", td.classList.contains("on") ? "true" : "false");
+  });
   function pick(c, id) {
-    if (show(c[1], c[2], id, c[3])) return true;
-    return c[0] === "cell" && cellFallback(id);
+    return show(c[1], c[2], id, c[3]);
   }
   function current(row) {
     var on = document.querySelector("[" + row + "].on");
@@ -310,11 +335,12 @@ const SCRIPT = `(function () {
     ["view", "data-view", "data-view-pane", "aria-selected"],
     ["sel", "data-sel", "data-detail", "aria-pressed"],
     ["who", "data-who", "data-who-detail", "aria-pressed"],
-    ["cell", "data-cell", "data-cell-detail", "aria-pressed"],
     ["fam", "data-fam", "data-fam-detail", "aria-pressed"],
   ];
-  var state = { q: "", facet: "all", mgroup: "people" };
+  var state = { q: "", facet: "all", mgroup: "people", cell: null };
   KINDS.forEach(function (c) { state[c[0]] = current(c[1]); });
+  var on = document.querySelector(".matrix td.on");
+  if (on) { var oc = cellOf(on); state.cell = "cell:" + oc.rid + ":" + oc.col; }
   function save() { if (k.saveState) k.saveState(state); }
   function filter() {
     var terms = state.q.toLowerCase().split(/\\s+/).filter(Boolean);
@@ -340,6 +366,13 @@ const SCRIPT = `(function () {
       b.classList.toggle("on", b.getAttribute("data-mgroup") === state.mgroup);
     });
   }
+  document.addEventListener("keydown", function (e) {
+    if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches && e.target.matches(".matrix td")) {
+      e.preventDefault();
+      var cid = selectCell(e.target);
+      if (cid) { state.cell = cid; save(); }
+    }
+  });
   var box = document.querySelector("[data-search]");
   if (box) box.addEventListener("input", function () { state.q = box.value; filter(); save(); });
   if (k.onRestore) k.onRestore(function (s) {
@@ -348,6 +381,7 @@ const SCRIPT = `(function () {
       var id = s[c[0]];
       if (typeof id === "string" && pick(c, id)) state[c[0]] = id;
     });
+    if (typeof s.cell === "string") { var td = cellById(s.cell); if (td && selectCell(td)) state.cell = s.cell; }
     if (typeof s.q === "string") { state.q = s.q; if (box) box.value = s.q; }
     if (typeof s.facet === "string") state.facet = s.facet;
     if (typeof s.mgroup === "string") state.mgroup = s.mgroup;
@@ -355,8 +389,9 @@ const SCRIPT = `(function () {
     mgroup();
   });
   document.addEventListener("click", function (e) {
-    var t = e.target && e.target.closest ? e.target.closest("[data-view],[data-sel],[data-who],[data-cell],[data-fam],[data-facet],[data-mgroup],[data-inspect]") : null;
+    var t = e.target && e.target.closest ? e.target.closest("[data-view],[data-sel],[data-who],.matrix td,[data-fam],[data-facet],[data-mgroup],[data-inspect]") : null;
     if (!t) return;
+    if (t.matches(".matrix td")) { var cid = selectCell(t); if (cid) { state.cell = cid; save(); } return; }
     var facet = t.getAttribute("data-facet");
     if (facet !== null) { state.facet = facet; filter(); save(); return; }
     var mg = t.getAttribute("data-mgroup");

@@ -10,7 +10,13 @@ import type { CanvasActionItem, CanvasBoardView, RibActionResult } from "@keelso
 import { measuredAccess } from "../access/measured.ts";
 import { EXPLAIN_ACTION } from "../boards/change.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
-import { COHORTS_ID, CONNECTION_ID, consoleHtml } from "../boards/console.ts";
+import {
+  COHORTS_ID,
+  CONNECTION_ID,
+  CONSOLE_MAX_BYTES,
+  consoleHtml,
+  PANE_LIMIT,
+} from "../boards/console.ts";
 import { dataTab, FIND_ID } from "../boards/console-data.ts";
 import { seismicTab } from "../boards/console-seismic.ts";
 import {
@@ -80,18 +86,32 @@ function str(p: Payload, key: string): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
+// A large directory gives up inline profile panes before the frame passes its limit.
 export function composeConsole(rt: Runtime): string {
   const inputs = briefInputs(rt);
   const brief = buildBrief(inputs);
-  return consoleHtml({
-    brief,
-    people: peopleRows(inputs),
-    cohorts: rt.tracker.cohorts.length,
-    tabs: [
-      { id: "seismic", label: "Seismic", html: seismicTab(seismicMatrix(inputs)) },
-      { id: "data", label: "Data", html: dataTab(dataBrief(inputs, brief.items)) },
-    ],
-  });
+  const matrix = seismicMatrix(inputs);
+  const data = dataTab(dataBrief(inputs, brief.items));
+  const base = { brief, people: peopleRows(inputs), cohorts: rt.tracker.cohorts.length };
+  const steps = [
+    { panes: PANE_LIMIT, compact: false },
+    { panes: 20, compact: false },
+    { panes: 0, compact: false },
+    { panes: 0, compact: true },
+  ];
+  let html = "";
+  for (const { panes, compact } of steps) {
+    html = consoleHtml({
+      ...base,
+      panes,
+      tabs: [
+        { id: "seismic", label: "Seismic", html: seismicTab(matrix, compact) },
+        { id: "data", label: "Data", html: data },
+      ],
+    });
+    if (new TextEncoder().encode(html).byteLength <= CONSOLE_MAX_BYTES) break;
+  }
+  return html;
 }
 
 export const BROWSE_FAMILY_ACTION = "browse-family";

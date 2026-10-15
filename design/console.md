@@ -116,7 +116,7 @@ organizations and ids, so it costs no call. Facets: people, applications, ids
 not in Entra, needs a look, invited. The profile answers "can this person get
 started?" (invitation, users@, role, named seismic reach, shared subprojects,
 observed use) before what we know. Past 80 identities a row opens the inspector
-instead of a pane, so the frame stays under its size limit.
+instead of a pane.
 
 The person inspector leads with the same ladder and operator notes, lists
 seismic groups as named reach rather than extra groups, keeps the raw effective
@@ -144,7 +144,8 @@ Selecting a cell shows the path from person to group to subproject and every
 subproject that group backs. The cell inspector holds Preview grant and Preview
 revoke; a grant to someone with no instance access is disabled with the reason.
 A column header opens the subproject with its members and the relationship
-flow. The plan sheet for a seismic change leads with who, then current against
+flow. Cells are bare table cells and each pane is one template per subproject
+and mark that the frame fills with the row's name, so a cell costs a few bytes. The plan sheet for a seismic change leads with who, then current against
 proposed over every subproject the touched groups back, then each group's reach.
 
 ## Data
@@ -158,6 +159,14 @@ lower priority. The partition map sits below the console as Explore the
 partition; Find records and a family's Browse records open record search in the
 drawer. The record inspector names creator and modifier through the directory,
 and offers Label this id for one nothing names.
+
+## Frame size
+
+The frame must stay under 256 KB. When the console would not fit, it gives up
+in order: profile panes past 20 people, then every profile pane (rows open the
+inspector), then the matrix, which becomes a list of subprojects with their
+admin and viewer counts. `test/console-size.test.ts` holds both ends: a hundred
+grant holders on every subproject keep the matrix, two hundred get the list.
 
 ## Inspector ids
 

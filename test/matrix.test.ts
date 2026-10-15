@@ -61,14 +61,21 @@ describe("seismic matrix", () => {
     expect(m.signals.map((s) => s.text)[1]).toMatch(/^Members \d+ of \d+ groups read$/);
   });
 
-  test("the tab draws a matrix with clickable cells, unread columns marked and one shared empty pane", () => {
-    const html = seismicTab(seismicMatrix(briefInputs(rt())));
-    expect(html).toContain(`data-cell="cell:${MARCUS}:alpha"`);
+  test("the tab draws a matrix of bare cells with one pane template per subproject and mark", () => {
+    const m = seismicMatrix(briefInputs(rt()));
+    if (!m) throw new Error("matrix expected");
+    const html = seismicTab(m);
+    expect(html).toContain(`data-rid="${MARCUS}"`);
+    expect(html).toContain('data-col="alpha"');
     expect(html).toContain('data-inspect="sub:echo"');
     expect(html).toContain("echo ?");
-    expect(html).toContain('data-cell-detail="*"');
-    expect(html).not.toContain(`data-cell-detail="cell:${MARCUS}:bravo"`);
-    expect(html).toContain(`data-cell-detail="cell:${MARCUS}:alpha"`);
+    expect(html).toContain('data-tpl="alpha|V"');
+    expect(html).toContain('data-tpl="bravo|·"');
+    expect(html).toContain('data-tpl="echo|?"');
+    expect(m.templates.filter((t) => t.key === "alpha|V")).toHaveLength(1);
+    expect(m.templates.find((t) => t.key === "alpha|V")?.title).toBe("{who} → alpha");
+    expect(html).toContain("data-cell-live");
+    expect(html).not.toContain("data-cell=");
   });
 
   test("before the store is read the tab says so instead of drawing an empty matrix", () => {
