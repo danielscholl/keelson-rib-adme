@@ -1,120 +1,37 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
-import { ACCESS_AREA } from "../src/access/read";
 import { SELECT_PERSON_ACTION } from "../src/boards/access";
 import { composePerson } from "../src/boards/person";
 import { composePlan } from "../src/boards/plan";
 import {
   composeSeismicSelected,
-  PREVIEW_SEIS_COPY_ACTION,
   PREVIEW_SEIS_GRANT_ACTION,
   PREVIEW_SEIS_REVOKE_ACTION,
   PREVIEW_SEIS_SELF_ACTION,
   SEIS_SELECT_ACTION,
 } from "../src/boards/seismic";
-import { HEALTH_AREA } from "../src/data/health";
 import { INSPECT_KEY, PERSON_KEY, PLAN_KEY } from "../src/keys";
 import { accessModule } from "../src/modules/access";
-import { planModule } from "../src/modules/plan";
-import { seismicModule } from "../src/modules/seismic";
-import { currentOperation, operationPending } from "../src/plan/apply";
-import { bindingOf, planStats } from "../src/plan/model";
-import { planState } from "../src/plan/state";
+import { currentOperation } from "../src/plan/apply";
+import { planStats } from "../src/plan/model";
 import type { Runtime } from "../src/runtime";
-import { SEISMIC_AREA, type SeismicRead } from "../src/seismic/read";
-import { sampleAccess } from "./fixtures/access";
-import { NOW, SAMPLE_HEALTH } from "./fixtures/data";
-import { SAMPLE_PROFILE } from "./fixtures/profile";
-import { groupEmail, sampleGroupMembers, sampleSeismic } from "./fixtures/seismic";
-import { routeTransport, type SentRequest, seededRuntime } from "./harness";
+import { groupEmail, sampleSeismic } from "./fixtures/seismic";
+import {
+  act,
+  BASE,
+  binding,
+  oid,
+  plan,
+  seismicRuntime as runtime,
+  writes,
+} from "./fixtures/seismic-world";
 
-const oid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const INGRID = oid(1);
 const MARCUS = oid(4);
 const LENA = oid(5);
-const HIRO = oid(6);
-const _RACHEL = oid(11);
-const BASE = 33;
-const binding = bindingOf(SAMPLE_PROFILE);
 
 const selectedBoard = expectView(INSPECT_KEY, "board");
 const planBoard = expectView(PLAN_KEY, "board");
-
-// Entitlements as a store: each person's seismic groups, read back as effective groups.
-function world(extra: Record<string, string[]> = {}) {
-  const held = new Map<string, Set<string>>();
-  for (const [group, members] of Object.entries(sampleGroupMembers())) {
-    for (const m of members) {
-      const set = held.get(m.email) ?? new Set<string>();
-      set.add(group);
-      held.set(m.email, set);
-    }
-  }
-  for (const [id, groups] of Object.entries(extra)) {
-    const set = held.get(id) ?? new Set<string>();
-    for (const g of groups) set.add(g);
-    held.set(id, set);
-  }
-  const parse = (url: string, re: RegExp) => decodeURIComponent(url.match(re)?.[1] ?? "");
-  const routes = routeTransport({
-    "GET /api/entitlements/v2/members/": (req) => {
-      const id = parse(req.url, /members\/([^/]+)\/groups/);
-      const base = Array.from({ length: BASE }, (_, i) => ({ email: `base.${i}@x` }));
-      const seis = [...(held.get(id) ?? [])].map((email) => ({ email }));
-      return { status: 200, body: { groups: [...base, ...seis] } };
-    },
-    "POST /api/entitlements/v2/groups/": (req) => {
-      const group = parse(req.url, /groups\/([^/]+)\/members/);
-      const id = (req.body as { email: string }).email;
-      const set = held.get(id) ?? new Set<string>();
-      if (set.has(group)) return { status: 409, body: { message: "exists" } };
-      set.add(group);
-      held.set(id, set);
-      return { status: 200, body: {} };
-    },
-    "DELETE /api/entitlements/v2/groups/": (req) => {
-      const group = parse(req.url, /groups\/([^/]+)\/members/);
-      const id = parse(req.url, /members\/([^/?]+)$/);
-      if (!held.get(id)?.delete(group)) return { status: 404, body: { message: "not found" } };
-      return { status: 204 };
-    },
-  });
-  return { ...routes, held };
-}
-
-function runtime(
-  o: { extra?: Record<string, string[]>; seismic?: SeismicRead; phase?: "signin" } = {},
-) {
-  const w = world(o.extra);
-  const rt = seededRuntime(
-    {
-      [ACCESS_AREA]: sampleAccess(),
-      [HEALTH_AREA]: SAMPLE_HEALTH,
-      [SEISMIC_AREA]: o.seismic ?? sampleSeismic(),
-    },
-    { now: NOW, transport: w.transport, ...(o.phase ? { phase: o.phase } : {}) },
-  );
-  return { rt, ...w };
-}
-
-async function act(rt: Runtime, type: string, payload: Record<string, unknown> = {}) {
-  const handler = planModule.actions?.[type] ?? seismicModule.actions?.[type];
-  if (!handler) throw new Error(`no handler for ${type}`);
-  const res = await handler(rt, { ...binding, ...payload });
-  await planState(rt).pending;
-  await operationPending(rt);
-  return res;
-}
-
-async function plan(rt: Runtime, type: string, payload: Record<string, unknown>) {
-  const res = await act(rt, type, payload);
-  expect(res).toMatchObject({ ok: true });
-  const p = planState(rt).plan;
-  if (!p) throw new Error(`no plan: ${planState(rt).error}`);
-  return p;
-}
-
-const writes = (sent: SentRequest[]) => sent.filter((r) => r.method !== "GET");
 
 type Section = CanvasBoardView["sections"][number];
 
@@ -225,7 +142,7 @@ describe("seismic plans", () => {
     );
     expect(sent).toEqual([]);
     const text = JSON.stringify(planBoard(composePlan(rt)));
-    expect(text).toContain("Protected or excluded · 1");
+    expect(text).toContain("Blocked · 1");
     expect(text).toContain('"reason":"nothing to change"');
   });
 
@@ -248,37 +165,6 @@ describe("seismic plans", () => {
       "This group is shared by golf, golf2 and golf3; the change reaches all of them.",
     );
     expect(JSON.stringify(planBoard(composePlan(rt)))).toContain("shared by golf, golf2 and golf3");
-  });
-
-  test("copy grants adds what the source holds and marks what the target already has", async () => {
-    const { rt } = runtime({ extra: { [HIRO]: [groupEmail("delta", "viewer")] } });
-    const p = await plan(rt, PREVIEW_SEIS_COPY_ACTION, { from: MARCUS, to: HIRO });
-    expect(p.kind).toBe("seismic-copy");
-    expect(p.title).toBe("copy Marcus Oyelaran's seismic grants to Hiro Tanaka");
-    expect(p.subjects).toHaveLength(1);
-    expect(p.subjects[0]?.name).toBe("Hiro Tanaka");
-    const steps = p.subjects[0]?.steps ?? [];
-    expect(steps.map((t) => [t.kind, t.already ?? false])).toEqual([
-      ["member-add", false],
-      ["member-add", true],
-      ["verify", false],
-    ]);
-    expect(steps[0]?.call?.path).toContain(encodeURIComponent(groupEmail("alpha", "viewer")));
-    expect(steps[1]?.call?.path).toContain(encodeURIComponent(groupEmail("delta", "viewer")));
-    expect(steps[2]?.expect).toBe(BASE + 2 + 1);
-    expect(planStats(p)).toEqual({ willChange: 1, alreadyTrue: 1, blocked: 0, subjects: 1 });
-    expect(p.subjects[0]?.reason).toContain(
-      "Copies Marcus Oyelaran's grants: alpha viewer and delta viewer. Hiro Tanaka already holds delta viewer.",
-    );
-  });
-
-  test("copy refuses the same person and a source with no grants", async () => {
-    const { rt } = runtime();
-    expect(await act(rt, PREVIEW_SEIS_COPY_ACTION, { from: LENA, to: LENA })).toMatchObject({
-      ok: false,
-    });
-    await act(rt, PREVIEW_SEIS_COPY_ACTION, { from: LENA, to: HIRO });
-    expect(planState(rt).error).toBe("Lena Fischer holds no seismic grant to copy.");
   });
 
   test("Apply over the transport writes the grant and verifies the new count", async () => {
@@ -404,25 +290,6 @@ describe("what a partner can reach", () => {
     expect(text).toContain("What Marcus Oyelaran can reach · 4 paths");
     expect(text).toContain("sd://opendes/alpha");
     expect(text).toContain("Copy only. The rib does not send mail.");
-  });
-});
-
-describe("grant seismic from the access tab", () => {
-  test("Change access offers own-ACL subprojects once the store is read", async () => {
-    const { composeChange } = await import("../src/boards/change");
-    const { composePerson } = await import("../src/boards/person");
-    const { selectPerson } = await import("../src/access/person");
-    const { rt } = runtime();
-    const change = JSON.stringify(composeChange(rt));
-    expect(change).toContain('"type":"preview-seismic-grant"');
-    expect(change).toContain('"value":"alpha"');
-    expect(change).not.toContain('"value":"volve"');
-    selectPerson(rt, LENA);
-    expect(JSON.stringify(composePerson(rt))).not.toContain('"type":"preview-seismic-grant"');
-    const unread = seededRuntime({ [ACCESS_AREA]: sampleAccess() }, { now: NOW });
-    expect(JSON.stringify(composeChange(unread))).toContain(
-      "read the subprojects in the Seismic section first",
-    );
   });
 });
 

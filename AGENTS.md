@@ -55,8 +55,6 @@ A PR needs `bun run check`, `bun run typecheck` and `bun test` green.
   in memory. The connection profile is non-secret.
 - **Every change is a plan first.** Forms submit "Preview plan" and never
   mutate. Apply re-runs the dry run and aborts when anything changed.
-- **An add never creates a removal.** A collision after an invitation halts
-  the plan.
 - **Mutating actions are bound.** Each carries host, partition and tenant in
   its binding, revalidated in the rib before anything is written.
 - **Fail closed.** Every key registers a validator (`expectView`, or

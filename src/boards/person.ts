@@ -35,8 +35,8 @@ import { sdmsGrant } from "../seismic/read.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
-import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
+import { EXPLAIN_ACTION } from "./explain.ts";
 import { annotateForm, factSection } from "./inspect.ts";
 import { measuredSeismic } from "./seismic.ts";
 

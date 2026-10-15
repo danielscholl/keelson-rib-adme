@@ -32,7 +32,6 @@ const STEP_CHIP: Record<StepState, { label: string; tone: CanvasTone }> = {
 const STATUS_TONE: Record<OpStatus, CanvasTone> = {
   running: "info",
   paused: "warn",
-  halted: "error",
   aborted: "warn",
   failed: "error",
   done: "ok",
@@ -111,7 +110,6 @@ const KIND_CHIP: Record<string, { label: string; tone: CanvasTone }> = {
   "dry run": { label: "dry run", tone: "neutral" },
   applied: { label: "applied", tone: "ok" },
   paused: { label: "paused", tone: "warn" },
-  halted: { label: "halted", tone: "error" },
   aborted: { label: "aborted", tone: "warn" },
   failed: { label: "failed", tone: "error" },
 };

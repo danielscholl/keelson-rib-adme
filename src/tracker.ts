@@ -140,21 +140,6 @@ export class Tracker {
     return { ok: true };
   }
 
-  // Puts people into a tracked cohort, setting its pass end when one is given.
-  assign(emails: readonly string[], cohort: string, passEnds: string | undefined): SaveResult {
-    if (this.unreadable) return { ok: false, error: this.unreadableError() };
-    const known = this.file.cohorts.find((c) => c.name === cohort);
-    if (!known) return { ok: false, error: `${cohort} is not a tracked cohort` };
-    const members = { ...this.file.members };
-    for (const e of emails) members[e.toLowerCase()] = cohort;
-    const cohorts = this.file.cohorts.map((c) =>
-      c.name === cohort && passEnds ? { ...c, passEnds } : c,
-    );
-    this.file = { ...this.file, cohorts, members };
-    this.store.write(this.name, this.file);
-    return { ok: true };
-  }
-
   private unreadableError(): string {
     return `${this.name} could not be read. Fix or remove it, then restart.`;
   }

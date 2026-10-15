@@ -2,9 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
 import { explanations } from "../src/access/explain";
 import { ACCESS_AREA, GROUP_KEYS } from "../src/access/read";
-import { composeChange } from "../src/boards/change";
 import { composeExplain } from "../src/boards/explain";
-import { CHANGE_KEY, EXPLAIN_KEY } from "../src/keys";
+import { EXPLAIN_KEY } from "../src/keys";
 import { explainModule } from "../src/modules/explain";
 import { bindingOf } from "../src/plan/model";
 import type { Runtime } from "../src/runtime";
@@ -94,15 +93,11 @@ describe("why 401/403", () => {
     expect(cause?.detail).toContain("401 before roles are read");
     expect(checks?.items.slice(4).every((r) => r.trailing === "not reached")).toBe(true);
 
-    const fix = section(view, "cards", "Fix")?.items[0];
-    expect(fix?.title).toBe("Add Rachel Kim to users@");
-    expect(fix?.pill?.label).toBe("1 change");
-    expect(fix?.fields?.map((f) => f.value)).toEqual([
-      "POST entitlements /groups/users@…/members {email: 0000…0011, role: MEMBER}",
-      "GET entitlements /members/0000…0011/groups, expect 33",
+    const fix = section(view, "rows", "Fix");
+    expect(fix?.items.map((r) => r.text)).toEqual([
+      "Add Rachel Kim to users@opendes.dataservices.energy: a member of users.datalake.editors but not users@.",
     ]);
-    // The access tab is a viewer: the fix is described, never planned from here.
-    expect(fix?.actions?.map((a) => a.type)).toEqual(["select-person"]);
+    expect(fix?.items.some((r) => "actions" in r)).toBe(false);
   });
 
   test("a pending invitation fails the sign-in check first", async () => {
@@ -152,7 +147,9 @@ describe("why 401/403", () => {
       chip: { label: "warn" },
       trailing: "duplicate entry, not the cause",
     });
-    expect(section(view, "cards", "Fix")?.items[0]?.title).toBeDefined();
+    expect(JSON.stringify(section(view, "rows", "Fix"))).toContain(
+      "the entry by object id stays. A warning, not the cause of a 401 or 403.",
+    );
   });
 
   test("the note is plain text, copy only, and never mentions tokens or minutes", async () => {
@@ -189,10 +186,6 @@ describe("why 401/403", () => {
 
   test("while sign-in is needed it answers from the sweep", async () => {
     const { rt, sent } = runtime("signin");
-    const tab = (
-      composeChange(rt).sections[0] as { items: { type: string; disabled?: boolean }[] }
-    ).items.find((i) => i.type === "explain-access");
-    expect(tab?.disabled).toBeUndefined();
     await ask(rt, RACHEL);
     expect(sent).toHaveLength(0);
     const view = board(rt);
@@ -217,7 +210,6 @@ describe("why 401/403", () => {
       await ask(rt, id);
       board(rt);
     }
-    expectView(CHANGE_KEY, "board")(composeChange(rt));
     expect(composeExplain(seededRuntime({}, { phase: "firstrun" })).sections).toEqual([]);
   });
 });

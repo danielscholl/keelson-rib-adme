@@ -6,7 +6,6 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import { cleanupDuplicateSteps, fixUsersSteps, type StepContext } from "../plan/steps.ts";
 import { instanceName, type Profile, shortId } from "../profile.ts";
 import type { Runtime } from "../runtime.ts";
 import { groupCount, type Identity, type Role } from "./model.ts";
@@ -29,14 +28,6 @@ export interface Verdict {
   reason: string;
 }
 
-export interface ExplainFix {
-  kind: "fix-users" | "cleanup-duplicate";
-  title: string;
-  changes: number;
-  lines: string[];
-  reason: string;
-}
-
 export interface Explanation {
   id: string;
   name: string;
@@ -48,8 +39,7 @@ export interface Explanation {
   sourceNote?: string;
   checks: Check[];
   verdict: Verdict;
-  fix?: ExplainFix;
-  // Shown when there is no plan to hand off: what changes, and on whose side.
+  // What changes, and on whose side.
   advice?: string;
   note: string;
 }
@@ -198,55 +188,20 @@ function verdictOf(failed: number, person: Identity): Verdict {
   return { label: "no cause in access", reason };
 }
 
-function stepContext(input: ExplainInput, domain: string): StepContext {
-  return {
-    domain,
-    rosterGroupId: input.profile.rosterGroupId,
-    closures: input.closures,
-  };
-}
-
-function fixOf(
-  input: ExplainInput,
-  domain: string,
-  verdict: Verdict,
-): { fix?: ExplainFix; advice?: string } {
+function adviceOf(input: ExplainInput, domain: string, verdict: Verdict): string | undefined {
   const { person } = input;
-  const sc = stepContext(input, domain);
   if (verdict.reason === USERS_REASON) {
-    const steps = fixUsersSteps(sc, person);
     const role = person.role ? GROUP_NAMES[ROLE_GROUP[person.role]] : "a role group";
-    return {
-      fix: {
-        kind: "fix-users",
-        title: `Add ${person.name} to users@`,
-        changes: steps.filter((s) => s.change && !s.already).length,
-        lines: steps.map((s) => s.text),
-        reason: `member of ${role} but not users@.`,
-      },
-    };
+    return `Add ${person.name} to users@${domain}: a member of ${role} but not users@.`;
   }
   if (verdict.code === "401") {
-    return {
-      advice: `Nothing to change on this side. ${firstName(person.name)} accepts the invitation sent ${day(person.invitedAt)}, then signs in.`,
-    };
+    return `Nothing to change on this side. ${firstName(person.name)} accepts the invitation sent ${day(person.invitedAt)}, then signs in.`;
   }
-  if (verdict.code === "403") {
-    return { advice: `Add ${person.name} to a role group with Add people.` };
+  if (verdict.code === "403") return `Add ${person.name} to a role group.`;
+  if (person.duplicateIn) {
+    return `Remove ${person.name}'s entry by email from ${GROUP_NAMES[person.duplicateIn]}@${domain}; the entry by object id stays. A warning, not the cause of a 401 or 403.`;
   }
-  if (person.duplicateIn && person.email) {
-    const steps = cleanupDuplicateSteps(sc, person, person.email.toLowerCase());
-    return {
-      fix: {
-        kind: "cleanup-duplicate",
-        title: `Remove ${person.name}'s duplicate entry`,
-        changes: steps.filter((s) => s.change && !s.already).length,
-        lines: steps.map((s) => s.text),
-        reason: "a warning, not the cause of a 401 or 403.",
-      },
-    };
-  }
-  return {};
+  return undefined;
 }
 
 function noteFor(input: ExplainInput, verdict: Verdict, expected: number | undefined): string {
@@ -309,6 +264,7 @@ export function explain(input: ExplainInput): Explanation {
         );
   const verdict = verdictOf(failed, person);
   const expected = groupCount({ ...person.memberships, users: "M" }, input.closures)?.expected;
+  const advice = adviceOf(input, domain, verdict);
   return {
     id: person.id,
     name: person.name,
@@ -319,7 +275,7 @@ export function explain(input: ExplainInput): Explanation {
     ...(evidence.failure ? { sourceNote: evidence.failure } : {}),
     checks,
     verdict,
-    ...fixOf(input, domain, verdict),
+    ...(advice ? { advice } : {}),
     note: noteFor(input, verdict, expected),
   };
 }

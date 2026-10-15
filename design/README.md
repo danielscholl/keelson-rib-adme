@@ -1,8 +1,11 @@
 # ADME rib design
 
 > The Access, Data and Seismic sections below were replaced by one console; see
-> [console.md](console.md). The connection, reads, plan engine, person
-> inspector, Why 401/403 and the partition map still work as described here.
+> [console.md](console.md). The connection, reads, person inspector, Why
+> 401/403 and the partition map still work as described here. The plan engine
+> now carries only seismic grant and revoke: adding, removing and fixing people
+> and applications, resending invitations and copying grants were removed and
+> will return inside the console.
 
 A Keelson rib that gives one operator an admin surface for an Azure Data Manager for Energy (ADME) instance: who has access, what data is there, and who is in each seismic subproject.
 

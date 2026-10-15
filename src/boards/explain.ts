@@ -13,8 +13,8 @@ import type { Profile } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
-import { SELECT_PERSON_ACTION } from "./access.ts";
-import { EXPLAIN_ACTION } from "./change.ts";
+
+export const EXPLAIN_ACTION = "explain-access";
 
 type Section = CanvasBoardView["sections"][number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
@@ -56,30 +56,8 @@ function segments(e: Explanation, title: string): Section {
 }
 
 function fixSection(e: Explanation): Section | undefined {
-  if (e.fix) {
-    return {
-      kind: "cards",
-      title: "Fix",
-      items: [
-        {
-          title: e.fix.title,
-          edge: e.verdict.code ? "error" : "warn",
-          pill: {
-            label: `${e.fix.changes} change${e.fix.changes === 1 ? "" : "s"}`,
-            tone: "neutral",
-          },
-          stacked: true,
-          fields: e.fix.lines.map((line, i) => ({ label: String(i + 1), value: line })),
-          reason: { label: "why", text: e.fix.reason },
-          actions: [{ type: SELECT_PERSON_ACTION, label: "Open person", payload: { id: e.id } }],
-        },
-      ],
-    };
-  }
-  if (e.advice) {
-    return { kind: "rows", title: "Fix", items: [{ glyph: "info", text: e.advice }] };
-  }
-  return undefined;
+  if (!e.advice) return undefined;
+  return { kind: "rows", title: "Fix", items: [{ glyph: "info", text: e.advice }] };
 }
 
 function noteSection(e: Explanation): Section {

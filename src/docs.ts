@@ -109,7 +109,7 @@ export const DOCS: readonly RibDocsSource[] = [
       "",
       "Every change is a previewed plan: a form submits Preview plan and never",
       "writes. Apply re-runs the dry run first. Seismic grant and revoke are the",
-      "only changes the console reaches; Data never writes. The console frame",
+      "only changes the rib makes; Data never writes. The console frame",
       "can only open the inspector.",
       "",
       "## Data handling",
