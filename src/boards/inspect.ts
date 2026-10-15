@@ -180,7 +180,7 @@ export function composeTag(
   const tag = valid ?? invalid;
   if (!tag) return undefined;
   const days = daysUntil(tag.expirationDate, now);
-  const item = b.items.find((x) => x.id === `item:legal:${name}`);
+  const item = [...b.items, ...(b.stewardship ?? [])].find((x) => x.id === `item:legal:${name}`);
   const facts: Fact[] = [
     {
       label: "Status",
