@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.10.0...v1.11.0) (2026-10-15)
+
+
+### Added
+
+* **console:** replace the ADME sections with one console over an identity directory ([#51](https://github.com/danielscholl/keelson-rib-adme/issues/51)) ([01eee1d](https://github.com/danielscholl/keelson-rib-adme/commit/01eee1d3b344282e53f6dde08013c7bad23a97c9))
+* **sample:** serve a made-up ADME instance with KEELSON_ADME_SAMPLE ([#48](https://github.com/danielscholl/keelson-rib-adme/issues/48)) ([86ac598](https://github.com/danielscholl/keelson-rib-adme/commit/86ac598f9820bd35d007cf5e81289c99ecac142b))
+
 ## [1.10.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.9.1...v1.10.0) (2026-10-09)
 
 
