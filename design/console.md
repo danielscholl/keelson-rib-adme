@@ -104,8 +104,8 @@ incomplete, is past its limit, or a service is not answering.
 Classes rank in that order, oldest first within a class. LEGAL tags carried only
 by records fold into one item per state ("14 invalid legal tags still hold 31
 indexed records"), listing the largest; a tag a seismic subproject with members
-relies on stays its own item. Data's stewardship queue and the inspector keep one
-item per tag. The headline names the
+relies on stays its own item. The folded item's inspector lists every tag, each
+opening the tag inspector; Data's stewardship queue keeps one item per tag. The headline names the
 top class; with nothing to decide it says "Nobody is blocked." and the summary
 names the oldest pending invitation. Never a decision: a pending invitation,
 accepted with no call, idle, an invalid tag nothing uses, a labelled historical

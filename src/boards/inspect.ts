@@ -94,7 +94,18 @@ export function composeItem(item: Item, extra: ItemVerbs): CanvasBoardView {
     : [];
   const sections: Section[] = [
     { kind: "rows", items: [{ text: item.sub }] },
-    factSection("Evidence", item.facts),
+    item.opens
+      ? {
+          kind: "rows",
+          title: item.opens.title,
+          items: item.opens.rows.map((o) => ({
+            glyph: "neutral" as const,
+            text: o.text,
+            ...(o.trailing ? { trailing: o.trailing } : {}),
+            action: { type: INSPECT_ACTION, payload: { id: o.id } },
+          })),
+        }
+      : factSection("Evidence", item.facts),
     { kind: "rows", title: "Next", items: [{ glyph: "neutral", text: item.next }] },
   ];
   if (item.scope) sections.push({ kind: "rows", items: [{ text: item.scope }] });
