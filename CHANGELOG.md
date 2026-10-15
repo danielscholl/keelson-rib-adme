@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.12.0...v1.13.0) (2026-10-15)
+
+
+### Added
+
+* **console:** list every tag in a folded legal item's inspector ([#56](https://github.com/danielscholl/keelson-rib-adme/issues/56)) ([a17acb0](https://github.com/danielscholl/keelson-rib-adme/commit/a17acb06a6e857c9e951d11880066202ed976396))
+
 ## [1.12.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.11.1...v1.12.0) (2026-10-15)
 
 
