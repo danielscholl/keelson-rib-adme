@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ACCESS_AREA } from "../src/access/read";
+import { composeItem } from "../src/boards/inspect";
+import type { Item } from "../src/brief/index";
 import { briefOf } from "../src/brief/inputs";
 import { LEGAL_AREA } from "../src/data/areas";
 import { FACETS_AREA } from "../src/data/map";
@@ -154,6 +156,26 @@ describe("decisions", () => {
       "opendes-test-tag-02",
       "opendes-test-tag-03",
       "opendes-test-tag-01",
+    ]);
+    const view = composeItem(brief.items[1] as Item, { verbs: [] });
+    const list = view.sections.find((x) => x.kind === "rows" && x.title?.startsWith("Tags · 3"));
+    if (list?.kind !== "rows") throw new Error("tag list expected");
+    expect(list.items.map((r) => [r.text, r.trailing, r.action])).toEqual([
+      [
+        "opendes-test-tag-02",
+        "6 records",
+        { type: "inspect", payload: { id: "tag:opendes-test-tag-02" } },
+      ],
+      [
+        "opendes-test-tag-03",
+        "2 records",
+        { type: "inspect", payload: { id: "tag:opendes-test-tag-03" } },
+      ],
+      [
+        "opendes-test-tag-01",
+        "1 record",
+        { type: "inspect", payload: { id: "tag:opendes-test-tag-01" } },
+      ],
     ]);
     expect(brief.stewardship?.map((i) => i.id)).toEqual([
       "item:legal:opendes-test-tag-01",

@@ -72,6 +72,8 @@ export interface Item {
   subject?: string;
   // How many things a folded item stands for; one when absent.
   count?: number;
+  // What a folded item stands for, each opening in the inspector.
+  opens?: { title: string; rows: { id: string; text: string; trailing?: string }[] };
   // Oldest first within a class.
   at?: string;
 }
@@ -678,7 +680,7 @@ function legalFold(i: BriefInputs, state: "invalid" | "expiring", tags: TagInUse
         ? [
             {
               label: `${ranked.length - shown.length} more`,
-              value: "listed in Data",
+              value: "every tag opens from the inspector",
               source: "instance" as const,
               tone: "neutral" as const,
             },
@@ -690,6 +692,17 @@ function legalFold(i: BriefInputs, state: "invalid" | "expiring", tags: TagInUse
         ? "Records under an invalid tag cannot be read. Renew the tags worth keeping and delete or re-tag the rest of the records; the rib does not edit legal tags."
         : "Extend the tags worth keeping or plan to move their records; the rib does not edit legal tags.",
     scope: "Indexed records visible to this sign-in. No seismic subproject relies on these tags.",
+    opens: {
+      title: `Tags · ${tags.length} · select one to open it`,
+      rows: ranked.map((t) => ({
+        id: tagId(t.name),
+        text: t.name,
+        trailing:
+          t.records === null
+            ? "not counted"
+            : `${plural(t.records, "record", "records")}${state === "expiring" && t.daysLeft !== undefined ? ` · ${t.daysLeft} d` : ""}`,
+      })),
+    },
   };
 }
 
