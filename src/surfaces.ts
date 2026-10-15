@@ -9,7 +9,7 @@
 import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
 import { EXPORT_GUIDE_ACTION } from "./access/guide.ts";
 import { CONNECTION_DETAILS_ACTION, RETEST_ACTION } from "./boards/connection.ts";
-import { CONSOLE_KEY, HEADER_KEY, MAP_KEY, OPERATION_KEY, RECENT_KEY, SURFACE_ID } from "./keys.ts";
+import { CONSOLE_KEY, HEADER_KEY, OPERATION_KEY, SURFACE_ID } from "./keys.ts";
 
 export const REFRESH_ACTION = "refresh";
 export const INSPECT_ACTION = "inspect";
@@ -51,7 +51,7 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
         ],
       },
       rows: [
-        // A running plan and its history; the plan is the only write path.
+        // A running plan; the plan is the only write path.
         {
           columns: [
             {
@@ -59,27 +59,6 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
               title: "Operation",
               glyph: { char: "▶", tone: "info" },
               hideWhenEmpty: true,
-            },
-            {
-              key: RECENT_KEY,
-              title: "Recent changes",
-              glyph: { char: "↺", tone: "neutral" },
-              hideWhenEmpty: true,
-              collapsible: true,
-              collapsed: true,
-            },
-          ],
-        },
-        {
-          columns: [
-            {
-              key: MAP_KEY,
-              title: "Explore the partition",
-              byline:
-                "what is in the partition, who can reach it and which legal tag governs it · select a row",
-              glyph: { char: "◈", tone: "info" },
-              hideWhenEmpty: true,
-              collapsible: true,
             },
           ],
         },

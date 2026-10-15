@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
-import { composeOperation, composeRecent } from "../src/boards/operation";
+import { composeOperation } from "../src/boards/operation";
 import { composePlan } from "../src/boards/plan";
 import { PREVIEW_SEIS_GRANT_ACTION } from "../src/boards/seismic";
-import { OPERATION_KEY, PLAN_KEY, RECENT_KEY } from "../src/keys";
+import { OPERATION_KEY } from "../src/keys";
 import { currentOperation } from "../src/plan/apply";
 import { PLAN_TTL_MS } from "../src/plan/model";
 import { planState } from "../src/plan/state";
@@ -115,15 +115,5 @@ describe("apply", () => {
       status: "paused",
       reason: "the server restarted while the plan was applying",
     });
-  });
-
-  test("recent changes list dry runs and applied plans, newest first", async () => {
-    const { rt } = runtime();
-    const p = await grantLena(rt);
-    await act(rt, "apply-plan", { planId: p.id });
-    const text = JSON.stringify(expectView(RECENT_KEY, "board")(composeRecent(rt)));
-    expect(text.indexOf('"label":"applied"')).toBeLessThan(text.indexOf('"label":"dry run"'));
-    expect(text).not.toContain(`Plan ${p.id}:`);
-    expectView(PLAN_KEY, "board")(composePlan(rt));
   });
 });

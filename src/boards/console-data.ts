@@ -77,7 +77,7 @@ ${families}${rest}
 <p class="eyebrow gap">Stewardship · ${d.queue.length}</p>
 ${d.queue.length > 0 ? queue : `<p class="none">No legal tag in use needs care.</p>`}
 ${lower}
-<p class="links"><button type="button" class="link" data-inspect="${FIND_ID}">Find records ▸</button> · the partition map is below the console, in Explore the partition</p>
+<p class="links"><button type="button" class="link" data-inspect="${FIND_ID}">Find records ▸</button></p>
 ${scopes}
 </div>
 <div class="pane">${panes}</div>

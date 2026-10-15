@@ -8,7 +8,7 @@
 
 import { measuredAccess } from "../boards/access.ts";
 import { measuredSeismic } from "../boards/seismic.ts";
-import { PLAN_KEY, RECENT_KEY } from "../keys.ts";
+import { PLAN_KEY } from "../keys.ts";
 import type { Runtime } from "../runtime.ts";
 import { type BuildContext, buildPlan, type PlanInputs } from "./build.ts";
 import type { Plan } from "./model.ts";
@@ -88,7 +88,7 @@ export function startPlan(rt: Runtime, inputs: PlanInputs, title: string, replac
         rt.now(),
       );
     }
-    rt.recompose([PLAN_KEY, RECENT_KEY]);
+    rt.recompose([PLAN_KEY]);
   })();
 }
 

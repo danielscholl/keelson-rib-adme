@@ -11,7 +11,6 @@ import { measuredAccess } from "../boards/access.ts";
 import {
   CANCEL_OPERATION_ACTION,
   composeOperation,
-  composeRecent,
   DISMISS_OPERATION_ACTION,
   RESUME_OPERATION_ACTION,
 } from "../boards/operation.ts";
@@ -28,7 +27,7 @@ import {
   PREVIEW_SEIS_REVOKE_ACTION,
   PREVIEW_SEIS_SELF_ACTION,
 } from "../boards/seismic.ts";
-import { OPERATION_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
+import { OPERATION_KEY, PLAN_KEY } from "../keys.ts";
 import { cancelApply, dismissOperation, resumeApply, startApply } from "../plan/apply.ts";
 import type { PlanInputs } from "../plan/build.ts";
 import { bindingOf, dryRunCsv, sameBinding } from "../plan/model.ts";
@@ -124,7 +123,6 @@ export const planModule: RegionModule = {
   composers: {
     [PLAN_KEY]: composePlan,
     [OPERATION_KEY]: composeOperation,
-    [RECENT_KEY]: composeRecent,
   },
   actions: {
     [PREVIEW_SEIS_GRANT_ACTION]: (rt, payload) =>

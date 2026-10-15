@@ -4,7 +4,7 @@ import { composeItem } from "../src/boards/inspect";
 import type { Item } from "../src/brief/index";
 import { briefOf } from "../src/brief/inputs";
 import { LEGAL_AREA } from "../src/data/areas";
-import { FACETS_AREA } from "../src/data/map";
+import { FACETS_AREA } from "../src/data/facets";
 import { SEISMIC_AREA } from "../src/seismic/read";
 import { sampleAccess } from "./fixtures/access";
 import { NOW, SAMPLE_FACETS, SAMPLE_LEGAL } from "./fixtures/data";

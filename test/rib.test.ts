@@ -11,10 +11,8 @@ import {
   CONNECTION_KEY,
   CONSOLE_KEY,
   HEADER_KEY,
-  MAP_KEY,
   OPERATION_KEY,
   PERSON_KEY,
-  RECENT_KEY,
 } from "../src/keys";
 import { fakeContext } from "./harness";
 
@@ -47,7 +45,7 @@ describe("rib contract shape", () => {
     expect(layout?.header).toMatchObject({ key: HEADER_KEY, hideWhenEmpty: true });
     expect(layout?.banner?.key).toBe(CONSOLE_KEY);
     expect(layout?.footer).toBeUndefined();
-    expect(regionKeys()).toEqual([HEADER_KEY, OPERATION_KEY, RECENT_KEY, MAP_KEY]);
+    expect(regionKeys()).toEqual([HEADER_KEY, OPERATION_KEY]);
     expect(regionKeys()).not.toContain(CONNECTION_KEY);
   });
 
