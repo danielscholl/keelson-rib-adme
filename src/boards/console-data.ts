@@ -10,7 +10,6 @@ import type { DataBrief, Family } from "../brief/data.ts";
 import { fmt, plural } from "../brief/words.ts";
 import { esc } from "./html.ts";
 
-export const EXPLORE_ID = "explore";
 export const FIND_ID = "find";
 
 function familyRow(f: Family, selected: boolean): string {
@@ -78,7 +77,7 @@ ${families}${rest}
 <p class="eyebrow gap">Stewardship · ${d.queue.length}</p>
 ${d.queue.length > 0 ? queue : `<p class="none">No legal tag in use needs care.</p>`}
 ${lower}
-<p class="links"><button type="button" class="link" data-inspect="${EXPLORE_ID}">Explore the partition ▸</button> · <button type="button" class="link" data-inspect="${FIND_ID}">Find records ▸</button></p>
+<p class="links"><button type="button" class="link" data-inspect="${FIND_ID}">Find records ▸</button> · the partition map is below the console, in Explore the partition</p>
 ${scopes}
 </div>
 <div class="pane">${panes}</div>

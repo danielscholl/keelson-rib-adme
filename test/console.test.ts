@@ -90,6 +90,8 @@ describe("console frame", () => {
     expect(html).toContain("&lt;b&gt;Loader&lt;/b&gt; still holds Ops");
     expect(html).not.toContain("<b>Loader</b>");
     expect(html).toContain('data-view="people"');
+    // Rows set their own display, so search and toggles need hidden to win.
+    expect(html).toContain("[hidden] { display: none !important; }");
     expect(html).toContain(`data-inspect="who:${RACHEL}"`);
     expect(expectHtml(html)).toBe(html);
     expect(new TextEncoder().encode(html).byteLength).toBeLessThan(CONSOLE_MAX_BYTES);

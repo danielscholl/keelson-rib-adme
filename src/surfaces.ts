@@ -6,29 +6,13 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { RibActionResult, RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
+import type { RibSurfaceDescriptor, RibSurfaceRegion } from "@keelson/shared";
 import { EXPORT_GUIDE_ACTION } from "./access/guide.ts";
 import { CONNECTION_DETAILS_ACTION, RETEST_ACTION } from "./boards/connection.ts";
-import {
-  CONSOLE_KEY,
-  HEADER_KEY,
-  MAP_KEY,
-  OPERATION_KEY,
-  RECENT_KEY,
-  SURFACE_ID,
-  surfaceTab,
-} from "./keys.ts";
+import { CONSOLE_KEY, HEADER_KEY, MAP_KEY, OPERATION_KEY, RECENT_KEY, SURFACE_ID } from "./keys.ts";
 
 export const REFRESH_ACTION = "refresh";
 export const INSPECT_ACTION = "inspect";
-
-// Scrolls the tab to a region below the console.
-export function openRegion(regionKey: string): RibActionResult {
-  return {
-    ok: true,
-    data: { effect: "open-surface", surfaceId: surfaceTab(SURFACE_ID), regionKey },
-  };
-}
 
 // The connect journey and a lapsed sign-in; empty, and so hidden, once connected.
 const header: RibSurfaceRegion = {
@@ -96,7 +80,6 @@ export const SURFACES: readonly RibSurfaceDescriptor[] = [
               glyph: { char: "◈", tone: "info" },
               hideWhenEmpty: true,
               collapsible: true,
-              collapsed: true,
             },
           ],
         },

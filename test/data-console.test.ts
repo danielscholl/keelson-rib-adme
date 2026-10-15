@@ -57,7 +57,6 @@ describe("data tab", () => {
     const html = dataTab(d);
     expect(html).toContain('data-fam="fam:work-product-component--WellLog"');
     expect(html).toContain('data-inspect="find"');
-    expect(html).toContain('data-inspect="explore"');
     expect(html).toContain("How these are counted");
   });
 
@@ -88,13 +87,10 @@ describe("family and find", () => {
     );
   });
 
-  test("Find records and Explore the partition open from the console", async () => {
+  test("Find records opens from the console", async () => {
     const runtime = rt();
     expect(await act(runtime, INSPECT_ACTION, { id: "find" })).toMatchObject({
       data: { effect: "open-canvas", key: RECORDS_KEY },
-    });
-    expect(await act(runtime, INSPECT_ACTION, { id: "explore" })).toMatchObject({
-      data: { effect: "open-surface", regionKey: "rib:adme:map" },
     });
   });
 });

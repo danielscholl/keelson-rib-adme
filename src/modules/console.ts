@@ -11,7 +11,7 @@ import { measuredAccess } from "../access/measured.ts";
 import { EXPLAIN_ACTION } from "../boards/change.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import { COHORTS_ID, CONNECTION_ID, consoleHtml } from "../boards/console.ts";
-import { dataTab, EXPLORE_ID, FIND_ID } from "../boards/console-data.ts";
+import { dataTab, FIND_ID } from "../boards/console-data.ts";
 import { seismicTab } from "../boards/console-seismic.ts";
 import {
   ANNOTATE_ACTION,
@@ -41,7 +41,7 @@ import { briefInputs } from "../brief/inputs.ts";
 import { peopleRows } from "../brief/people.ts";
 import { SHARED, seismicMatrix } from "../brief/seismic.ts";
 import { annotationInputSchema } from "../directory/annotations.ts";
-import { COHORTS_KEY, CONNECTION_KEY, INSPECT_KEY, MAP_KEY } from "../keys.ts";
+import { COHORTS_KEY, CONNECTION_KEY, INSPECT_KEY } from "../keys.ts";
 import { bindingOf, sameBinding } from "../plan/model.ts";
 import { coverage } from "../plan/seismic.ts";
 import type { ActionHandler, RegionModule } from "../region.ts";
@@ -49,7 +49,7 @@ import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { isDefaultGroup } from "../seismic/read.ts";
 import { configuredOf, READ_AREAS, type ReadArea } from "../status/index.ts";
-import { INSPECT_ACTION, openRegion } from "../surfaces.ts";
+import { INSPECT_ACTION } from "../surfaces.ts";
 import { selectPersonAction } from "./access.ts";
 import { loadSearch, openRecords } from "./records.ts";
 import { measureSeismic } from "./seismic.ts";
@@ -423,7 +423,6 @@ const inspectAction: ActionHandler = async (rt, payload) => {
   if (id === CONNECTION_ID) return open(CONNECTION_KEY, "Connection");
   if (id === COHORTS_ID) return open(COHORTS_KEY, "Cohorts");
   if (id === FIND_ID) return openRecords();
-  if (id === EXPLORE_ID) return openRegion(MAP_KEY);
   const inputs = briefInputs(rt);
   if (id.startsWith("who:")) {
     const target = id.slice(4).toLowerCase();

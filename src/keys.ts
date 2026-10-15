@@ -49,8 +49,3 @@ export const BOARD_KEYS = [
 ] as const;
 
 export const SURFACE_ID = "adme";
-
-// The host names a surface tab "surface:<rib id>:<surface id>"; open-surface takes that form.
-export function surfaceTab(surfaceId: string): string {
-  return `surface:${RIB_ID}:${surfaceId}`;
-}

@@ -197,6 +197,7 @@ export function expectHtml(data: unknown): string {
 }
 
 const STYLE = `
+[hidden] { display: none !important; }
 :root { --src-directory: var(--id-1); --src-instance: var(--id-3); --src-audit: var(--id-2); --src-operator: var(--id-4); }
 .wrap { padding: 14px 18px 20px; }
 h2 { margin: 0 0 4px; font-size: 21px; line-height: 1.25; font-weight: 600; color: var(--fg-strong); text-wrap: balance; max-width: 70ch; }

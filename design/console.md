@@ -154,8 +154,8 @@ proposed over every subproject the touched groups back, then each group's reach.
 Record families (a kind's entity name, so versions and authorities add
 together) with their counts, indexed and visible to this sign-in. The
 stewardship queue holds LEGAL items; an invalid tag nothing uses sits below as
-lower priority. Explore the partition scrolls to the partition map below the
-console; Find records and a family's Browse records open record search in the
+lower priority. The partition map sits below the console as Explore the
+partition; Find records and a family's Browse records open record search in the
 drawer. The record inspector names creator and modifier through the directory,
 and offers Label this id for one nothing names.
 
@@ -170,7 +170,7 @@ and offers Label this id for one nothing names.
 | `read:<area>` | Stamp notes, READ items | Availability, completeness, freshness, Re-read |
 | `tag:<name>` | LEGAL items | Tag profile and where it is used |
 | `fam:<entity>` | Data families | Kinds and Browse records |
-| `connection`, `cohorts`, `find`, `explore` | Stamp and links | Connection details, cohorts, Find records, the partition map |
+| `connection`, `cohorts`, `find` | Stamp and links | Connection details, cohorts, Find records |
 
 The frame may send only `inspect`; `onAction` refuses any other action from a
 `canvas-html` origin.
