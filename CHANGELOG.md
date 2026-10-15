@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.11.0...v1.11.1) (2026-10-15)
+
+
+### Fixed
+
+* **console:** keep the frame under 256 KB on large directories ([#52](https://github.com/danielscholl/keelson-rib-adme/issues/52)) ([23d7578](https://github.com/danielscholl/keelson-rib-adme/commit/23d757864d215fe7bbcbdba59d436735e449a1aa))
+
 ## [1.11.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.10.0...v1.11.0) (2026-10-15)
 
 
