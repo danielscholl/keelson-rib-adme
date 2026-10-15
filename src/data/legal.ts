@@ -108,29 +108,3 @@ export function tagUsage(
     validEmpty: validEmpty.sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
-
-export interface LegalAttention {
-  invalid: number;
-  expiring: number;
-  // True when both counts are tags that hold records; false when counts were not measured.
-  held: boolean;
-}
-
-// What needs a decision: invalid tags still holding records and tags in use about to expire.
-// Without per-tag counts it falls back to every invalid and expiring tag.
-export function legalAttention(
-  legal: LegalTags,
-  counts: readonly { key: string; count: number }[] | null | undefined,
-  now: Date,
-): LegalAttention {
-  if (counts) {
-    const use = tagUsage(legal, counts, now);
-    return {
-      invalid: use.invalidHeld.length,
-      expiring: use.inUse.filter((u) => u.daysLeft !== undefined).length,
-      held: true,
-    };
-  }
-  const { invalid, expiring } = classifyTags(legal, now);
-  return { invalid: invalid.length, expiring: expiring.length, held: false };
-}

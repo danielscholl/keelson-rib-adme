@@ -7,7 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallResult, Service } from "../client.ts";
-import { CONNECTION_KEY, HEADER_KEY, SEIS_PULSE_KEY } from "../keys.ts";
+import { CONNECTION_KEY, HEADER_KEY } from "../keys.ts";
 import type { Area } from "../runtime.ts";
 
 export const HEALTH_AREA = "health";
@@ -141,7 +141,7 @@ export async function readHealth(batch: Batch): Promise<CallResult<Health>> {
 export const HEALTH_AREAS: readonly Area[] = [
   {
     name: HEALTH_AREA,
-    keys: [HEADER_KEY, CONNECTION_KEY, SEIS_PULSE_KEY],
+    keys: [HEADER_KEY, CONNECTION_KEY],
     read: readHealth,
     everyMs: HEALTH_EVERY_MS,
   },

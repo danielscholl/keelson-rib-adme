@@ -51,6 +51,8 @@ export interface Person {
   notInUsers?: boolean;
   duplicate?: boolean;
   otherMails?: string[];
+  // In Entra and in a seismic group, but in no entitlements group.
+  noAccess?: boolean;
 }
 
 interface Cast {
@@ -64,6 +66,7 @@ interface Cast {
   notInUsers?: boolean;
   duplicate?: boolean;
   otherMails?: string[];
+  noAccess?: boolean;
   id?: string;
 }
 
@@ -120,7 +123,6 @@ const NAMED: Cast[] = [
 
 // "… 19 more": healthy Pilot editors, spread so the cast spans 12 organizations.
 const MORE: Cast[] = [
-  ["Kari Solberg", "kari.solberg@halden-geo.example"],
   ["Erik Moen", "erik.moen@halden-geo.example"],
   ["Grace Adeyemi", "g.adeyemi@northfield.example"],
   ["Owen Hartley", "owen.hartley@northfield.example"],
@@ -141,7 +143,17 @@ const MORE: Cast[] = [
   ["Samuel Osei", "samuel.osei@meridian-subsurface.example"],
 ].map(([name, mail]) => ({ name: name as string, mail: mail as string }));
 
-export const PEOPLE: readonly Person[] = [...NAMED, ...MORE].map((c) => {
+// Kept a seismic grant after leaving the instance's role groups.
+const FORMER: Cast[] = [
+  {
+    name: "Kari Solberg",
+    mail: "kari.solberg@halden-geo.example",
+    accepted: "2026-09-28",
+    noAccess: true,
+  },
+];
+
+export const PEOPLE: readonly Person[] = [...NAMED, ...MORE, ...FORMER].map((c) => {
   const cohort = c.cohort ?? "Pilot";
   const invited = c.invited ?? (cohort === "Permanent" ? "2026-06-02" : "2026-09-28");
   const accepted = c.accepted === null ? undefined : (c.accepted ?? invited);
@@ -157,10 +169,57 @@ export const PEOPLE: readonly Person[] = [...NAMED, ...MORE].map((c) => {
     ...(c.notInUsers ? { notInUsers: true } : {}),
     ...(c.duplicate ? { duplicate: true } : {}),
     ...(c.otherMails ? { otherMails: c.otherMails } : {}),
+    ...(c.noAccess ? { noAccess: true } : {}),
   };
 });
 
+// Ids the role groups list that Entra does not know: two historical loaders the
+// operator has labelled, and one nobody has named yet.
+export const UNKNOWN_PRINCIPALS: readonly { id: string; group: "users" | Role | "viewers" }[] = [
+  { id: guid("loader:reference"), group: "ops" },
+  { id: guid("loader:legacy"), group: "users" },
+  { id: guid("orphan:viewer"), group: "viewers" },
+];
+
 export const YOU = PEOPLE[0] as Person;
+
+export const SAMPLE_ANNOTATIONS_AT = "2026-10-01";
+
+// What the operator's handbook says about ids the directory cannot name, and a few notes.
+export function sampleAnnotations(): Record<string, unknown> {
+  const t = SAMPLE_PROFILE.tenantId;
+  const handbook = { from: "handbook", at: SAMPLE_ANNOTATIONS_AT };
+  const operator = { from: "operator", at: SAMPLE_ANNOTATIONS_AT };
+  const [loader, legacy] = UNKNOWN_PRINCIPALS;
+  return {
+    entries: {
+      [`object:${t}:${loader?.id}`]: {
+        label: "Reference data loader",
+        kind: "historical-actor",
+        note: "Loaded the OSDU reference values in March 2025",
+        source: handbook,
+      },
+      [`object:${t}:${legacy?.id}`]: {
+        label: "Legacy loader",
+        kind: "historical-actor",
+        note: "Loaded the first well set; retired",
+        source: handbook,
+      },
+      [`object:${t}:${person("Marcus Oyelaran").id}`]: {
+        organization: "Northfield Energy",
+        formerAddresses: ["marcus@oldco.example"],
+        source: operator,
+      },
+      [`object:${t}:${person("Priya Nair").id}`]: {
+        responsibility: "Seismic administrator for the Halden subprojects",
+        source: operator,
+      },
+    },
+  };
+}
+
+// A subproject group whose member list the sample refuses, so a read is incomplete.
+export const REFUSED_GROUP_OF = { subproject: "golf3", role: "viewer" } as const;
 
 export function person(name: string): Person {
   const p = PEOPLE.find((x) => x.name === name);

@@ -1,5 +1,9 @@
 # ADME rib design
 
+> The Access, Data and Seismic sections below were replaced by one console; see
+> [console.md](console.md). The connection, reads, plan engine, person
+> inspector, Why 401/403 and the partition map still work as described here.
+
 A Keelson rib that gives one operator an admin surface for an Azure Data Manager for Energy (ADME) instance: who has access, what data is there, and who is in each seismic subproject.
 
 **Today.** An ADME instance is typically run with ad hoc scripts, `az` and Graph calls, and a tracker kept by hand. An invitation to a new address can resolve to an existing guest and return that guest's object id; acting on that mistaken identity can strip access from the wrong person. Seismic access sits in groups named by UUID (`data.sdms.opendes.alpha.3f9a…e1.admin`), acceptance state lives only in Graph, and no batch change has a dry run.

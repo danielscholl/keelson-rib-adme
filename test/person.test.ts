@@ -1,16 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { expectView } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead, GROUP_KEYS } from "../src/access/read";
-import { composeAttention, SELECT_PERSON_ACTION } from "../src/boards/access";
+import { SELECT_PERSON_ACTION } from "../src/boards/access";
 import { SIGNIN_REASON } from "../src/boards/connection";
-import { composePeople, PEOPLE_VIEW_ACTION } from "../src/boards/people";
 import {
   ACCEPT_EXTRAS_ACTION,
   composePerson,
   REFRESH_PERSON_ACTION,
   shortGroup,
 } from "../src/boards/person";
-import { ATTENTION_KEY, PEOPLE_KEY, PERSON_KEY, PRINCIPALS_KEY } from "../src/keys";
+import { PERSON_KEY } from "../src/keys";
 import { accessModule } from "../src/modules/access";
 import { Store } from "../src/store";
 import { Tracker, trackerFile } from "../src/tracker";
@@ -20,7 +19,8 @@ import { routeTransport, seededRuntime } from "./harness";
 
 const D = "@opendes.dataservices.energy";
 const GOLF = `data.sdms.opendes.golf.0f1e2d3c4b5a.viewer${D}`;
-const ECHO = `data.sdms.opendes.echo.6a7b8c9d0e1f.admin${D}`;
+const PILOT = `data.pilot.viewers${D}`;
+const VENDOR = `data.vendor.owners${D}`;
 const person = expectView(PERSON_KEY, "board");
 
 function idOf(read: AccessRead, name: string): string {
@@ -118,12 +118,24 @@ describe("person inspector", () => {
         trailing: "expected for the role, not held",
       },
     ]);
-    const grid = find(right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.title).toBe("Effective groups · 32");
-    expect(grid.cells[0]).toEqual({ label: "editors" });
-    expect(grid.cells.at(-1)).toEqual({ label: "19 more" });
-    expect(grid.cells).toHaveLength(14);
+    const groups = find(right, "Effective groups");
+    if (groups?.kind !== "rows") throw new Error("rows expected");
+    expect(groups.title).toBe("Effective groups · 32");
+    expect(groups.items[0]).toMatchObject({
+      text: "32 groups the role explains",
+      trailing: "show",
+    });
+    expect(groups.items[0]?.detail?.split("\n")[0]).toBe("editors");
+    expect(groups.items[0]?.detail?.split("\n")).toHaveLength(32);
+    const ladder = find(left, "Can this person get started?");
+    if (ladder?.kind !== "rows") throw new Error("ladder expected");
+    expect(ladder.items.map((r) => [r.text, r.trailing])).toEqual([
+      ["Invitation", "accepted 29 Sep"],
+      ["Instance membership", "missing users@"],
+      ["Data role", "Editor"],
+      ["Named seismic reach", "not read yet"],
+      ["Observed use", "not measured"],
+    ]);
 
     const identity = find(left, "Identity");
     if (identity?.kind !== "cards") throw new Error("identity expected");
@@ -157,25 +169,12 @@ describe("person inspector", () => {
     expect(text).toContain('{"label":"Pass ends","value":"26 d · 2026-10-28"}');
   });
 
-  test("selecting recomposes the inspector first and marks the person in the lists", async () => {
-    const { rt, read, recomposed, act } = setup();
+  test("selecting recomposes the inspector before the drawer opens", async () => {
+    const { read, recomposed, act } = setup();
     const rachel = idOf(read, "Rachel Kim");
-    await act(SELECT_PERSON_ACTION, { id: rachel });
-    expect(recomposed).toEqual([[PERSON_KEY], [PEOPLE_KEY, ATTENTION_KEY, PRINCIPALS_KEY]]);
-    const roster = expectView(PEOPLE_KEY, "board")(composePeople(rt));
-    const rows =
-      roster.view === "board"
-        ? roster.sections.flatMap((s) => (s.kind === "rows" ? s.items : []))
-        : [];
-    expect(rows.find((r) => r.text === "Rachel Kim")).toMatchObject({
-      action: { type: SELECT_PERSON_ACTION, payload: { id: rachel } },
-      selected: true,
-    });
-    expect(rows.find((r) => r.text === "Ben Whitaker")?.selected).toBeUndefined();
-    const attention = JSON.stringify(expectView(ATTENTION_KEY, "board")(composeAttention(rt)));
-    expect(attention).toContain(
-      `"action":{"type":"select-person","payload":{"id":"${rachel}"}},"selected":true`,
-    );
+    const res = await act(SELECT_PERSON_ACTION, { id: rachel });
+    expect(recomposed).toEqual([[PERSON_KEY]]);
+    expect(res).toMatchObject({ data: { effect: "open-canvas", key: PERSON_KEY } });
   });
 
   test("a missing or unknown id is refused and opens nothing", async () => {
@@ -217,7 +216,7 @@ describe("person inspector", () => {
     const store = new Store(undefined);
     const read = sampleAccess();
     const lena = idOf(read, "Lena Fischer");
-    const { rt, act } = setup({ extra: { [lena]: [GOLF] }, store });
+    const { rt, act } = setup({ extra: { [lena]: [PILOT] }, store });
     await act(SELECT_PERSON_ACTION, { id: lena });
 
     let view = board(composePerson(rt));
@@ -226,7 +225,7 @@ describe("person inspector", () => {
     if (odd?.kind !== "rows") throw new Error("rows expected");
     expect(odd.items[0]).toEqual({
       chip: { label: "extra", tone: "info" },
-      text: "sdms.golf.viewer",
+      text: "data.pilot.viewers",
       trailing: "held beyond the role",
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 extra");
@@ -236,16 +235,16 @@ describe("person inspector", () => {
       data: { message: "Lena Fischer: 1 group in the baseline" },
     });
     rt.tracker = new Tracker(store, trackerFile(SAMPLE_PROFILE));
-    expect(rt.tracker.baselineOf(lena)).toEqual([GOLF]);
+    expect(rt.tracker.baselineOf(lena)).toEqual([PILOT]);
 
     view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
     expect(view.find(view.right, "Beyond or short of the role")).toBeUndefined();
-    const grid = view.find(view.right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells[0]).toEqual({
-      label: "sdms.golf.viewer",
-      badge: { text: "baseline", tone: "neutral" },
+    const accepted = view.find(view.right, "Accepted beyond the role");
+    if (accepted?.kind !== "rows") throw new Error("rows expected");
+    expect(accepted.items[0]).toEqual({
+      chip: { label: "baseline", tone: "neutral" },
+      text: "data.pilot.viewers",
     });
     expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 baseline");
     expect(JSON.stringify(view.find(view.right, "History"))).toContain(
@@ -258,22 +257,40 @@ describe("person inspector", () => {
   test("a new extra counts again while the baseline stays accepted", async () => {
     const read = sampleAccess();
     const lena = idOf(read, "Lena Fischer");
-    const extra = { [lena]: [GOLF] };
+    const extra = { [lena]: [PILOT] };
     const { rt, act } = setup({ extra });
     await act(SELECT_PERSON_ACTION, { id: lena });
     await act(ACCEPT_EXTRAS_ACTION, { id: lena });
-    extra[lena] = [GOLF, ECHO];
+    extra[lena] = [PILOT, VENDOR];
     expect(await act(REFRESH_PERSON_ACTION, { id: lena })).toEqual({ ok: true });
     const view = board(composePerson(rt));
     expect(view.parsed.header?.status).toEqual({ label: "1 extra group", tone: "warn" });
     const odd = view.find(view.right, "Beyond or short of the role");
-    expect(JSON.stringify(odd)).toContain('"text":"sdms.echo.admin"');
-    const grid = view.find(view.right, "Effective groups");
-    if (grid?.kind !== "grid") throw new Error("grid expected");
-    expect(grid.cells[0]).toEqual({
-      label: "sdms.golf.viewer",
-      badge: { text: "baseline", tone: "neutral" },
+    expect(JSON.stringify(odd)).toContain('"text":"data.vendor.owners"');
+    const accepted = view.find(view.right, "Accepted beyond the role");
+    if (accepted?.kind !== "rows") throw new Error("rows expected");
+    expect(accepted.items[0]).toEqual({
+      chip: { label: "baseline", tone: "neutral" },
+      text: "data.pilot.viewers",
     });
+  });
+
+  test("a seismic group reads as named reach, never as an extra group", async () => {
+    const read = sampleAccess();
+    const lena = idOf(read, "Lena Fischer");
+    const { rt, act } = setup({ extra: { [lena]: [GOLF] } });
+    await act(SELECT_PERSON_ACTION, { id: lena });
+    const view = board(composePerson(rt));
+    expect(view.parsed.header?.status).toEqual({ label: "ok", tone: "ok" });
+    expect(view.find(view.right, "Beyond or short of the role")).toBeUndefined();
+    const reach = view.find(view.right, "Named seismic reach");
+    if (reach?.kind !== "rows") throw new Error("rows expected");
+    expect(reach.items[0]).toEqual({
+      chip: { label: "seismic", tone: "neutral" },
+      text: "Viewer on golf",
+      trailing: "sdms.golf.viewer",
+    });
+    expect(JSON.stringify(view.right)).toContain("34 of 33 expected for Editor · 1 seismic");
   });
 
   test("a tracker file written before baselines still parses", () => {
@@ -289,27 +306,6 @@ describe("person inspector", () => {
     expect(tracker.cohorts).toHaveLength(1);
     expect(tracker.baselineOf("anyone")).toEqual([]);
     expect(tracker.eventsFor("anyone")).toEqual([]);
-  });
-
-  test("the roles matrix offers an Open person form listing the people shown", async () => {
-    const { rt, read, act } = setup();
-    await act(PEOPLE_VIEW_ACTION, { view: "matrix" });
-    const view = expectView(PEOPLE_KEY, "board")(composePeople(rt));
-    const form = view.view === "board" ? view.sections.at(-1) : undefined;
-    if (form?.kind !== "actions") throw new Error("form expected");
-    const open = form.items[0];
-    expect(open).toMatchObject({
-      type: SELECT_PERSON_ACTION,
-      label: "Open person",
-      submitLabel: "Open",
-    });
-    const options = open?.fields?.[0]?.options ?? [];
-    expect(options).toHaveLength(32);
-    expect(options).toContainEqual({
-      value: idOf(read, "Rachel Kim"),
-      label: "Rachel Kim",
-      hint: "rachel.kim@pacrim-energy.example",
-    });
   });
 
   test("sign-in needed keeps the last read, says cached, and pauses the refresh", async () => {

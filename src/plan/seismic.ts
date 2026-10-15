@@ -83,7 +83,23 @@ function personOf(ctx: SeismicPlanContext, id: string): Identity | string {
     return "Every seismic group lists that member by design; it is never changed.";
   }
   const person = ctx.model?.people.find((p) => p.id === id);
-  return person ?? "That person is not in the last sweep. Refresh and try again.";
+  if (person) return person;
+  // Someone a seismic group lists who holds no entitlements group, so a grant can be revoked.
+  const m = ctx.seismic?.members[id];
+  if (m && (m.kind === "person" || m.kind === "app")) {
+    return {
+      id,
+      kind: m.kind,
+      name: m.name,
+      ...(m.email ? { email: m.email } : {}),
+      memberships: {},
+      state: "healthy",
+      guest: false,
+      you: false,
+      root: false,
+    };
+  }
+  return "That person is not in the last sweep. Refresh and try again.";
 }
 
 function subjectOf(person: Identity): Omit<DraftSubject, "steps" | "blocked"> {
@@ -156,6 +172,10 @@ async function grantOrRevoke(
     return ok({ title, subjects: [{ ...subjectOf(person), blocked: true, reason, steps: [] }] });
   }
   if (groups.length === 0) return fail(`The ${inputs.role} group of ${s.name} is not known.`);
+  if (grant && !person.memberships.users && !hasDataRole(person)) {
+    const reason = `${person.name} holds no users@ or role group, so a seismic grant could not be used. Restore instance access first.`;
+    return ok({ title, subjects: [{ ...subjectOf(person), blocked: true, reason, steps: [] }] });
+  }
   const held = await effectiveGroups(batch, person.id);
   if (!held.ok) return held;
   const changes = groups.map((group) => ({ group, held: held.data.emails.has(group) }));

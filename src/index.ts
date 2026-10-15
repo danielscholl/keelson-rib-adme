@@ -16,18 +16,12 @@ import {
   type RibViewDescriptor,
   type SnapshotManager,
 } from "@keelson/shared";
+import { expectHtml } from "./boards/console.ts";
 import { DOCS } from "./docs.ts";
-import {
-  BOARD_KEYS,
-  DATA_PULSE_KEY,
-  HEADER_KEY,
-  PULSE_KEY,
-  RIB_ID,
-  SEIS_PULSE_KEY,
-} from "./keys.ts";
+import { BOARD_KEYS, CONSOLE_KEY, INSPECT_KEY, RIB_ID } from "./keys.ts";
 import { accessModule } from "./modules/access.ts";
 import { connectionModule } from "./modules/connection.ts";
-import { dataPulseModule } from "./modules/data.ts";
+import { composeConsole, consoleModule } from "./modules/console.ts";
 import { explainModule } from "./modules/explain.ts";
 import { headerModule } from "./modules/header.ts";
 import { mapModule } from "./modules/map.ts";
@@ -45,15 +39,14 @@ import {
   sampleStore,
   sampleTransport,
 } from "./sample/index.ts";
-import { activeSection } from "./section.ts";
 import { Store } from "./store.ts";
-import { SURFACES, sectionOf } from "./surfaces.ts";
+import { INSPECT_ACTION, SURFACES } from "./surfaces.ts";
+import { admeTools } from "./tools.ts";
 
 // Later modules override earlier ones for the same key.
 const MODULES: readonly RegionModule[] = [
   connectionModule,
   accessModule,
-  dataPulseModule,
   recordsModule,
   mapModule,
   recordModule,
@@ -61,6 +54,7 @@ const MODULES: readonly RegionModule[] = [
   seismicModule,
   explainModule,
   headerModule,
+  consoleModule,
 ];
 
 const ALL_KEYS = BOARD_KEYS;
@@ -70,12 +64,13 @@ let runtime: Runtime | undefined;
 let unregisters: Array<() => void> = [];
 let ticker: ReturnType<typeof setInterval> | undefined;
 
-// The header draws from the section pulses.
-const HEADER_SOURCES = new Set<string>([PULSE_KEY, DATA_PULSE_KEY, SEIS_PULSE_KEY]);
-
+// The console and its inspector read every area, so they follow any recompose.
 function recompose(keys: readonly string[]): void {
   const all = new Set(keys);
-  if (keys.some((k) => HEADER_SOURCES.has(k))) all.add(HEADER_KEY);
+  if (all.size > 0) {
+    all.add(CONSOLE_KEY);
+    all.add(INSPECT_KEY);
+  }
   for (const key of all) snapshots?.recompose(key).catch(() => undefined);
 }
 
@@ -106,6 +101,9 @@ function bind(ctx: RibContext): void {
   const rt = new Runtime({
     ...source,
     recompose,
+    recomposeNow: async (key) => {
+      await sm?.recompose(key).catch(() => undefined);
+    },
     allKeys: ALL_KEYS,
     registerOp: ctx.registerOp,
     swept: () => {
@@ -118,15 +116,15 @@ function bind(ctx: RibContext): void {
   const byKey = boardComposers();
   for (const key of BOARD_KEYS) {
     const compose = byKey.get(key);
-    const section = sectionOf(key);
-    // A region outside the showing section publishes nothing, so hideWhenEmpty hides it.
-    const shown = (r: Runtime) => section === undefined || activeSection(r) === section;
     unregisters.push(
-      sm.register(key, async () => (compose && shown(rt) ? compose(rt) : EMPTY_BOARD), {
+      sm.register(key, async () => (compose ? compose(rt) : EMPTY_BOARD), {
         validate: expectView(key, "board"),
       }),
     );
   }
+  unregisters.push(
+    sm.register(CONSOLE_KEY, async () => composeConsole(rt), { validate: expectHtml }),
+  );
   recompose(ALL_KEYS);
   rt.sweep().catch(() => undefined);
   // A test saved before roles were recorded is re-run once so the header can show the role.
@@ -152,13 +150,16 @@ const rib: Rib = {
   id: RIB_ID,
   displayName: "ADME",
 
-  views: BOARD_KEYS.map(
-    (key): RibViewDescriptor => ({
-      key,
-      canvasKind: "view",
-      title: `ADME: ${key.split(":").pop()}`,
-    }),
-  ),
+  views: [
+    { key: CONSOLE_KEY, canvasKind: "html", title: "ADME console" },
+    ...BOARD_KEYS.map(
+      (key): RibViewDescriptor => ({
+        key,
+        canvasKind: "view",
+        title: `ADME: ${key.split(":").pop()}`,
+      }),
+    ),
+  ],
 
   surfaces: SURFACES,
 
@@ -167,13 +168,20 @@ const rib: Rib = {
   // Composers bind here because this is the first hook that receives the context.
   registerTools: (ctx: RibContext) => {
     bind(ctx);
-    return [];
+    return admeTools(() => runtime);
   },
 
   onAction: async (action: RibAction): Promise<RibActionResult> => {
     const rt = runtime;
     if (!rt) return { ok: false, error: "adme is not bound yet" };
+    // Console markup is untrusted by contract: it may select and open the inspector, never act.
+    if (action.origin === "canvas-html" && action.type !== INSPECT_ACTION) {
+      return { ok: false, error: "the console only opens the inspector; act from its buttons" };
+    }
+    // The first action after an idle spell refreshes what went stale meanwhile.
+    const idle = !rt.shouldTick();
     rt.touch();
+    if (idle && rt.status.phase === "connected") rt.sweep().catch(() => undefined);
     const handle = ACTIONS.get(action.type);
     if (!handle) return { ok: false, error: `adme does not handle '${action.type}'` };
     return handle(rt, action.payload);

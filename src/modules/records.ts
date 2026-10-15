@@ -47,6 +47,13 @@ function readable(f: CallFailure): string {
   }
 }
 
+export function openRecords(): RibActionResult {
+  return {
+    ok: true,
+    data: { effect: "open-canvas", key: RECORDS_KEY, title: "Find records", placement: "side" },
+  };
+}
+
 export async function loadSearch(
   rt: Runtime,
   query: RecordQuery,

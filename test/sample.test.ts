@@ -3,18 +3,10 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import rib from "../src/index";
-import {
-  DATA_PULSE_KEY,
-  EXPLAIN_KEY,
-  HEADER_KEY,
-  PERSON_KEY,
-  PULSE_KEY,
-  SEIS_PULSE_KEY,
-} from "../src/keys";
+import { CONSOLE_KEY, EXPLAIN_KEY, HEADER_KEY, PERSON_KEY } from "../src/keys";
 import { SAMPLE_ENV, sampleMode } from "../src/sample/index";
 import { kindMatches, parseQuery, READ_ONLY, sampleTransport } from "../src/sample/transport";
 import { DOMAIN, person, ROLE_GROUPS } from "../src/sample/world";
-import { SECTION_ACTION } from "../src/section";
 import { fakeContext } from "./harness";
 
 const HOST = "https://contoso-adme.energy.azure.com";
@@ -126,24 +118,13 @@ describe("sample mode", () => {
     const { ctx, snapshots } = fakeContext();
     rib.registerTools?.(ctx);
     const text = (k: string) => JSON.stringify(snapshots.frames.get(k) ?? null);
-    await until(() => text(PULSE_KEY).includes("organizations"));
-    expect(text(HEADER_KEY)).toContain(
-      "Sample instance contoso-adme · opendes as ingrid.halvorsen@contoso.example · Ops",
-    );
-    expect(text(PULSE_KEY)).toContain(
-      "32 people from 12 organizations. 3 used it this week; 3 not accepted yet and 25 accepted with no data call since 2026-09-20. 2 people cannot use it.",
-    );
-
-    await rib.onAction?.({ type: SECTION_ACTION, payload: { section: "data" } }, ctx);
-    await until(() => text(DATA_PULSE_KEY).includes("legal tags"));
-    expect(text(HEADER_KEY)).toContain("1,284,512 records under 4 legal tags");
-
-    await rib.onAction?.({ type: SECTION_ACTION, payload: { section: "seismic" } }, ctx);
-    await rib.onAction?.({ type: "seis-read", payload: {} }, ctx);
-    await until(() => text(SEIS_PULSE_KEY).includes("hold a grant"));
-    expect(text(SEIS_PULSE_KEY)).toContain(
-      "13 subprojects; 9 of 32 people hold a grant; 2 rely on the default ACL and 1 has no members.",
-    );
+    const html = () => String(snapshots.frames.get(CONSOLE_KEY) ?? "");
+    await until(() => html().includes("Kari Solberg"));
+    expect(html()).toContain("Sample contoso-adme · opendes · Ingrid Halvorsen · Ops");
+    expect(html()).toContain("<h2>Rachel Kim cannot use the instance as configured.</h2>");
+    expect(html()).toContain("1,284,512 indexed records");
+    expect(html()).toContain("At least 9 people hold explicit grants");
+    expect(text(HEADER_KEY)).toBe('{"view":"board","sections":[]}');
 
     const rachel = person("Rachel Kim");
     await rib.onAction?.({ type: "select-person", payload: { id: rachel.id } }, ctx);
@@ -162,6 +143,33 @@ describe("sample mode", () => {
     );
     await until(() => text(EXPLAIN_KEY).includes("Rachel Kim"));
     expect(text(EXPLAIN_KEY)).toContain("401: not a member of users@");
+  });
+
+  test("the brief has a case for every decision class", async () => {
+    const { ctx } = fakeContext();
+    const tools = rib.registerTools?.(ctx) ?? [];
+    const tool = tools.find((t) => t.name === "adme_brief");
+    let brief: { headline: string; items: { cls: string; title: string }[] } | undefined;
+    const run = () =>
+      tool?.execute({}, {
+        emit: (e: { content?: string }) => {
+          brief = JSON.parse(e.content ?? "{}");
+        },
+      } as never);
+    await until(() => {
+      run();
+      return (brief?.items ?? []).some((i) => i.cls === "GRANT");
+    });
+    expect(brief?.headline).toBe("Rachel Kim cannot use the instance as configured.");
+    expect(brief?.items.map((i) => [i.cls, i.title])).toEqual([
+      ["BLOCKED", "Rachel Kim cannot use the instance"],
+      ["INCONSISTENT", "Dmitri Volkov is listed twice in the Editor group"],
+      ["IDENTITY", "An id holding Viewer has no name"],
+      ["IDENTITY", "Reference data loader still holds Ops"],
+      ["GRANT", "Kari Solberg keeps a delta grant without instance access"],
+      ["LEGAL", "opendes-pilot-trial expires in 22 days"],
+      ["READ", "Seismic members were not all read"],
+    ]);
   });
 
   test("keeps its own store beside the real one", async () => {

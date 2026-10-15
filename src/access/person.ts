@@ -92,7 +92,11 @@ export interface GroupAudit {
   gaps: string[];
   extras: string[];
   baseline: string[];
+  // Seismic subproject groups: named reach, never counted as extra.
+  seismic: string[];
 }
+
+const SEISMIC_GROUP = /^data\.sdms\./;
 
 export function auditGroups(
   person: Pick<Identity, "memberships">,
@@ -103,7 +107,8 @@ export function auditGroups(
   const sets = groupSets(person.memberships, closures);
   const held = read ? new Set(read) : sets.held;
   const known = new Set(accepted);
-  const beyond = [...held].filter((g) => !sets.expected.has(g));
+  const outside = [...held].filter((g) => !sets.expected.has(g));
+  const beyond = outside.filter((g) => !SEISMIC_GROUP.test(g));
   return {
     source: read ? "read" : "computed",
     held: [...held],
@@ -111,5 +116,6 @@ export function auditGroups(
     gaps: [...sets.expected].filter((g) => !held.has(g)).sort(),
     extras: beyond.filter((g) => !known.has(g)).sort(),
     baseline: beyond.filter((g) => known.has(g)).sort(),
+    seismic: outside.filter((g) => SEISMIC_GROUP.test(g)).sort(),
   };
 }

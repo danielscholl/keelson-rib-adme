@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { type CanvasBoardView, expectView } from "@keelson/shared";
-import { platformSections } from "../src/boards/health";
+import { connectionLine } from "../src/boards/connection";
+import { healthChip, platformSections } from "../src/boards/health";
+import { briefOf } from "../src/brief/inputs";
 import type { CallResult, FailureKind } from "../src/client";
 import {
   HEALTH_AREA,
@@ -10,19 +12,17 @@ import {
   SERVICE_CATALOG,
   verdict,
 } from "../src/data/health";
-import { CONNECTION_KEY, HEADER_KEY } from "../src/keys";
+import { CONNECTION_KEY } from "../src/keys";
 import { connectionModule } from "../src/modules/connection";
-import { headerModule } from "../src/modules/header";
 import { NOW, SAMPLE_HEALTH } from "./fixtures/data";
 import { routeTransport, seededRuntime } from "./harness";
 
-const headerBoard = expectView(HEADER_KEY, "board");
 const connectionBoard = expectView(CONNECTION_KEY, "board");
 
 function line(rt: ReturnType<typeof seededRuntime>) {
-  const view = headerBoard(headerModule.composers?.[HEADER_KEY]?.(rt)) as CanvasBoardView;
-  const rows = view.sections[1];
-  if (rows?.kind !== "rows") throw new Error("connection line expected second");
+  const chip = healthChip(verdict(rt.cache.get<Health>(HEALTH_AREA).data));
+  const rows = connectionLine(rt.status, chip);
+  if (rows?.kind !== "rows") throw new Error("connection line expected");
   return rows.items[0];
 }
 
@@ -102,6 +102,21 @@ describe("connection line", () => {
     const item = line(seededRuntime({ [HEALTH_AREA]: SAMPLE_HEALTH }, { phase: "signin" }));
     expect(item).toMatchObject({ trailing: "details" });
     expect(item).not.toHaveProperty("chip");
+  });
+});
+
+describe("health in the console", () => {
+  test("a healthy instance adds no note; a service not answering does, opening Connection", () => {
+    const healthy = briefOf(seededRuntime({ [HEALTH_AREA]: SAMPLE_HEALTH }, { now: NOW }));
+    expect(healthy.stamp.notes.filter((n) => n.inspect === "connection")).toEqual([]);
+    const down: Health = {
+      ...SAMPLE_HEALTH,
+      services: SAMPLE_HEALTH.services.map((x) =>
+        x.service === "search" ? { ...x, state: "down" as const } : x,
+      ),
+    };
+    const notes = briefOf(seededRuntime({ [HEALTH_AREA]: down }, { now: NOW })).stamp.notes;
+    expect(notes).toContainEqual({ text: "search not answering · 0.28", inspect: "connection" });
   });
 });
 

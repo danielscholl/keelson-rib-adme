@@ -8,23 +8,11 @@
 
 import { type DirectoryEntry, readDirectory } from "../access/read.ts";
 import type { Batch, CallFailure, CallResult } from "../client.ts";
-import {
-  SEIS_CHANGE_KEY,
-  SEIS_PULSE_KEY,
-  SEIS_REACH_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_SUBPROJECTS_KEY,
-} from "../keys.ts";
+import { INSPECT_KEY } from "../keys.ts";
 
-// Tier 2: read only when the Seismic section is used, never on the sweep.
 export const SEISMIC_AREA = "seismic";
-export const SEISMIC_KEYS = [
-  SEIS_PULSE_KEY,
-  SEIS_SUBPROJECTS_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_CHANGE_KEY,
-  SEIS_REACH_KEY,
-] as const;
+export const SEISMIC_EVERY_MS = 30 * 60_000;
+export const SEISMIC_KEYS = [INSPECT_KEY] as const;
 
 export interface Subproject {
   name: string;
@@ -72,6 +60,14 @@ interface OwnGroups {
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SDMS_GROUP = /^data\.sdms\.([^.]+)\.([^.]+)(?:\.[0-9a-f-]{36})?\.(admin|viewer)@/;
+
+// The subproject and role a data.sdms group grants, when its email follows the pattern.
+export function sdmsGrant(
+  email: string,
+): { subproject: string; role: "admin" | "viewer" } | undefined {
+  const m = /^data\.sdms\.[^.]+\.([^.]+)(?:\.[0-9a-f-]+)?\.(admin|viewer)@/.exec(email);
+  return m ? { subproject: m[1] as string, role: m[2] as "admin" | "viewer" } : undefined;
+}
 
 export function isDefaultGroup(email: string): boolean {
   return email.startsWith("data.default.");

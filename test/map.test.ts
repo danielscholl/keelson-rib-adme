@@ -470,7 +470,7 @@ describe("partition map, selection", () => {
     expect(sent).toHaveLength(0);
   });
 
-  test("Browse records searches the focused slice and jumps to Records", async () => {
+  test("Browse records searches the focused slice and opens Find records", async () => {
     const { transport, sent } = routes({});
     const rt = seededRuntime(SEED, { now: NOW, transport });
     await act(MAP_SELECT_ACTION, rt, { lens: "tags", key: "opendes-pilot-trial" });
@@ -478,7 +478,7 @@ describe("partition map, selection", () => {
     const res = await act(MAP_BROWSE_ACTION, rt);
     expect(res).toMatchObject({
       ok: true,
-      data: { effect: "open-surface", regionKey: "rib:adme:records" },
+      data: { effect: "open-canvas", key: "rib:adme:records", title: "Find records" },
     });
     expect((sent[0]?.body as { query?: string } | undefined)?.query).toBe(
       'legal.legaltags:"opendes-pilot-trial"',

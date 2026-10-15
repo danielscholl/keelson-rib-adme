@@ -7,6 +7,8 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasActionItem, CanvasBoardView, CanvasTone } from "@keelson/shared";
+import { briefInputs } from "../brief/inputs.ts";
+import { peopleRows } from "../brief/people.ts";
 import { currentOperation, isActive } from "../plan/apply.ts";
 import {
   type Classification,
@@ -16,11 +18,15 @@ import {
   planStats,
   type Subject,
 } from "../plan/model.ts";
+import { coverage } from "../plan/seismic.ts";
 import { inputsOf, planState } from "../plan/state.ts";
+import { shortSeismicGroup } from "../plan/steps.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import { clock } from "../sweep.ts";
 import { SIGNIN_REASON } from "./connection.ts";
+import { factSection } from "./inspect.ts";
+import { measuredSeismic } from "./seismic.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
@@ -240,7 +246,16 @@ function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
       },
     };
   }
+  const inputs = inputsOf(plan);
+  const who = plan.subjects[0]?.name ?? plan.subjects[0]?.address;
   const parts = [
+    ...(inputs.kind === "seismic-grant" && who
+      ? [`Adds ${who} to the ${inputs.role} group of ${inputs.subproject}.`]
+      : []),
+    ...(inputs.kind === "seismic-copy" && who ? [`Copies seismic grants to ${who}.`] : []),
+    ...(plan.kind.startsWith("seismic") && plan.subjects[0]?.reason
+      ? [plan.subjects[0].reason]
+      : []),
     ...(invites > 0 ? [`${invites} invitation email${invites === 1 ? " is" : "s are"} sent.`] : []),
     `${writes} membership write${writes === 1 ? "" : "s"}.`,
     "The dry run is re-checked first.",
@@ -291,6 +306,81 @@ function actions(rt: Runtime, plan: Plan): Section {
   return { kind: "actions", wrap: true, items };
 }
 
+const GROUP_PATH = /\/groups\/([^/]+)\/members/;
+
+function roleMark(roles: ReadonlySet<string>): string {
+  return roles.has("admin") && roles.has("viewer")
+    ? "Admin and Viewer"
+    : roles.has("admin")
+      ? "Admin"
+      : roles.has("viewer")
+        ? "Viewer"
+        : "none";
+}
+
+// Who the change is for, what it does to every subproject a touched group backs, and
+// how far each group reaches, read from the dry run's own steps.
+function seismicSections(rt: Runtime, plan: Plan): Section[] {
+  const model = measuredSeismic(rt)?.model;
+  const subject = plan.subjects[0];
+  if (!model || !subject?.oid) return [];
+  const id = subject.oid;
+  const out: Section[] = [];
+  const row = peopleRows(briefInputs(rt)).find((r) => r.id === id);
+  if (row) out.push(factSection(`Who · ${row.name}`, row.ladder));
+  const cover = coverage(model);
+  const roleOf = new Map<string, "admin" | "viewer">();
+  for (const sub of model.subprojects) {
+    for (const g of sub.adminGroups) roleOf.set(g, "admin");
+    for (const g of sub.viewerGroups) if (!roleOf.has(g)) roleOf.set(g, "viewer");
+  }
+  const touched = new Map<string, { add: boolean; change: boolean }>();
+  for (const step of subject.steps) {
+    if (step.kind !== "member-add" && step.kind !== "member-remove") continue;
+    const m = step.call ? GROUP_PATH.exec(step.call.path) : null;
+    if (!m) continue;
+    const group = decodeURIComponent(m[1] as string).toLowerCase();
+    touched.set(group, { add: step.kind === "member-add", change: step.change && !step.already });
+  }
+  if (touched.size === 0) return out;
+  const asked = (plan.inputs as { subproject?: string }).subproject;
+  const subs = [...new Set([...touched.keys()].flatMap((g) => cover.get(g) ?? []))];
+  const current = (sub: string) =>
+    new Set((model.grants[id] ?? []).filter((g) => g.subproject === sub).map((g) => g.role));
+  out.push({
+    kind: "rows",
+    boxed: true,
+    title: `Current and proposed · ${subs.length} ${subs.length === 1 ? "subproject" : "subprojects"} touched`,
+    items: subs.map((sub) => {
+      const now = current(sub);
+      const next = new Set(now);
+      for (const [g, t] of touched) {
+        if (!(cover.get(g) ?? []).includes(sub) || !t.change) continue;
+        const role = roleOf.get(g);
+        if (!role) continue;
+        if (t.add) next.add(role);
+        else next.delete(role);
+      }
+      const changed = roleMark(now) !== roleMark(next);
+      return {
+        glyph: changed ? ("warn" as const) : ("neutral" as const),
+        text: sub === asked ? `${sub} · selected` : sub,
+        trailing: changed ? `${roleMark(now)} → ${roleMark(next)}` : `${roleMark(now)}, unchanged`,
+      };
+    }),
+  });
+  out.push({
+    kind: "rows",
+    title: "Reach · every subproject each touched group backs",
+    items: [...touched.keys()].map((g) => ({
+      glyph: "neutral" as const,
+      text: shortSeismicGroup(g),
+      trailing: (cover.get(g) ?? []).join(", ") || "no subproject",
+    })),
+  });
+  return out;
+}
+
 export function composePlan(rt: Runtime): CanvasBoardView {
   const s = planState(rt);
   if (s.building && !s.plan) {
@@ -336,6 +426,7 @@ export function composePlan(rt: Runtime): CanvasBoardView {
   const now = rt.now();
   const expired = isExpired(plan, now);
   const sections: Section[] = [
+    ...(plan.kind.startsWith("seismic") ? seismicSections(rt, plan) : []),
     { kind: "journey", title: "What apply does, in order", items: JOURNEY[plan.kind] },
   ];
   if (s.changedFrom) {

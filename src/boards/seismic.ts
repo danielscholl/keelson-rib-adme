@@ -7,13 +7,11 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { CanvasBoardView } from "@keelson/shared";
-import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
-import { HEALTH_AREA, type Health } from "../data/health.ts";
+import { seismicModelOf } from "../brief/inputs.ts";
 import { bindingOf } from "../plan/model.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
 import {
-  buildSeismic,
   countSeismic,
   displayOrder,
   type Member,
@@ -25,11 +23,10 @@ import {
 } from "../seismic/model.ts";
 import { SEISMIC_AREA, type SeismicRead } from "../seismic/read.ts";
 import { measuredAccess, SELECT_PERSON_ACTION } from "./access.ts";
-import { phasePill, SIGNIN_REASON, signinCard } from "./connection.ts";
+import { SIGNIN_REASON } from "./connection.ts";
 import { fold } from "./map.ts";
 
 type Section = CanvasBoardView["sections"][number];
-type Stat = Extract<Section, { kind: "stats" }>["items"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
 type Field = NonNullable<Card["fields"]>[number];
 type Person = NonNullable<Field["people"]>[number];
@@ -40,7 +37,6 @@ type FlowNode = Extract<Leaf, { kind: "flow" }>["nodes"][number];
 
 export const SEIS_READ_ACTION = "seis-read";
 export const SEIS_SELECT_ACTION = "seis-select";
-export const SEIS_REACH_ACTION = "seis-reach";
 export const PREVIEW_SEIS_GRANT_ACTION = "preview-seismic-grant";
 export const PREVIEW_SEIS_REVOKE_ACTION = "preview-seismic-revoke";
 export const PREVIEW_SEIS_COPY_ACTION = "preview-seismic-copy";
@@ -53,8 +49,6 @@ export const SEIS_ROLE_OPTIONS = [
 
 interface SeismicState {
   selected?: string;
-  // The person "What a partner can reach" shows.
-  reach?: string;
 }
 
 const state = new WeakMap<Runtime, SeismicState>();
@@ -78,12 +72,8 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
   if (!read || rt.status.phase === "firstrun" || rt.status.phase === "profile-error") {
     return undefined;
   }
-  const model = buildSeismic(read, {
-    directory: rt.cache.get<AccessRead>(ACCESS_AREA).data?.directory,
-    signedInAs: rt.status.test?.signedInAs,
-    admeAppId: rt.profile?.admeAppId,
-  });
-  return { model, counts: countSeismic(model) };
+  const model = seismicModelOf(rt);
+  return model ? { model, counts: countSeismic(model) } : undefined;
 }
 
 // Own-ACL subprojects a person can be granted on, for a select; empty before the store is read.
@@ -102,182 +92,6 @@ export function selectedSubproject(rt: Runtime, model: SeismicModel): Subproject
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-function unmeasured(label: string, sub = "not measured"): Stat {
-  return { label, value: null, sub };
-}
-
-const UNMEASURED_TILES = ["Subprojects", "People with grants", "On default ACL", "No members"];
-
-function serviceText(rt: Runtime): { text: string; ok: boolean } {
-  const probes = rt.cache.get<Health>(HEALTH_AREA).data?.services;
-  const seismic = probes?.find((p) => p.service === "seismic");
-  if (!seismic) return { text: "service ?", ok: true };
-  if (seismic.state === "up") return { text: "service ok", ok: true };
-  if (seismic.state === "off") return { text: "service not enabled", ok: false };
-  return { text: `service ${seismic.status ?? "not answering"}`, ok: false };
-}
-
-function chip(rt: Runtime): string | undefined {
-  const partition = rt.profile?.partition;
-  if (!partition) return undefined;
-  return `sd://${partition} · ${rt.freshness(SEISMIC_AREA) ?? "not measured yet"}`;
-}
-
-function names(list: readonly string[]): string {
-  if (list.length === 0) return "none";
-  return list.length <= 3
-    ? list.join(", ")
-    : `${list.slice(0, 2).join(", ")} and ${list.length - 2} more`;
-}
-
-function tiles(rt: Runtime, m: MeasuredSeismic): Section {
-  const { counts, model } = m;
-  const people = measuredAccess(rt)?.counts.people;
-  const items: Stat[] = [
-    {
-      label: "Subprojects",
-      value: counts.subprojects,
-      sub: `${counts.own} own ACL, ${counts.defaults.length} default`,
-    },
-    {
-      label: "People with grants",
-      value: counts.peopleWithGrants,
-      sub: [
-        people === undefined ? "people not measured" : `of ${people} people`,
-        ...(model.partial ? ["at least, partial read"] : []),
-      ].join(" · "),
-    },
-    { label: "On default ACL", value: counts.defaults.length, sub: names(counts.defaults) },
-    {
-      label: "No members",
-      value: counts.empty.length,
-      sub: names(counts.empty),
-      ...(counts.empty.length > 0 ? { tone: "caution" as const } : {}),
-    },
-  ];
-  return { kind: "stats", items };
-}
-
-// One sentence from measured values only; partial reads say "at least".
-export function seismicHeadline(rt: Runtime, m: MeasuredSeismic): string {
-  const { counts, model } = m;
-  const people = measuredAccess(rt)?.counts.people;
-  const least = model.partial ? "at least " : "";
-  const n = counts.peopleWithGrants;
-  const holders =
-    people === undefined
-      ? plural(n, "person", "people")
-      : `${n} of ${plural(people, "person", "people")}`;
-  const parts = [
-    `${model.source === "own-groups" ? "at least " : ""}${plural(counts.subprojects, "subproject", "subprojects")}`,
-    `${least}${holders} ${n === 1 ? "holds" : "hold"} a grant`,
-  ];
-  const gaps = [
-    ...(counts.defaults.length > 0
-      ? [
-          `${counts.defaults.length} ${counts.defaults.length === 1 ? "relies" : "rely"} on the default ACL`,
-        ]
-      : []),
-    ...(counts.empty.length > 0
-      ? [`${counts.empty.length} ${counts.empty.length === 1 ? "has" : "have"} no members`]
-      : []),
-  ];
-  if (gaps.length > 0) parts.push(gaps.join(" and "));
-  return `${parts.join("; ")}.`;
-}
-
-function partialRow(model: SeismicModel): Row | undefined {
-  if (model.source === "own-groups") {
-    return {
-      glyph: "warn",
-      text: "Listing subprojects was refused, so these come from your own data.sdms groups and may be incomplete.",
-    };
-  }
-  if (model.unreadGroups > 0) {
-    return {
-      glyph: "warn",
-      text: `Members of ${plural(model.unreadGroups, "role", "roles")} could not be read; those show as ?.`,
-    };
-  }
-  return undefined;
-}
-
-export function composeSeismicPulse(rt: Runtime): CanvasBoardView {
-  const phase = rt.status.phase;
-  if (phase === "firstrun" || phase === "profile-error") {
-    return {
-      view: "board",
-      header: {
-        status: {
-          label: "not connected, finish the connect steps in the header",
-          tone: "neutral",
-        },
-      },
-      sections: [{ kind: "stats", items: UNMEASURED_TILES.map((l) => unmeasured(l)) }],
-    };
-  }
-  const c = chip(rt);
-  const measured = measuredSeismic(rt);
-  const error = rt.cache.get(SEISMIC_AREA).error;
-  const sections: Section[] = [];
-  if (phase === "signin") sections.push(signinCard(rt.status));
-  if (!measured) {
-    sections.push({ kind: "stats", items: UNMEASURED_TILES.map((l) => unmeasured(l)) });
-    if (phase === "connected") {
-      sections.push({
-        kind: "rows",
-        items: [
-          error
-            ? { glyph: "error", text: `Subprojects could not be read: ${error}` }
-            : {
-                glyph: "neutral",
-                text: "This section reads seismic subprojects and their members on first use, not on every sweep.",
-              },
-        ],
-      });
-      sections.push({
-        kind: "actions",
-        items: [
-          {
-            type: SEIS_READ_ACTION,
-            label: error ? "Try again" : "Read subprojects",
-            tone: "brand",
-            pendingLabel: "Reading…",
-          },
-        ],
-      });
-    }
-    return {
-      view: "board",
-      header: {
-        status:
-          phase === "signin"
-            ? phasePill(rt.status)
-            : { label: "not measured yet", tone: "neutral" },
-        ...(c ? { chip: c } : {}),
-      },
-      sections,
-    };
-  }
-  const service = serviceText(rt);
-  const { model, counts } = measured;
-  sections.push({ kind: "rows", items: [{ text: seismicHeadline(rt, measured) }] });
-  sections.push(tiles(rt, measured));
-  const notes: Row[] = [];
-  const partial = partialRow(model);
-  if (partial) notes.push(partial);
-  if (error) notes.push({ glyph: "error", text: `The last read failed: ${error}` });
-  if (notes.length > 0) sections.push({ kind: "rows", items: notes });
-  const status =
-    phase === "signin"
-      ? phasePill(rt.status)
-      : {
-          label: `${plural(counts.subprojects, "subproject", "subprojects")} · ${service.text}`,
-          tone: service.ok && !model.partial ? ("ok" as const) : ("caution" as const),
-        };
-  return { view: "board", header: { status, ...(c ? { chip: c } : {}) }, sections };
-}
 
 // ---- Subproject cards ----
 
@@ -337,11 +151,6 @@ function reachCount(r: Reached, people: number | undefined): number | null {
 
 function reachText(n: number | null): string {
   return n === null ? "? reach it" : n === 1 ? "1 reaches it" : `${n} reach it`;
-}
-
-function aclChip(s: SubprojectView): NonNullable<Row["chip"]> {
-  const pill = aclPill(s);
-  return { label: pill.label.replace(" ACL", ""), tone: pill.tone };
 }
 
 // The flow draws at most six left nodes; fold keeps one more when only one would fold.
@@ -464,68 +273,19 @@ function whoFlow(
   };
 }
 
-// Subprojects ranked by who reaches them, beside a flow from subproject to people.
-export function composeSeismicSubprojects(rt: Runtime): CanvasBoardView {
+// The flow from the selected subproject to who reaches it, for its inspector.
+export function selectedFlow(rt: Runtime): Leaf | undefined {
   const measured = measuredSeismic(rt);
-  if (!measured) return EMPTY_BOARD;
-  const { model } = measured;
-  const order = displayOrder(model);
-  if (order.length === 0) {
-    return {
-      view: "board",
-      header: { status: { label: "0 subprojects", tone: "neutral" } },
-      sections: [
-        { kind: "rows", items: [{ glyph: "neutral", text: "No subprojects in this tenant." }] },
-      ],
-    };
-  }
-  const selected = selectedSubproject(rt, model);
+  if (!measured) return undefined;
+  const selected = selectedSubproject(rt, measured.model);
   const people = measuredAccess(rt)?.counts.people;
-  const ranked = order
+  const ranked = displayOrder(measured.model)
     .map((s, i) => {
       const r = reachedOf(s);
       return { s, r, n: reachCount(r, people), i };
     })
     .sort((a, b) => (b.n ?? -1) - (a.n ?? -1) || a.i - b.i);
-  const max = Math.max(1, ...ranked.map((x) => x.n ?? 0));
-  const rows: Row[] = ranked.map(({ s, r, n }) => ({
-    chip: aclChip(s),
-    text: s.name,
-    trailing:
-      r.through && !r.unread
-        ? people === undefined
-          ? "everyone with a data role"
-          : `all ${people} people`
-        : reachText(n),
-    bar: { value: n, total: max },
-    action: { type: SEIS_SELECT_ACTION, payload: { subproject: s.name } },
-    ...(s.name === selected?.name ? { selected: true } : {}),
-  }));
-  const flow = whoFlow(ranked, people, selected);
-  return {
-    view: "board",
-    header: {
-      status: { label: plural(order.length, "subproject", "subprojects"), tone: "neutral" },
-      ...(selected ? { chip: `selected: ${selected.name}` } : {}),
-    },
-    sections: [
-      {
-        kind: "columns",
-        columns: [
-          {
-            weight: 5,
-            sections: [{ kind: "rows", title: "Subprojects by who reaches them", items: rows }],
-          },
-          {
-            weight: 7,
-            sections: flow
-              ? [flow]
-              : [{ kind: "rows", items: [{ glyph: "neutral", text: "Nobody to draw yet." }] }],
-          },
-        ],
-      },
-    ],
-  };
+  return whoFlow(ranked, people, selected);
 }
 
 // ---- The selected subproject ----

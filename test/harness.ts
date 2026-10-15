@@ -152,14 +152,16 @@ export function routeTransport(
 export function seededRuntime(
   seed: Record<string, unknown>,
   opts: {
-    now?: Date;
+    now?: Date | (() => Date);
     phase?: "connected" | "signin" | "firstrun";
     transport?: Transport;
     store?: Store;
     recompose?: (keys: readonly string[]) => void;
   } = {},
 ): Runtime {
-  const now = opts.now ?? new Date("2026-10-02T14:05:00Z");
+  const clockOf = typeof opts.now === "function" ? opts.now : undefined;
+  const now =
+    (clockOf ? clockOf() : (opts.now as Date | undefined)) ?? new Date("2026-10-02T14:05:00Z");
   const store = opts.store ?? new Store(undefined);
   if (opts.phase !== "firstrun") {
     store.write("profile.json", SAMPLE_PROFILE);
@@ -175,7 +177,7 @@ export function seededRuntime(
     store,
     recompose: opts.recompose ?? (() => undefined),
     allKeys: [],
-    now: () => now,
+    now: clockOf ?? (() => now),
     ...(opts.transport ? { transport: opts.transport } : {}),
     sleep: async () => undefined,
   });

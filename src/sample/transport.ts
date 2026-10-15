@@ -21,6 +21,7 @@ import {
   type Person,
   RECORD_CLASSES,
   RECORD_GROUPS,
+  REFUSED_GROUP_OF,
   type RecordClass,
   ROLE_GROUPS,
   ROSTER_GROUP_NAME,
@@ -29,6 +30,7 @@ import {
   SUBPROJECTS,
   sdmsGroup,
   TAGS,
+  UNKNOWN_PRINCIPALS,
   YOU,
 } from "./world.ts";
 
@@ -70,6 +72,7 @@ function buildGroups(): Map<string, Member[]> {
   };
   for (const g of Object.values(ROLE_GROUPS)) groups.set(g, []);
   for (const p of PEOPLE) {
+    if (p.noAccess) continue;
     const owner = p.role === "ops" ? "OWNER" : "MEMBER";
     if (!p.notInUsers) add(ROLE_GROUPS.users, p.id, owner);
     add(ROLE_GROUPS[p.role], p.id, owner);
@@ -78,6 +81,10 @@ function buildGroups(): Map<string, Member[]> {
   for (const a of APPS) {
     add(ROLE_GROUPS.users, a.appId);
     add(ROLE_GROUPS[a.group], a.appId);
+  }
+  for (const u of UNKNOWN_PRINCIPALS) {
+    add(ROLE_GROUPS.users, u.id);
+    if (u.group !== "users") add(ROLE_GROUPS[u.group], u.id);
   }
   for (const [key, parents] of Object.entries(PARENTS)) {
     const own = ROLE_GROUPS[key as keyof typeof ROLE_GROUPS];
@@ -134,7 +141,11 @@ function entitlements(method: string, path: string): Reply {
   }
   const members = /^\/groups\/([^/]+)\/members$/.exec(path);
   if (members) {
-    const list = GROUPS.get(decodeURIComponent(members[1] as string).toLowerCase());
+    const group = decodeURIComponent(members[1] as string).toLowerCase();
+    if (group === sdmsGroup(REFUSED_GROUP_OF.subproject, REFUSED_GROUP_OF.role)) {
+      return { status: 403, body: { message: "Forbidden" } };
+    }
+    const list = GROUPS.get(group);
     return list ? ok({ members: list }) : notFound("Group not found");
   }
   const memberOf = /^\/members\/([^/]+)\/groups$/.exec(path);

@@ -8,33 +8,18 @@
 
 import type { RibActionResult } from "@keelson/shared";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
-import { measuredAccess } from "../boards/access.ts";
-import { RETEST_ACTION, SIGNIN_REASON } from "../boards/connection.ts";
+import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
-  composeSeismicPulse,
-  composeSeismicSelected,
-  composeSeismicSubprojects,
   measuredSeismic,
-  SEIS_REACH_ACTION,
   SEIS_READ_ACTION,
   SEIS_SELECT_ACTION,
   seismicState,
 } from "../boards/seismic.ts";
-import { composeSeismicChange, composeSeismicReach } from "../boards/seismic-change.ts";
-import {
-  PEOPLE_KEY,
-  SEIS_CHANGE_KEY,
-  SEIS_PULSE_KEY,
-  SEIS_REACH_KEY,
-  SEIS_SELECTED_KEY,
-  SEIS_SUBPROJECTS_KEY,
-} from "../keys.ts";
-import type { ActionHandler, RegionModule } from "../region.ts";
-import type { Runtime } from "../runtime.ts";
-import { activeSection, focusRegion } from "../section.ts";
-import { readSeismic, SEISMIC_AREA, SEISMIC_KEYS } from "../seismic/read.ts";
-import { REFRESH_ACTION } from "../surfaces.ts";
-import { connectionModule } from "./connection.ts";
+import { INSPECT_KEY } from "../keys.ts";
+import type { RegionModule } from "../region.ts";
+import type { Area, Runtime } from "../runtime.ts";
+import { readSeismic, SEISMIC_AREA, SEISMIC_EVERY_MS, SEISMIC_KEYS } from "../seismic/read.ts";
+import { inspectState } from "./console.ts";
 
 const inflight = new WeakMap<Runtime, Promise<RibActionResult>>();
 
@@ -47,7 +32,15 @@ function knownIds(read: AccessRead | undefined): Set<string> {
   return ids;
 }
 
-// Tier 2: runs on Seismic section actions and after Re-test, never on the sweep.
+// Membership is a sweep area of its own, read at most every 30 minutes; the
+// subproject actions and Re-test read it again on demand.
+const SEISMIC_SWEEP: Area = {
+  name: SEISMIC_AREA,
+  keys: SEISMIC_KEYS,
+  everyMs: SEISMIC_EVERY_MS,
+  read: (batch, rt) => readSeismic(batch, knownIds(rt.cache.get<AccessRead>(ACCESS_AREA).data)),
+};
+
 export function measureSeismic(rt: Runtime): Promise<RibActionResult> {
   const pending = inflight.get(rt);
   if (pending) return pending;
@@ -56,81 +49,43 @@ export function measureSeismic(rt: Runtime): Promise<RibActionResult> {
     const res = await rt.run((b) => readSeismic(b, known));
     if (res.ok) {
       rt.cache.succeed(SEISMIC_AREA, res.data, rt.now());
-      rt.recompose([...SEISMIC_KEYS, PEOPLE_KEY]);
+      rt.recompose(SEISMIC_KEYS);
       return { ok: true };
     }
     if (res.failure.kind === "signin" && res.failure.status === null) {
       return { ok: false, error: SIGNIN_REASON };
     }
     rt.cache.fail(SEISMIC_AREA, res.failure.message, rt.now());
-    rt.recompose([...SEISMIC_KEYS, PEOPLE_KEY]);
+    rt.recompose(SEISMIC_KEYS);
     return { ok: false, error: res.failure.message };
   })().finally(() => inflight.delete(rt));
   inflight.set(rt, work);
   return work;
 }
 
-function used(rt: Runtime): boolean {
-  const m = rt.cache.get(SEISMIC_AREA);
-  return m.at !== undefined || m.errorAt !== undefined;
-}
-
-// A handled effect suppresses the success toast a plain selection would raise.
-function focus(rt: Runtime, regionKey: string): RibActionResult {
-  return focusRegion(rt, "seismic", regionKey);
-}
-
-const retest = connectionModule.actions?.[RETEST_ACTION] as ActionHandler;
-const refresh = connectionModule.actions?.[REFRESH_ACTION] as ActionHandler;
-
-async function refreshWithSeismic(rt: Runtime): Promise<RibActionResult> {
-  const [, res] = await Promise.all([rt.sweep({ force: true }), measureSeismic(rt)]);
-  return res;
-}
-
 export const seismicModule: RegionModule = {
-  composers: {
-    [SEIS_PULSE_KEY]: composeSeismicPulse,
-    [SEIS_SUBPROJECTS_KEY]: composeSeismicSubprojects,
-    [SEIS_SELECTED_KEY]: composeSeismicSelected,
-    [SEIS_CHANGE_KEY]: composeSeismicChange,
-    [SEIS_REACH_KEY]: composeSeismicReach,
-  },
+  areas: [SEISMIC_SWEEP],
   actions: {
     [SEIS_READ_ACTION]: (rt) => measureSeismic(rt),
-    // Refresh now also reads the seismic store while that section is showing.
-    [REFRESH_ACTION]: (rt, payload) =>
-      activeSection(rt) === "seismic" ? refreshWithSeismic(rt) : refresh(rt, payload),
+    // Opens a subproject in the inspector, from its member rows and the flow.
     [SEIS_SELECT_ACTION]: async (rt, payload) => {
       const name = (payload as { subproject?: unknown } | undefined)?.subproject;
       if (typeof name !== "string") return { ok: false, error: "Pick a subproject." };
-      if (!measuredSeismic(rt)) {
-        const res = await measureSeismic(rt);
-        if (!res.ok) return res;
-      }
-      const measured = measuredSeismic(rt);
-      if (!measured?.model.subprojects.some((s) => s.name === name)) {
+      if (!measuredSeismic(rt)?.model.subprojects.some((s) => s.name === name)) {
         return { ok: false, error: "That subproject is no longer listed. Refresh now." };
       }
       seismicState(rt).selected = name;
-      rt.recompose([SEIS_SUBPROJECTS_KEY, SEIS_SELECTED_KEY, SEIS_CHANGE_KEY]);
-      return focus(rt, SEIS_SELECTED_KEY);
-    },
-    [SEIS_REACH_ACTION]: async (rt, payload) => {
-      const id = (payload as { id?: unknown } | undefined)?.id;
-      if (typeof id !== "string" || !id) return { ok: false, error: "Pick a person." };
-      if (!measuredAccess(rt)?.model.people.some((p) => p.id === id)) {
-        return { ok: false, error: "That person is not in the last sweep. Refresh and try again." };
-      }
-      seismicState(rt).reach = id;
-      rt.recompose([SEIS_REACH_KEY]);
-      return focus(rt, SEIS_REACH_KEY);
-    },
-    // Re-test sweeps tier 1; seismic follows only once the section has been used.
-    [RETEST_ACTION]: async (rt, payload) => {
-      const res = await retest(rt, payload);
-      if (res.ok && rt.status.phase === "connected" && used(rt)) await measureSeismic(rt);
-      return res;
+      inspectState(rt).selected = `sub:${name}`;
+      await rt.recomposeNow(INSPECT_KEY);
+      return {
+        ok: true,
+        data: {
+          effect: "open-canvas",
+          key: INSPECT_KEY,
+          title: `Subproject · ${name}`,
+          placement: "side",
+        },
+      };
     },
   },
 };

@@ -7,14 +7,7 @@
 //     http://www.apache.org/licenses/LICENSE-2.0
 
 import type { Batch, CallResult } from "../client.ts";
-import {
-  ACTIVITY_KEY,
-  ATTENTION_KEY,
-  ORGS_KEY,
-  PEOPLE_KEY,
-  PERSON_KEY,
-  PULSE_KEY,
-} from "../keys.ts";
+import { PERSON_KEY } from "../keys.ts";
 import type { Area, Runtime } from "../runtime.ts";
 import type { AccessModel, Identity } from "./model.ts";
 
@@ -231,7 +224,7 @@ export function activityState(rt: Runtime, access: AccessModel): ActivityState {
 export const ACTIVITY_AREAS: readonly Area[] = [
   {
     name: ACTIVITY_AREA,
-    keys: [PULSE_KEY, ATTENTION_KEY, ACTIVITY_KEY, ORGS_KEY, PEOPLE_KEY, PERSON_KEY],
+    keys: [PERSON_KEY],
     read: readActivity,
   },
 ];

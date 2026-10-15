@@ -24,28 +24,32 @@ import {
   GROUP_NAMES,
   type GroupKey,
 } from "../access/read.ts";
+import { briefInputs } from "../brief/inputs.ts";
+import { peopleRows } from "../brief/people.ts";
 import { bindingOf } from "../plan/model.ts";
 import { shortId } from "../profile.ts";
 import { EMPTY_BOARD } from "../resting.ts";
 import type { Runtime } from "../runtime.ts";
+import { accessNote, reachOf } from "../seismic/reach.ts";
+import { sdmsGrant } from "../seismic/read.ts";
 import { clock } from "../sweep.ts";
 import { UNTRACKED } from "../tracker.ts";
 import { activityReason, day, daysAgo, type Measured, measuredAccess, passText } from "./access.ts";
 import { EXPLAIN_ACTION } from "./change.ts";
 import { SIGNIN_REASON } from "./connection.ts";
+import { annotateForm, factSection } from "./inspect.ts";
+import { measuredSeismic } from "./seismic.ts";
 
 type Section = CanvasBoardView["sections"][number];
 type Leaf = Extract<Section, { kind: "columns" }>["columns"][number]["sections"][number];
 type Card = Extract<Section, { kind: "cards" }>["items"][number];
 type Field = NonNullable<Card["fields"]>[number];
 type Row = Extract<Section, { kind: "rows" }>["items"][number];
-type Cell = Extract<Section, { kind: "grid" }>["cells"][number];
 type Tone = NonNullable<Row["glyph"]>;
 
 export const REFRESH_PERSON_ACTION = "refresh-person";
 export const ACCEPT_EXTRAS_ACTION = "accept-extra-groups";
 
-const PLAIN_LIMIT = 13;
 const ROLE_KEYS = ["ops", "admins", "editors", "viewers"] as const;
 
 export function findIdentity(model: AccessModel, id: string): Identity | undefined {
@@ -113,6 +117,7 @@ function groupsCheck(who: Identity, audit: GroupAudit | undefined): Check {
   const notes = [
     `${audit.held.length} of ${audit.expected.length} expected for ${who.role ?? "no role"}`,
     ...(audit.extras.length > 0 ? [`${audit.extras.length} extra`] : []),
+    ...(audit.seismic.length > 0 ? [`${audit.seismic.length} seismic`] : []),
     ...(audit.baseline.length > 0 ? [`${audit.baseline.length} baseline`] : []),
   ];
   const ok = audit.gaps.length === 0 && audit.extras.length === 0;
@@ -284,11 +289,10 @@ const PLAIN_RANK = (g: string) => (g.startsWith("users@") ? 0 : g.startsWith("us
 
 // Gaps and extras as full-width rows, so a long group name is never cut short.
 function groupSections(audit: GroupAudit): Leaf[] {
-  const flagged = new Set([...audit.gaps, ...audit.extras, ...audit.baseline]);
+  const flagged = new Set([...audit.gaps, ...audit.extras, ...audit.baseline, ...audit.seismic]);
   const plain = audit.held
     .filter((g) => !flagged.has(g))
     .sort((a, b) => PLAIN_RANK(a) - PLAIN_RANK(b) || a.localeCompare(b));
-  const shown = plain.slice(0, PLAIN_LIMIT);
   const out: Leaf[] = [];
   const odd = [
     ...audit.gaps.map((g) => ({
@@ -303,16 +307,48 @@ function groupSections(audit: GroupAudit): Leaf[] {
     })),
   ];
   if (odd.length > 0) out.push({ kind: "rows", title: "Beyond or short of the role", items: odd });
-  const cells: Cell[] = [
-    ...audit.baseline.map((g) => ({
-      label: shortGroup(g),
-      badge: { text: "baseline", tone: "neutral" as const },
-    })),
-    ...shown.map((g) => ({ label: shortGroup(g) })),
-    ...(plain.length > shown.length ? [{ label: `${plain.length - shown.length} more` }] : []),
-  ];
+  if (audit.seismic.length > 0) {
+    out.push({
+      kind: "rows",
+      title: "Named seismic reach",
+      items: audit.seismic.map((g) => {
+        const grant = sdmsGrant(g);
+        return {
+          chip: { label: "seismic", tone: "neutral" as const },
+          text: grant
+            ? `${grant.role === "admin" ? "Admin" : "Viewer"} on ${grant.subproject}`
+            : shortGroup(g),
+          trailing: shortGroup(g),
+        };
+      }),
+    });
+  }
+  const baseline = audit.baseline.map((g) => shortGroup(g));
+  if (baseline.length > 0) {
+    out.push({
+      kind: "rows",
+      title: "Accepted beyond the role",
+      items: baseline.map((g) => ({
+        chip: { label: "baseline", tone: "neutral" as const },
+        text: g,
+      })),
+    });
+  }
   const computed = audit.source === "computed" ? " · computed from role groups" : "";
-  out.push({ kind: "grid", title: `Effective groups · ${audit.held.length}${computed}`, cells });
+  out.push({
+    kind: "rows",
+    title: `Effective groups · ${audit.held.length}${computed}`,
+    items: [
+      plain.length > 0
+        ? {
+            glyph: "neutral",
+            text: `${plain.length} groups the role explains`,
+            trailing: "show",
+            detail: plain.map((g) => shortGroup(g)).join("\n"),
+          }
+        : { glyph: "neutral", text: "No other groups" },
+    ],
+  });
   return out;
 }
 
@@ -424,6 +460,35 @@ function freshness(rt: Runtime, id: string): string | undefined {
   return rt.status.phase === "connected" ? `measured ${at}` : `cached from ${at}`;
 }
 
+// Listing subprojects is admin only, so a partner needs the paths they can open.
+function accessNoteCard(rt: Runtime, who: Identity): Leaf | undefined {
+  const model = measuredSeismic(rt)?.model;
+  const profile = rt.profile;
+  if (!model || !profile || who.kind !== "person") return undefined;
+  const reach = reachOf(model, who);
+  if (reach.length === 0) return undefined;
+  return {
+    kind: "cards",
+    title: `What ${who.name} can reach · ${reach.length} ${reach.length === 1 ? "path" : "paths"}`,
+    items: [
+      {
+        title: `Send to ${who.name}`,
+        prose: true,
+        fields: [
+          {
+            label: "Access note",
+            value: accessNote(reach, model.tenant, profile.host),
+            copyable: true,
+          },
+        ],
+        footnote: model.partial
+          ? "Some groups could not be read, so this list may be incomplete. Copy only; the rib does not send mail."
+          : "Copy only. The rib does not send mail.",
+      },
+    ],
+  };
+}
+
 export function composePerson(rt: Runtime): CanvasBoardView {
   const measured = measuredAccess(rt);
   const read = rt.cache.get<AccessRead>(ACCESS_AREA).data;
@@ -442,7 +507,13 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   const bad = worst(list);
   const tone: Tone | undefined = bad ? VERDICT_TONE[bad.verdict] : undefined;
 
+  const inputs = briefInputs(rt);
+  const row = peopleRows(inputs).find((r) => r.id === who.id);
+  const key = inputs.directory.keyFor(who.id);
+  const notes = (row?.known ?? []).filter((f) => f.source === "operator");
   const left: Leaf[] = [
+    ...(row ? [factSection(row.question, row.ladder) as Leaf] : []),
+    ...(notes.length > 0 ? [factSection("Operator notes", notes) as Leaf] : []),
     {
       kind: "cards",
       title: "Identity",
@@ -473,6 +544,11 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   }
   const planned = plannedActions(rt, who);
   if (planned.length > 0) left.push({ kind: "actions", items: planned });
+  const bound = rt.profile ? bindingOf(rt.profile) : undefined;
+  left.push({
+    kind: "actions",
+    items: [annotateForm(who.id, rt.annotations.get(key), bound, { labelFirst: false })],
+  });
 
   const chart = who.kind === "person" ? callsChart(measured, who) : undefined;
   const right: Leaf[] = [
@@ -502,6 +578,8 @@ export function composePerson(rt: Runtime): CanvasBoardView {
   }
   if (audit) right.push(...groupSections(audit));
   right.push({ kind: "actions", wrap: true, items: groupActions(rt, who) });
+  const note = accessNoteCard(rt, who);
+  if (note) right.push(note);
   const past = history(rt, who, entry);
   if (past.length > 0) right.push({ kind: "rows", title: "History", items: past });
 
