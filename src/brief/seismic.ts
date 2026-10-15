@@ -15,7 +15,8 @@ import { type BriefInputs, cellId, readId, type Tone, whoId } from "./index.ts";
 import { ageText, limitText, listOf, opening, plural, stampText } from "./words.ts";
 
 export const SHARED = "shared";
-export const NO_GRANT = "neither group lists them";
+// Stands for the row's name in a cell template; the console fills it in on selection.
+export const WHO = "{who}";
 
 export type Mark = "A" | "V" | "AV" | "A!" | "V!" | "AV!" | "D" | "D*" | "?" | "·";
 
@@ -41,7 +42,8 @@ export interface MatrixRow {
 }
 
 export interface CellDetail {
-  id: string;
+  // One per subproject and mark: `${column}|${mark}`.
+  key: string;
   eyebrow: string;
   title: string;
   state: string;
@@ -63,7 +65,7 @@ export interface Matrix {
   columns: MatrixColumn[];
   shared: string[];
   rows: MatrixRow[];
-  details: CellDetail[];
+  templates: CellDetail[];
   notes: string[];
   readAt?: string;
 }
@@ -132,23 +134,25 @@ function backs(model: SeismicModel, groups: readonly string[], except: string): 
     : `This group also backs ${listOf(others)}, so a change to it reaches further than ${except}.`;
 }
 
+export function templateKey(column: string, mark: Mark): string {
+  return `${column}|${mark}`;
+}
+
 function detailOf(
-  _i: BriefInputs,
   model: SeismicModel,
   s: SubprojectView,
-  name: string,
-  id: string,
   mark: Mark,
   readAt: string | undefined,
 ): CellDetail {
-  const cell = cellId(id, s.name);
+  const name = WHO;
+  const key = templateKey(s.name, mark);
   const title = `${name} → ${s.name}`;
   const read = readAt ? ` · read ${readAt}` : "";
   if (mark === "?") {
     const unread = [s.admins, s.viewers].find((r) => r.kind === "unread");
     const reason = unread?.kind === "unread" ? unread.reason : "not read";
     return {
-      id: cell,
+      key,
       eyebrow: "not measured",
       title,
       state: "group not read",
@@ -159,10 +163,10 @@ function detailOf(
   }
   if (mark === "·") {
     return {
-      id: cell,
+      key,
       eyebrow: "no configured grant",
       title,
-      state: NO_GRANT,
+      state: "neither group lists them",
       tone: "neutral",
       path: [name, s.name],
       text: `Neither ${s.name} group lists ${name}. Grant from the inspector if they need it.`,
@@ -172,7 +176,7 @@ function detailOf(
   const groupLabel = `${s.name} ${mark.startsWith("A") ? "admin" : "viewer"} group`;
   const unusableMark = mark.endsWith("!");
   return {
-    id: cell,
+    key,
     eyebrow: unusableMark ? "configured, unusable" : "configured",
     title,
     state: unusableMark
@@ -187,14 +191,9 @@ function detailOf(
   };
 }
 
-function sharedDetail(
-  model: SeismicModel,
-  shared: string[],
-  p: Identity | undefined,
-  name: string,
-  id: string,
-): CellDetail {
-  const mark = sharedMark(p);
+function sharedDetail(model: SeismicModel, shared: string[], mark: Mark): CellDetail {
+  const name = WHO;
+  const key = templateKey(SHARED, mark);
   const groups = [
     ...new Set(
       model.subprojects
@@ -207,7 +206,7 @@ function sharedDetail(
   const title = `${name} → ${listOf(shared)}`;
   if (mark === "·") {
     return {
-      id: cellId(id, SHARED),
+      key,
       eyebrow: "no configured reach",
       title,
       state: "no data role",
@@ -217,12 +216,12 @@ function sharedDetail(
     };
   }
   return {
-    id: cellId(id, SHARED),
+    key,
     eyebrow: mark === "D" ? "default" : "default, not usable yet",
     title,
     state: mark === "D" ? "default data group" : "would reach once instance access works",
     tone: mark === "D" ? "ok" : "warn",
-    path: [name, `${p?.role} role`, groups.join(", ") || "data.default", listOf(shared)],
+    path: [name, "data role", groups.join(", ") || "data.default", listOf(shared)],
     text:
       mark === "D"
         ? "No explicit grant; reach comes with the data role."
@@ -282,7 +281,7 @@ export function seismicMatrix(i: BriefInputs): Matrix | undefined {
   const empty = model.subprojects.filter((s) => s.empty).map((s) => s.name);
   const readAt = stampText(i.signals.find((x) => x.area === "seismic")?.at, i.now);
   const rows: MatrixRow[] = [];
-  const details: CellDetail[] = [];
+  const templates = new Map<string, CellDetail>();
   const holders = Object.entries(model.grants)
     .map(([id, grants]) => ({ id, grants, m: model.members[id] }))
     .filter((x): x is { id: string; grants: typeof x.grants; m: Member } =>
@@ -294,13 +293,16 @@ export function seismicMatrix(i: BriefInputs): Matrix | undefined {
     const name = m.you ? `${m.name} (you)` : m.name;
     const cells: MatrixCell[] = [];
     if (shared.length > 0) {
-      cells.push({ id: cellId(id, SHARED), column: SHARED, mark: sharedMark(p) });
-      details.push(sharedDetail(model, shared, p, m.name, id));
+      const mark = sharedMark(p);
+      cells.push({ id: cellId(id, SHARED), column: SHARED, mark });
+      const key = templateKey(SHARED, mark);
+      if (!templates.has(key)) templates.set(key, sharedDetail(model, shared, mark));
     }
     for (const s of columns) {
       const mark = markOf(s, id, c);
       cells.push({ id: cellId(id, s.name), column: s.name, mark });
-      details.push(detailOf(i, model, s, m.name, id, mark, readAt));
+      const key = templateKey(s.name, mark);
+      if (!templates.has(key)) templates.set(key, detailOf(model, s, mark, readAt));
     }
     rows.push({
       id,
@@ -354,7 +356,7 @@ export function seismicMatrix(i: BriefInputs): Matrix | undefined {
     })),
     shared,
     rows,
-    details,
+    templates: [...templates.values()],
     notes,
     ...(readAt ? { readAt } : {}),
   };
@@ -373,3 +375,19 @@ export const MARK_LEGEND: readonly [Mark, string][] = [
   ["V!", "grant without instance access"],
   ["D*", "default reach, not usable yet"],
 ];
+
+// The matrix's place when it is too large for the console frame.
+export function matrixSummary(m: Matrix): {
+  text: string;
+  columns: { column: MatrixColumn; text: string }[];
+} {
+  const count = (name: string, role: "A" | "V") =>
+    m.rows.filter((r) => r.cells.some((c) => c.column === name && c.mark.includes(role))).length;
+  return {
+    text: `${plural(m.rows.length, "identity holds", "identities hold")} grants, too many to draw as a matrix here. Open a subproject for its members, or a person for their grants.`,
+    columns: m.columns.map((column) => ({
+      column,
+      text: `${plural(count(column.name, "A"), "admin", "admins")} · ${plural(count(column.name, "V"), "viewer", "viewers")}${column.unread ? " · a group not read" : ""}`,
+    })),
+  };
+}
