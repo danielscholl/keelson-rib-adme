@@ -10,46 +10,17 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Profile } from "../profile.ts";
 
 export const PLAN_TTL_MS = 30 * 60_000;
-export const REPLICATION_WAIT_MS = 10_000;
 
-export type PlanKind =
-  | "add-people"
-  | "add-app"
-  | "fix-users"
-  | "cleanup-duplicate"
-  | "remove-person"
-  | "resend-invite"
-  | "seismic-grant"
-  | "seismic-revoke"
-  | "seismic-copy";
-
-export type Classification =
-  | "will-invite"
-  | "existing-guest"
-  | "existing-member"
-  | "restorable"
-  | "ambiguous"
-  | "same-identity"
-  | "has-access"
-  | "application";
+export type PlanKind = "seismic-grant" | "seismic-revoke";
 
 export interface Call {
-  service: "graph" | "entitlements";
+  service: "entitlements";
   method: "GET" | "POST" | "DELETE";
-  // `{oid}` stands for an object id the plan only learns when an invitation returns.
   path: string;
   body?: unknown;
 }
 
-export type StepKind =
-  | "invite"
-  | "restore"
-  | "wait"
-  | "roster-add"
-  | "roster-remove"
-  | "member-add"
-  | "member-remove"
-  | "verify";
+export type StepKind = "member-add" | "member-remove" | "verify";
 
 export interface Step {
   n: number;
@@ -62,23 +33,15 @@ export interface Step {
   // True already at dry run; Apply skips it, and a 409 lands here too.
   already?: boolean;
   expect?: number;
-  waitMs?: number;
 }
 
 export interface Subject {
   address: string;
-  classification: Classification;
   oid?: string;
   name?: string;
   blocked: boolean;
   reason?: string;
   steps: Step[];
-  footnote?: string;
-}
-
-export interface Excluded {
-  address: string;
-  reason: string;
 }
 
 export interface Binding {
@@ -97,7 +60,6 @@ export interface Plan {
   // What the operator asked for, so Recheck and Apply can rebuild the dry run.
   inputs: Record<string, unknown>;
   subjects: Subject[];
-  excluded: Excluded[];
   hash: string;
 }
 
@@ -127,10 +89,8 @@ export function planHash(plan: Omit<Plan, "hash" | "id" | "createdAt" | "expires
     kind: plan.kind,
     binding: plan.binding,
     inputs: plan.inputs,
-    excluded: plan.excluded,
     subjects: plan.subjects.map((s) => ({
       address: s.address,
-      classification: s.classification,
       oid: s.oid ?? null,
       blocked: s.blocked,
       steps: s.steps.map((t) => ({
@@ -199,12 +159,10 @@ function csv(value: unknown): string {
 }
 
 export function dryRunCsv(plan: Plan): string {
-  const lines = ["plan,step,subject,classification,call,change,already_true,blocked,note"];
+  const lines = ["plan,step,subject,call,change,already_true,blocked,note"];
   for (const s of plan.subjects) {
     if (s.blocked) {
-      lines.push(
-        [plan.id, "", s.address, s.classification, "", "", "", "yes", s.reason].map(csv).join(","),
-      );
+      lines.push([plan.id, "", s.address, "", "", "", "yes", s.reason].map(csv).join(","));
       continue;
     }
     for (const t of s.steps) {
@@ -214,7 +172,6 @@ export function dryRunCsv(plan: Plan): string {
           plan.id,
           t.n,
           s.address,
-          s.classification,
           call,
           t.change ? "yes" : "no",
           t.already ? "yes" : "no",
@@ -225,11 +182,6 @@ export function dryRunCsv(plan: Plan): string {
           .join(","),
       );
     }
-  }
-  for (const e of plan.excluded) {
-    lines.push(
-      [plan.id, "", e.address, "excluded", "", "", "", "yes", e.reason].map(csv).join(","),
-    );
   }
   return `${lines.join("\n")}\n`;
 }

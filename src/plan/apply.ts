@@ -8,11 +8,9 @@
 
 import type { OpHandle } from "@keelson/shared";
 import { z } from "zod";
-import { measuredAccess } from "../boards/access.ts";
 import type { Batch, CallResult } from "../client.ts";
 import { COHORTS_KEY, OPERATION_KEY, PERSON_KEY, PLAN_KEY, RECENT_KEY } from "../keys.ts";
 import { measureSeismic } from "../modules/seismic.ts";
-import { shortId } from "../profile.ts";
 import type { Runtime } from "../runtime.ts";
 import { buildPlan, type PlanInputs } from "./build.ts";
 import { correlationId, isExpired, type Plan, type Step } from "./model.ts";
@@ -27,7 +25,7 @@ export type StepState =
   | "mismatch"
   | "skipped";
 
-export type OpStatus = "running" | "paused" | "halted" | "aborted" | "failed" | "done";
+export type OpStatus = "running" | "paused" | "aborted" | "failed" | "done";
 
 export interface OpStep {
   n: number;
@@ -46,15 +44,11 @@ export interface Operation {
   reason?: string;
   // Step 0 is the re-run of the dry run; the rest are the plan's step lines.
   steps: OpStep[];
-  // Object ids learned from invitations, by subject address.
-  oids: Record<string, string>;
   plan: Plan;
 }
 
 const OP_FILE = "operation.json";
 const ACCESS_KEYS = [COHORTS_KEY, PERSON_KEY];
-// An account created this long before Apply started is not one this plan invited.
-const NEW_ACCOUNT_SLACK_MS = 5 * 60_000;
 
 interface ExecState {
   op?: Operation;
@@ -139,9 +133,6 @@ export function startApply(rt: Runtime, plan: Plan): ApplyResult {
     status: "running",
     startedAt: rt.now().toISOString(),
     steps: initialSteps(plan),
-    oids: Object.fromEntries(
-      plan.subjects.filter((x) => x.oid).map((x) => [x.address, x.oid as string]),
-    ),
     plan,
   };
   s.op = op;
@@ -250,10 +241,10 @@ async function recheck(rt: Runtime, s: ExecState, op: Operation): Promise<boolea
   return true;
 }
 
-function planStep(op: Operation, n: number): { step: Step; subject: string } | undefined {
+function planStep(op: Operation, n: number): Step | undefined {
   for (const s of op.plan.subjects) {
     const step = s.steps.find((t) => t.n === n);
-    if (step) return { step, subject: s.address };
+    if (step) return step;
   }
   return undefined;
 }
@@ -270,7 +261,7 @@ async function runSteps(rt: Runtime, s: ExecState, op: Operation): Promise<void>
     line.state = "running";
     save(rt, op);
     s.handle?.progress(`step ${line.n}: ${line.text}`);
-    const outcome = await runStep(rt, op, found.step, found.subject);
+    const outcome = await runStep(rt, op, found);
     if (outcome.kind === "ok") {
       line.state = outcome.state;
       if (outcome.note) line.note = outcome.note;
@@ -284,7 +275,7 @@ async function runSteps(rt: Runtime, s: ExecState, op: Operation): Promise<void>
     line.state = "failed";
     line.note = outcome.reason;
     for (const rest of op.steps) if (rest.state === "queued") rest.state = "skipped";
-    finish(rt, s, outcome.kind === "halt" ? "halted" : "failed", outcome.reason);
+    finish(rt, s, "failed", outcome.reason);
     return;
   }
   finish(rt, s, "done");
@@ -293,41 +284,19 @@ async function runSteps(rt: Runtime, s: ExecState, op: Operation): Promise<void>
 type Outcome =
   | { kind: "ok"; state: StepState; note?: string }
   | { kind: "pause"; reason: string }
-  | { kind: "halt"; reason: string }
   | { kind: "fail"; reason: string };
 
-function substitute(value: unknown, oid: string | undefined): unknown {
-  if (oid === undefined) return value;
-  return JSON.parse(JSON.stringify(value ?? null).replaceAll("{oid}", oid));
-}
-
-async function runStep(rt: Runtime, op: Operation, step: Step, subject: string): Promise<Outcome> {
-  if (step.kind === "wait") {
-    await rt.sleep(step.waitMs ?? 0);
-    return { kind: "ok", state: "done" };
-  }
+async function runStep(rt: Runtime, op: Operation, step: Step): Promise<Outcome> {
   const call = step.call;
   if (!call) return { kind: "ok", state: "done" };
-  const oid = op.oids[subject];
-  if (call.path.includes("{oid}") && !oid) {
-    return {
-      kind: "fail",
-      reason: "the object id is not known; the invitation did not return one",
-    };
-  }
-  const path = call.path.replaceAll("{oid}", oid ?? "");
-  const body = call.body === undefined ? undefined : substitute(call.body, oid);
   const res = await rt.run<unknown>((b: Batch) =>
-    call.service === "graph"
-      ? b.graph(path, { method: call.method, ...(body !== undefined ? { body } : {}) })
-      : b.adme("entitlements", path, {
-          method: call.method,
-          ...(body !== undefined ? { body } : {}),
-          correlationId: correlationId(op.plan, step),
-        }),
+    b.adme(call.service, call.path, {
+      method: call.method,
+      ...(call.body !== undefined ? { body: call.body } : {}),
+      correlationId: correlationId(op.plan, step),
+    }),
   );
   if (!res.ok) return failure(step, res);
-  if (step.kind === "invite") return afterInvite(rt, op, subject, res.data);
   if (step.kind === "verify") return verified(step, res.data);
   return { kind: "ok", state: "done" };
 }
@@ -335,10 +304,7 @@ async function runStep(rt: Runtime, op: Operation, step: Step, subject: string):
 function failure(step: Step, res: Extract<CallResult<unknown>, { ok: false }>): Outcome {
   const f = res.failure;
   if (f.kind === "conflict") return { kind: "ok", state: "already", note: "409, already true" };
-  if (step.kind === "roster-add" && f.status === 400 && /already exist/i.test(f.message)) {
-    return { kind: "ok", state: "already", note: "already in the roster group" };
-  }
-  if ((step.kind === "member-remove" || step.kind === "roster-remove") && f.kind === "not-found") {
+  if (step.kind === "member-remove" && f.kind === "not-found") {
     return { kind: "ok", state: "already", note: "404, already gone" };
   }
   if (f.kind === "signin") {
@@ -348,57 +314,6 @@ function failure(step: Step, res: Extract<CallResult<unknown>, { ok: false }>): 
     return { kind: "pause", reason: `the service did not answer at step ${step.n} (${f.message})` };
   }
   return { kind: "fail", reason: `${f.status ?? f.kind}: ${f.message}` };
-}
-
-interface Invited {
-  invitedUser?: { id?: string };
-}
-
-// An invitation to a new address can resolve to an existing guest and return that guest's id.
-async function afterInvite(
-  rt: Runtime,
-  op: Operation,
-  subject: string,
-  data: unknown,
-): Promise<Outcome> {
-  const id = (data as Invited | undefined)?.invitedUser?.id?.toLowerCase();
-  if (!id) return { kind: "halt", reason: "the invitation returned no object id" };
-  const expected = op.plan.subjects.find((x) => x.address === subject)?.oid;
-  if (expected) {
-    return id === expected
-      ? { kind: "ok", state: "done", note: "invitation sent again" }
-      : {
-          kind: "halt",
-          reason: `the invitation for ${subject} returned another account (${shortId(id)}), not ${shortId(expected)}`,
-        };
-  }
-  const model = measuredAccess(rt)?.model;
-  const known = [...(model?.people ?? []), ...(model?.apps ?? []), ...(model?.unknown ?? [])].find(
-    (x) => x.id === id,
-  );
-  if (known) {
-    return {
-      kind: "halt",
-      reason: `the invitation for ${subject} returned ${known.name}'s account (${shortId(id)}); nothing more was written`,
-    };
-  }
-  const user = await rt.run<{ createdDateTime?: string; displayName?: string }>((b) =>
-    b.graph(`/v1.0/users/${id}?$select=id,displayName,createdDateTime`),
-  );
-  if (!user.ok)
-    return {
-      kind: "halt",
-      reason: `the invited account could not be checked: ${user.failure.message}`,
-    };
-  const created = user.data.createdDateTime ? Date.parse(user.data.createdDateTime) : Number.NaN;
-  if (Number.isFinite(created) && created < Date.parse(op.startedAt) - NEW_ACCOUNT_SLACK_MS) {
-    return {
-      kind: "halt",
-      reason: `the invitation for ${subject} returned an existing account, ${user.data.displayName ?? shortId(id)} (${shortId(id)}), created ${user.data.createdDateTime?.slice(0, 10)}; nothing more was written`,
-    };
-  }
-  op.oids[subject] = id;
-  return { kind: "ok", state: "done", note: `invited, ${shortId(id)}` };
 }
 
 function verified(step: Step, data: unknown): Outcome {
@@ -446,18 +361,13 @@ function finish(rt: Runtime, s: ExecState, status: OpStatus, reason?: string): v
       text: `${capital(op.title)}${mismatches.length > 0 ? `, ${mismatches.length} verify mismatch` : ""}`,
     });
     for (const subject of subjects) {
-      const who = op.oids[subject] ?? op.plan.subjects.find((x) => x.address === subject)?.oid;
+      const who = op.plan.subjects.find((x) => x.address === subject)?.oid;
       events.push({
         kind: "applied",
         plan: op.planId,
         text: `Plan ${op.planId}: ${op.title}`,
         ...(who ? { who } : {}),
       });
-    }
-    const inputs = inputsOf(op.plan);
-    if (inputs.kind === "add-people" && inputs.cohort) {
-      const added = op.plan.subjects.filter((x) => !x.blocked).map((x) => x.address);
-      rt.tracker.assign(added, inputs.cohort, inputs.passEnds);
     }
   } else {
     events.push({
@@ -467,7 +377,7 @@ function finish(rt: Runtime, s: ExecState, status: OpStatus, reason?: string): v
     });
   }
   rt.tracker.record(events.reverse(), rt.now());
-  if (status === "done" || status === "halted" || status === "failed") {
+  if (status === "done" || status === "failed") {
     s.handle?.[status === "done" ? "done" : "error"](reason ?? `plan ${op.planId} applied`);
   } else if (status === "aborted") {
     s.handle?.error(reason ?? "aborted");
@@ -478,6 +388,6 @@ function finish(rt: Runtime, s: ExecState, status: OpStatus, reason?: string): v
     rt.sweep()
       .then(() => rt.recompose(ACCESS_KEYS))
       .catch(() => undefined);
-    if (op.plan.kind.startsWith("seismic-")) measureSeismic(rt).catch(() => undefined);
+    measureSeismic(rt).catch(() => undefined);
   }
 }

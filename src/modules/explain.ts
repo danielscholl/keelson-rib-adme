@@ -9,8 +9,7 @@
 import { cachedGroups, type Evidence, explain, recordExplanation } from "../access/explain.ts";
 import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { measuredAccess } from "../boards/access.ts";
-import { EXPLAIN_ACTION } from "../boards/change.ts";
-import { composeExplain } from "../boards/explain.ts";
+import { composeExplain, EXPLAIN_ACTION } from "../boards/explain.ts";
 import { EXPLAIN_KEY } from "../keys.ts";
 import { bindingOf, sameBinding } from "../plan/model.ts";
 import type { RegionModule } from "../region.ts";

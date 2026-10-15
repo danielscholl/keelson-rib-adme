@@ -14,10 +14,12 @@ import { isDefaultGroup } from "../seismic/read.ts";
 import type { DraftSubject } from "./model.ts";
 import { type SeismicChange, seismicGrantSteps, seismicRevokeSteps } from "./steps.ts";
 
-export type SeismicInputs =
-  | { kind: "seismic-grant"; id: string; subproject: string; role: SeisRole }
-  | { kind: "seismic-revoke"; id: string; subproject: string; role: SeisRole }
-  | { kind: "seismic-copy"; from: string; to: string };
+export interface SeismicInputs {
+  kind: "seismic-grant" | "seismic-revoke";
+  id: string;
+  subproject: string;
+  role: SeisRole;
+}
 
 export interface SeismicPlanContext {
   model: AccessModel | undefined;
@@ -105,7 +107,6 @@ function personOf(ctx: SeismicPlanContext, id: string): Identity | string {
 function subjectOf(person: Identity): Omit<DraftSubject, "steps" | "blocked"> {
   return {
     address: person.email ?? person.id,
-    classification: "has-access",
     oid: person.id,
     name: person.name,
   };
@@ -154,7 +155,7 @@ function revokeNote(
 
 async function grantOrRevoke(
   batch: Batch,
-  inputs: Extract<SeismicInputs, { subproject: string }>,
+  inputs: SeismicInputs,
   ctx: SeismicPlanContext,
   seismic: SeismicModel,
 ): Promise<CallResult<SeismicDraft>> {
@@ -199,54 +200,6 @@ async function grantOrRevoke(
   });
 }
 
-async function copy(
-  batch: Batch,
-  inputs: Extract<SeismicInputs, { kind: "seismic-copy" }>,
-  ctx: SeismicPlanContext,
-  seismic: SeismicModel,
-): Promise<CallResult<SeismicDraft>> {
-  if (inputs.from === inputs.to) return fail("Pick two different people.");
-  const from = personOf(ctx, inputs.from);
-  if (typeof from === "string") return fail(from);
-  const to = personOf(ctx, inputs.to);
-  if (typeof to === "string") return fail(to);
-  const cover = coverage(seismic);
-  const source = await effectiveGroups(batch, from.id);
-  if (!source.ok) return source;
-  const target = await effectiveGroups(batch, to.id);
-  if (!target.ok) return target;
-  const roleOf = new Map<string, SeisRole>();
-  for (const s of seismic.subprojects) {
-    for (const g of s.adminGroups) roleOf.set(g, "admin");
-    for (const g of s.viewerGroups) if (!roleOf.has(g)) roleOf.set(g, "viewer");
-  }
-  const groups = [...cover.keys()].filter((g) => source.data.emails.has(g));
-  if (groups.length === 0) return fail(`${from.name} holds no seismic grant to copy.`);
-  const changes = groups.map((group) => ({ group, held: target.data.emails.has(group) }));
-  const label = (g: string) => `${andList(cover.get(g) ?? [])} ${roleOf.get(g)}`;
-  const adds = changes.filter((c) => !c.held).map((c) => label(c.group));
-  const kept = changes.filter((c) => c.held).map((c) => label(c.group));
-  const notes = [
-    `Copies ${from.name}'s grants: ${andList(groups.map(label))}.`,
-    ...(kept.length > 0 ? [`${to.name} already holds ${andList(kept)}.`] : []),
-    ...(adds.length > 0 ? [] : ["Nothing to add."]),
-    ...(seismic.subprojects.some((s) => s.acl === "default")
-      ? ["Reach through data.default comes with the data role and is not copied."]
-      : []),
-  ];
-  return ok({
-    title: `copy ${from.name}'s seismic grants to ${to.name}`,
-    subjects: [
-      {
-        ...subjectOf(to),
-        blocked: false,
-        reason: notes.join(" "),
-        steps: seismicGrantSteps(subjectOf(to).address, to.id, changes, target.data.count),
-      },
-    ],
-  });
-}
-
 export function seismicPlan(
   batch: Batch,
   inputs: SeismicInputs,
@@ -254,9 +207,7 @@ export function seismicPlan(
 ): Promise<CallResult<SeismicDraft>> {
   const seismic = ctx.seismic;
   if (!seismic) {
-    return Promise.resolve(fail("Seismic subprojects are not read yet. Open the Seismic section."));
+    return Promise.resolve(fail("Seismic subprojects are not read yet. Refresh now."));
   }
-  return inputs.kind === "seismic-copy"
-    ? copy(batch, inputs, ctx, seismic)
-    : grantOrRevoke(batch, inputs, ctx, seismic);
+  return grantOrRevoke(batch, inputs, ctx, seismic);
 }

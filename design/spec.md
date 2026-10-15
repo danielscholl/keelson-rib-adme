@@ -1,5 +1,9 @@
 # keelson-rib-adme: design specification
 
+> The three sections were replaced by one console ([console.md](console.md)),
+> and the only writes left are seismic grant and revoke. The access change
+> forms, invitations and the plans behind them described here are not built.
+
 This is the screen-by-screen specification for the first take of the rib. The mockup in [adme-access-desk.html](adme-access-desk.html) draws what is written here, and the screenshots in [screens/](screens/) are taken from it. Where this document and the mockup disagree, treat it as a bug in one of them and fix it; neither is meant to override the other.
 
 Nothing is built yet and nothing was called live. Every name, count and id is sample data.

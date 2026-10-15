@@ -8,7 +8,6 @@
 
 import type { CanvasActionItem, CanvasBoardView, RibActionResult } from "@keelson/shared";
 import { measuredAccess } from "../access/measured.ts";
-import { EXPLAIN_ACTION } from "../boards/change.ts";
 import { SIGNIN_REASON } from "../boards/connection.ts";
 import {
   COHORTS_ID,
@@ -19,6 +18,7 @@ import {
 } from "../boards/console.ts";
 import { dataTab, FIND_ID } from "../boards/console-data.ts";
 import { seismicTab } from "../boards/console-seismic.ts";
+import { EXPLAIN_ACTION } from "../boards/explain.ts";
 import {
   ANNOTATE_ACTION,
   annotateForm,

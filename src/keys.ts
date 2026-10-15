@@ -20,8 +20,6 @@ export const INSPECT_KEY = "rib:adme:inspect";
 export const OPERATION_KEY = "rib:adme:operation";
 export const RECENT_KEY = "rib:adme:recent";
 export const MAP_KEY = "rib:adme:map";
-// Access change forms, composed but not placed in the layout.
-export const CHANGE_KEY = "rib:adme:change";
 
 // Drawer inspectors: no region, opened in the canvas drawer.
 export const CONNECTION_KEY = "rib:adme:connection";
@@ -37,7 +35,6 @@ export const BOARD_KEYS = [
   OPERATION_KEY,
   RECENT_KEY,
   MAP_KEY,
-  CHANGE_KEY,
   CONNECTION_KEY,
   PERSON_KEY,
   PLAN_KEY,

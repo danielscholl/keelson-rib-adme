@@ -39,7 +39,6 @@ export const SEIS_READ_ACTION = "seis-read";
 export const SEIS_SELECT_ACTION = "seis-select";
 export const PREVIEW_SEIS_GRANT_ACTION = "preview-seismic-grant";
 export const PREVIEW_SEIS_REVOKE_ACTION = "preview-seismic-revoke";
-export const PREVIEW_SEIS_COPY_ACTION = "preview-seismic-copy";
 export const PREVIEW_SEIS_SELF_ACTION = "preview-seismic-add-self";
 
 export const SEIS_ROLE_OPTIONS = [
@@ -74,15 +73,6 @@ export function measuredSeismic(rt: Runtime): MeasuredSeismic | undefined {
   }
   const model = seismicModelOf(rt);
   return model ? { model, counts: countSeismic(model) } : undefined;
-}
-
-// Own-ACL subprojects a person can be granted on, for a select; empty before the store is read.
-export function grantableSubprojects(rt: Runtime): { value: string; label: string }[] {
-  const measured = measuredSeismic(rt);
-  if (!measured) return [];
-  return displayOrder(measured.model)
-    .filter((s) => s.acl === "own")
-    .map((s) => ({ value: s.name, label: s.name }));
 }
 
 export function selectedSubproject(rt: Runtime, model: SeismicModel): SubprojectView | undefined {

@@ -6,18 +6,11 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import type { CanvasActionItem, CanvasBoardView, CanvasTone } from "@keelson/shared";
+import type { CanvasActionItem, CanvasBoardView } from "@keelson/shared";
 import { briefInputs } from "../brief/inputs.ts";
 import { peopleRows } from "../brief/people.ts";
 import { currentOperation, isActive } from "../plan/apply.ts";
-import {
-  type Classification,
-  isExpired,
-  type Plan,
-  type PlanKind,
-  planStats,
-  type Subject,
-} from "../plan/model.ts";
+import { isExpired, type Plan, type PlanKind, planStats, type Subject } from "../plan/model.ts";
 import { coverage } from "../plan/seismic.ts";
 import { inputsOf, planState } from "../plan/state.ts";
 import { shortSeismicGroup } from "../plan/steps.ts";
@@ -36,46 +29,7 @@ export const RECHECK_PLAN_ACTION = "recheck-plan";
 export const DISCARD_PLAN_ACTION = "discard-plan";
 export const EXPORT_PLAN_ACTION = "export-dry-run";
 
-const PILL: Record<Classification, { label: string; tone: CanvasTone }> = {
-  "will-invite": { label: "will invite", tone: "info" },
-  "existing-guest": { label: "existing guest", tone: "neutral" },
-  "existing-member": { label: "existing member", tone: "neutral" },
-  restorable: { label: "restore", tone: "info" },
-  ambiguous: { label: "ambiguous", tone: "warn" },
-  "same-identity": { label: "existing guest", tone: "warn" },
-  "has-access": { label: "has access", tone: "neutral" },
-  application: { label: "application", tone: "neutral" },
-};
-
 const JOURNEY: Record<PlanKind, { title: string; text?: string }[]> = {
-  "add-people": [
-    {
-      title: "Resolve identity",
-      text: "By mail, other mails and deleted users, before any invite",
-    },
-    { title: "Invite or reuse", text: "An invite to a known identity halts the plan" },
-    { title: "Roster group" },
-    { title: "Entitlements", text: "users@ and the role group, by object id" },
-    { title: "Verify", text: "Effective groups against the expected count" },
-  ],
-  "add-app": [
-    { title: "Entitlements", text: "users@ and the role group, by app id" },
-    { title: "Verify" },
-  ],
-  "fix-users": [{ title: "Add to users@" }, { title: "Verify" }],
-  "cleanup-duplicate": [
-    { title: "Remove the entry by email", text: "The entry by object id stays" },
-    { title: "Verify" },
-  ],
-  "remove-person": [
-    { title: "Role groups" },
-    { title: "users@" },
-    { title: "Roster group", text: "The Entra guest account is kept" },
-  ],
-  "resend-invite": [
-    { title: "Resend the invitation", text: "Graph sends a new invitation email" },
-    { title: "Check the returned id", text: "Any id but the person's own halts the plan" },
-  ],
   "seismic-grant": [
     {
       title: "Subproject ACL group",
@@ -87,10 +41,6 @@ const JOURNEY: Record<PlanKind, { title: string; text?: string }[]> = {
     { title: "Subproject ACL group", text: "Reach through data.default is not touched" },
     { title: "Verify", text: "Effective groups, one fewer than before" },
   ],
-  "seismic-copy": [
-    { title: "Each ACL group the source holds", text: "Groups already held count as already true" },
-    { title: "Verify", text: "Effective groups against the count plus the adds" },
-  ],
 };
 
 function minutesLeft(plan: Plan, now: Date): number {
@@ -98,12 +48,10 @@ function minutesLeft(plan: Plan, now: Date): number {
 }
 
 function stepCard(s: Subject): Card {
-  const pill = PILL[s.classification];
   const title = s.name && s.name !== s.address ? `${s.address} · ${s.name}` : s.address;
   return {
     title,
     mono: true,
-    pill,
     ...(s.blocked ? { edge: "warn" as const } : {}),
     ...(s.steps.length > 0
       ? {
@@ -115,21 +63,13 @@ function stepCard(s: Subject): Card {
           })),
         }
       : {}),
-    ...(s.footnote ? { footnote: s.footnote } : {}),
     ...(s.reason ? { reason: { label: s.blocked ? "Blocked" : "Note", text: s.reason } } : {}),
   };
 }
 
 function peopleSub(plan: Plan): string {
   const inputs = inputsOf(plan);
-  if (inputs.kind === "add-people") {
-    return [inputs.role, inputs.cohort].filter(Boolean).join(" · ");
-  }
-  if (inputs.kind === "add-app") return `${inputs.role} · application`;
-  if (inputs.kind === "seismic-grant" || inputs.kind === "seismic-revoke") {
-    return `${inputs.role} · ${inputs.subproject}`;
-  }
-  return plan.subjects[0]?.name ?? "";
+  return `${inputs.role} · ${inputs.subproject}`;
 }
 
 function stats(plan: Plan): Section {
@@ -145,7 +85,7 @@ function stats(plan: Plan): Section {
       {
         label: "Will change",
         value: st.willChange,
-        sub: only ? `all for ${only}` : "membership writes and invites",
+        sub: only ? `all for ${only}` : "membership writes",
       },
       { label: "Already true", value: st.alreadyTrue, sub: "a 409 on apply counts here" },
       {
@@ -155,7 +95,7 @@ function stats(plan: Plan): Section {
         sub: st.blocked > 0 ? "nothing is written for these" : "none",
       },
       {
-        label: plan.kind === "add-app" ? "Applications" : "People",
+        label: "People",
         value: st.subjects,
         sub: peopleSub(plan),
       },
@@ -163,29 +103,20 @@ function stats(plan: Plan): Section {
   };
 }
 
-function excludedRows(plan: Plan): Section | undefined {
-  const items = [
-    ...plan.subjects
-      .filter((s) => s.blocked)
-      .map((s) => ({
-        chip: { label: "blocked", tone: "warn" as const },
-        text: s.address,
-        trailing: s.reason ?? "",
-      })),
-    ...plan.excluded.map((e) => ({
-      chip: { label: "excluded", tone: "neutral" as const },
-      text: e.address,
-      trailing: e.reason,
-    })),
-  ];
-  return items.length > 0
-    ? { kind: "rows", title: `Protected or excluded · ${items.length}`, items }
-    : undefined;
+function blockedRows(plan: Plan): Section | undefined {
+  const items = plan.subjects
+    .filter((s) => s.blocked)
+    .map((s) => ({
+      chip: { label: "blocked", tone: "warn" as const },
+      text: s.address,
+      trailing: s.reason ?? "",
+    }));
+  return items.length > 0 ? { kind: "rows", title: `Blocked · ${items.length}`, items } : undefined;
 }
 
 function dryRunCard(plan: Plan): Section {
   const lines = plan.subjects.reduce((n, s) => n + s.steps.length, 0);
-  const blocked = plan.subjects.filter((s) => s.blocked).length + plan.excluded.length;
+  const blocked = plan.subjects.filter((s) => s.blocked).length;
   return {
     kind: "cards",
     boxed: true,
@@ -205,35 +136,11 @@ function dryRunCard(plan: Plan): Section {
   };
 }
 
-const REMOVALS: readonly PlanKind[] = ["remove-person", "cleanup-duplicate", "seismic-revoke"];
-
-function removalText(plan: Plan, subject: string, writes: number): { title: string; body: string } {
-  const inputs = inputsOf(plan);
-  if (inputs.kind === "seismic-revoke") {
-    return {
-      title: `Revoke ${subject}`,
-      body: `Removes ${subject} from the ${inputs.role} group of ${inputs.subproject}. ${plan.subjects[0]?.reason ?? ""}`.trim(),
-    };
-  }
-  if (plan.kind === "remove-person") {
-    return {
-      title: `Remove ${subject}`,
-      body: `Removes ${subject} from ${writes} membership${writes === 1 ? "" : "s"}. The Entra guest account is kept, so they can be added again.`,
-    };
-  }
-  return {
-    title: `Clean up ${subject}`,
-    body: `Removes the second member entry for ${subject}. The entry by object id stays.`,
-  };
-}
-
 function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
   const label = `Apply ${changes} change${changes === 1 ? "" : "s"}`;
-  const invites = plan.subjects
-    .flatMap((s) => (s.blocked ? [] : s.steps))
-    .filter((t) => t.kind === "invite" && !t.already).length;
-  const writes = changes - invites;
-  if (REMOVALS.includes(plan.kind)) {
+  const inputs = inputsOf(plan);
+  const reason = plan.subjects[0]?.reason;
+  if (inputs.kind === "seismic-revoke") {
     const subject = plan.subjects[0]?.name ?? plan.subjects[0]?.address ?? plan.id;
     return {
       destructive: true,
@@ -241,23 +148,17 @@ function confirmFor(plan: Plan, changes: number): Partial<CanvasActionItem> {
       confirm: {
         irreversible: true,
         subject,
-        ...removalText(plan, subject, writes),
+        title: `Revoke ${subject}`,
+        body: `Removes ${subject} from the ${inputs.role} group of ${inputs.subproject}. ${reason ?? ""}`.trim(),
         confirmLabel: label,
       },
     };
   }
-  const inputs = inputsOf(plan);
   const who = plan.subjects[0]?.name ?? plan.subjects[0]?.address;
   const parts = [
-    ...(inputs.kind === "seismic-grant" && who
-      ? [`Adds ${who} to the ${inputs.role} group of ${inputs.subproject}.`]
-      : []),
-    ...(inputs.kind === "seismic-copy" && who ? [`Copies seismic grants to ${who}.`] : []),
-    ...(plan.kind.startsWith("seismic") && plan.subjects[0]?.reason
-      ? [plan.subjects[0].reason]
-      : []),
-    ...(invites > 0 ? [`${invites} invitation email${invites === 1 ? " is" : "s are"} sent.`] : []),
-    `${writes} membership write${writes === 1 ? "" : "s"}.`,
+    ...(who ? [`Adds ${who} to the ${inputs.role} group of ${inputs.subproject}.`] : []),
+    ...(reason ? [reason] : []),
+    `${changes} membership write${changes === 1 ? "" : "s"}.`,
     "The dry run is re-checked first.",
   ];
   return { confirm: { title: `${label}?`, body: parts.join(" "), confirmLabel: label } };
@@ -343,7 +244,7 @@ function seismicSections(rt: Runtime, plan: Plan): Section[] {
     touched.set(group, { add: step.kind === "member-add", change: step.change && !step.already });
   }
   if (touched.size === 0) return out;
-  const asked = (plan.inputs as { subproject?: string }).subproject;
+  const asked = inputsOf(plan).subproject;
   const subs = [...new Set([...touched.keys()].flatMap((g) => cover.get(g) ?? []))];
   const current = (sub: string) =>
     new Set((model.grants[id] ?? []).filter((g) => g.subproject === sub).map((g) => g.role));
@@ -391,7 +292,7 @@ export function composePlan(rt: Runtime): CanvasBoardView {
       sections: [
         {
           kind: "rows",
-          items: [{ glyph: "info", text: "Resolving each identity. Nothing is written." }],
+          items: [{ glyph: "info", text: "Reading the person's groups. Nothing is written." }],
         },
       ],
     };
@@ -408,7 +309,7 @@ export function composePlan(rt: Runtime): CanvasBoardView {
             items: [
               {
                 glyph: "neutral",
-                text: "No plan is open. Preview one from Grant or revoke in the Seismic section.",
+                text: "No plan is open. Preview one from a cell in the console's Seismic view.",
               },
             ],
           },
@@ -426,7 +327,7 @@ export function composePlan(rt: Runtime): CanvasBoardView {
   const now = rt.now();
   const expired = isExpired(plan, now);
   const sections: Section[] = [
-    ...(plan.kind.startsWith("seismic") ? seismicSections(rt, plan) : []),
+    ...seismicSections(rt, plan),
     { kind: "journey", title: "What apply does, in order", items: JOURNEY[plan.kind] },
   ];
   if (s.changedFrom) {
@@ -442,11 +343,11 @@ export function composePlan(rt: Runtime): CanvasBoardView {
   }
   if (s.error) sections.push({ kind: "rows", items: [{ glyph: "error", text: s.error }] });
   sections.push(stats(plan));
-  const excluded = excludedRows(plan);
-  if (excluded) sections.push(excluded);
+  const blocked = blockedRows(plan);
+  if (blocked) sections.push(blocked);
   sections.push({
     kind: "cards",
-    title: `Steps per ${plan.kind === "add-app" ? "application" : "person"} · ${plan.subjects.length}`,
+    title: `Steps per person · ${plan.subjects.length}`,
     items: plan.subjects.map(stepCard),
   });
   sections.push(dryRunCard(plan));

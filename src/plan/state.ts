@@ -6,7 +6,6 @@
 //
 //     http://www.apache.org/licenses/LICENSE-2.0
 
-import { ACCESS_AREA, type AccessRead } from "../access/read.ts";
 import { measuredAccess } from "../boards/access.ts";
 import { measuredSeismic } from "../boards/seismic.ts";
 import { PLAN_KEY, RECENT_KEY } from "../keys.ts";
@@ -43,7 +42,6 @@ export function buildContext(rt: Runtime): BuildContext | undefined {
   return {
     profile,
     model: measuredAccess(rt)?.model,
-    closures: rt.cache.get<AccessRead>(ACCESS_AREA).data?.closures,
     seismic: measuredSeismic(rt)?.model,
     now: rt.now(),
   };
