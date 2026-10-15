@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.11.1...v1.12.0) (2026-10-15)
+
+
+### Added
+
+* **console:** fold record-only legal tags into one overview item ([#54](https://github.com/danielscholl/keelson-rib-adme/issues/54)) ([4289d97](https://github.com/danielscholl/keelson-rib-adme/commit/4289d97f06fb41494a123b4c2e0a62f164c16240))
+
 ## [1.11.1](https://github.com/danielscholl/keelson-rib-adme/compare/v1.11.0...v1.11.1) (2026-10-15)
 
 
