@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.13.0...v1.14.0) (2026-10-15)
+
+
+### Added
+
+* **console:** make the ADME tab the console alone ([#63](https://github.com/danielscholl/keelson-rib-adme/issues/63)) ([ad6aa88](https://github.com/danielscholl/keelson-rib-adme/commit/ad6aa88b3489483dc541ef9ceb648bdc2b8f72c8))
+
+
+### Fixed
+
+* **console:** follow the host palette in the console frame ([#62](https://github.com/danielscholl/keelson-rib-adme/issues/62)) ([463bf32](https://github.com/danielscholl/keelson-rib-adme/commit/463bf321073448d1591980643df78e667e638296))
+
 ## [1.13.0](https://github.com/danielscholl/keelson-rib-adme/compare/v1.12.0...v1.13.0) (2026-10-15)
 
 
